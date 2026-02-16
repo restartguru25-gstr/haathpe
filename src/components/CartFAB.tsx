@@ -1,0 +1,28 @@
+import { Link } from "react-router-dom";
+import { ShoppingCart } from "lucide-react";
+import { useApp } from "@/contexts/AppContext";
+import { motion } from "framer-motion";
+
+export default function CartFAB() {
+  const { cartCount } = useApp();
+
+  return (
+    <Link
+      to="/cart"
+      className="fixed bottom-24 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform active:scale-95 md:hidden"
+      style={{ bottom: "calc(5.5rem + env(safe-area-inset-bottom, 0px))" }}
+      aria-label={`Cart${cartCount > 0 ? `, ${cartCount} items` : ""}`}
+    >
+      <ShoppingCart size={24} strokeWidth={2.2} />
+      {cartCount > 0 && (
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground"
+        >
+          {cartCount > 99 ? "99+" : cartCount}
+        </motion.span>
+      )}
+    </Link>
+  );
+}
