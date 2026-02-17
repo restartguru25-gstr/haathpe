@@ -91,9 +91,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
 
     const init = async () => {
       try {
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        if (!url || url === "") {
+          setIsLoading(false);
+          return;
+        }
         const { data: { session: s }, error } = await supabase.auth.getSession();
         if (cancelled) return;
         if (error) {
@@ -122,20 +128,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
-      if (cancelled) return;
-      setSession(s);
-      setUser(s?.user ?? null);
-      try {
-        if (s?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
-          await ensureProfile(s.user);
-        } else {
-          setProfile(null);
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
+    try {
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      if (url && supabase.auth) {
+        const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event, s) => {
+          if (cancelled) return;
+          setSession(s);
+          setUser(s?.user ?? null);
+          try {
+            if (s?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+              await ensureProfile(s.user);
+            } else {
+              setProfile(null);
+            }
+          } finally {
+            if (!cancelled) setIsLoading(false);
+          }
+        });
+        subscription = sub;
       }
-    });
+    } catch {
+      if (!cancelled) setIsLoading(false);
+    }
 
     const timeout = window.setTimeout(() => {
       setIsLoading(false);
@@ -144,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       clearTimeout(timeout);
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, [ensureProfile]);
 
