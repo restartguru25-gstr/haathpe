@@ -1,20 +1,17 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Phone, Mail, ArrowLeft, TestTube, Lock } from "lucide-react";
+import { Phone, Mail, ArrowLeft, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/AuthContext";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { setMyReferrer } from "@/lib/incentives";
-
-// Dummy credentials for testing (dev only)
-const TEST_EMAIL = "test@haathpe.com";
-const TEST_PASSWORD = "Test123!";
 
 type AuthStep = "method" | "phone" | "otp" | "magic" | "sent" | "password";
 
@@ -31,6 +28,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const state = location.state as { next?: string; from?: { pathname?: string } } | null;
   const nextPath = state?.next ?? state?.from?.pathname ?? "/";
@@ -48,6 +46,10 @@ export default function Auth() {
   };
 
   const handlePhoneSubmit = async () => {
+    if (!termsAccepted) {
+      toast.error("Please accept the Terms & Conditions and Privacy Policy to continue.");
+      return;
+    }
     const digits = phone.replace(/\D/g, "");
     if (digits.length !== 10) {
       toast.error("Enter a valid 10-digit Indian phone number");
@@ -111,49 +113,11 @@ export default function Auth() {
     }
   };
 
-  const handleTestLogin = async () => {
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      toast.error("Supabase not configured.");
+  const handleMagicSubmit = async () => {
+    if (!termsAccepted) {
+      toast.error("Please accept the Terms & Conditions and Privacy Policy to continue.");
       return;
     }
-    setLoading(true);
-    try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: TEST_EMAIL,
-        password: TEST_PASSWORD,
-      });
-      if (!signInError) {
-        if (refId) await setMyReferrer(refId);
-        toast.success("Signed in with test account!");
-        navigate(nextPath, { replace: true });
-        return;
-      }
-      if (signInError.message.includes("Invalid login")) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: TEST_EMAIL,
-          password: TEST_PASSWORD,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-        });
-        if (!signUpError) {
-          if (refId) await setMyReferrer(refId);
-          toast.success("Test account created! Signed in.");
-          navigate(nextPath, { replace: true });
-          return;
-        }
-        if (signUpError.message.includes("already been registered")) {
-          toast.error("Test user exists but password may differ. Use: " + TEST_PASSWORD);
-          return;
-        }
-      }
-      toast.error(signInError.message);
-    } catch (e) {
-      toast.error("Test login failed. Try Magic Link.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMagicSubmit = async () => {
     if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
       toast.error("Supabase not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env");
       return;
@@ -187,6 +151,10 @@ export default function Auth() {
   };
 
   const handleEmailPasswordSubmit = async () => {
+    if (!termsAccepted) {
+      toast.error("Please accept the Terms & Conditions and Privacy Policy to continue.");
+      return;
+    }
     if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
       toast.error("Supabase not configured.");
       return;
@@ -248,32 +216,40 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center px-4 py-12 bg-background">
-      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm"
-      >
-        <Link
-          to="/"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+      {/* Decorative top gradient strip */}
+      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" aria-hidden />
+      <div className="flex-1 flex flex-col items-center justify-center w-full px-4 py-10 sm:py-14 relative">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+          className="w-full max-w-md"
         >
-          <ArrowLeft size={16} /> Back to home
-        </Link>
+          <div className="rounded-2xl border-2 border-border/80 bg-card/95 shadow-xl shadow-primary/5 p-6 sm:p-8">
+            <Link
+              to="/"
+              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft size={18} /> Back to home
+            </Link>
 
-        <div className="mb-8 flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground font-brand tracking-widest">
-            h
-          </div>
-          <span className="brand-haathpe text-xl">haathpe</span>
-        </div>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-xl font-bold text-primary-foreground font-brand tracking-widest shadow-lg shadow-primary/25">
+                h
+              </div>
+              <div>
+                <span className="brand-haathpe text-2xl block leading-tight">haathpe</span>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("tagline")}</p>
+              </div>
+            </div>
 
-        <p className="mb-2 text-sm font-medium text-primary">{t("tagline")}</p>
-        <h1 className="mb-2 text-2xl font-extrabold">Sign in / Sign up</h1>
-        <p className="mb-6 text-muted-foreground text-sm">
-          New users: create an account. Existing: sign in. Phone OTP, magic link, or email &amp; password.
-        </p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mb-1">
+              Sign in / Sign up
+            </h1>
+            <p className="mb-6 text-muted-foreground text-sm">
+              Choose how you’d like to sign in. New users get an account automatically.
+            </p>
 
         <AnimatePresence mode="wait">
           {step === "method" && (
@@ -284,37 +260,45 @@ export default function Auth() {
               exit={{ opacity: 0, x: 10 }}
               className="space-y-3"
             >
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-3 h-12"
+              <button
+                type="button"
                 onClick={() => setStep("phone")}
+                className="w-full flex items-center gap-4 rounded-xl border-2 border-border bg-card p-4 text-left transition-all hover:border-primary/30 hover:shadow-md hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
-                <Phone size={18} /> Phone OTP (India +91)
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-3 h-12"
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <Phone size={22} className="text-primary" />
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground block">Phone OTP</span>
+                  <span className="text-xs text-muted-foreground">India +91 · Get a code on your phone</span>
+                </div>
+              </button>
+              <button
+                type="button"
                 onClick={() => setStep("magic")}
+                className="w-full flex items-center gap-4 rounded-xl border-2 border-border bg-card p-4 text-left transition-all hover:border-primary/30 hover:shadow-md hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
-                <Mail size={18} /> Magic Link (email)
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-3 h-12"
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <Mail size={22} className="text-primary" />
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground block">Magic Link</span>
+                  <span className="text-xs text-muted-foreground">We’ll email you a one-click sign-in link</span>
+                </div>
+              </button>
+              <button
+                type="button"
                 onClick={() => setStep("password")}
+                className="w-full flex items-center gap-4 rounded-xl border-2 border-border bg-card p-4 text-left transition-all hover:border-primary/30 hover:shadow-md hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
-                <Lock size={18} /> Email &amp; password (sign in or sign up)
-              </Button>
-              {import.meta.env.DEV && (
-                <Button
-                  variant="secondary"
-                  className="w-full justify-start gap-3 h-12 border-dashed"
-                  onClick={handleTestLogin}
-                  disabled={loading}
-                >
-                  <TestTube size={18} /> Test login (test@haathpe.com / Test123!)
-                </Button>
-              )}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <Lock size={22} className="text-primary" />
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground block">Email &amp; password</span>
+                  <span className="text-xs text-muted-foreground">Sign in or create an account with email</span>
+                </div>
+              </button>
             </motion.div>
           )}
 
@@ -324,25 +308,39 @@ export default function Auth() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
-              className="space-y-3"
+              className="space-y-4"
             >
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Phone (+91)</label>
+                <label className="text-sm font-semibold text-foreground">Phone number</label>
+                <p className="text-xs text-muted-foreground mb-2">We’ll send a 6-digit code to this number (+91)</p>
                 <Input
                   placeholder="98765 43210"
                   value={formatPhone(phone)}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1"
+                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
                   maxLength={16}
                   autoFocus
                 />
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep("method")}>
+              <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50">
+                <Checkbox
+                  checked={termsAccepted}
+                  onCheckedChange={(c) => setTermsAccepted(!!c)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-muted-foreground">
+                  I agree to the{" "}
+                  <Link to="/#terms" className="text-primary font-medium underline hover:no-underline">Terms &amp; Conditions</Link>
+                  {" "}and{" "}
+                  <Link to="/#privacy" className="text-primary font-medium underline hover:no-underline">Privacy Policy</Link>.
+                </span>
+              </label>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => setStep("method")} className="rounded-lg">
                   Back
                 </Button>
-                <Button className="flex-1" onClick={handlePhoneSubmit} disabled={loading}>
-                  {loading ? "Sending..." : "Send OTP"}
+                <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handlePhoneSubmit} disabled={loading || !termsAccepted}>
+                  {loading ? "Sending…" : "Send OTP"}
                 </Button>
               </div>
             </motion.div>
@@ -354,26 +352,26 @@ export default function Auth() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
-              className="space-y-3"
+              className="space-y-5"
             >
               <p className="text-sm text-muted-foreground">
-                Enter the 6-digit OTP sent to {phone}
+                Code sent to <span className="font-medium text-foreground">{phone}</span>
               </p>
-              <div className="flex justify-center py-4">
+              <div className="flex justify-center py-2">
                 <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                  <InputOTPGroup className="gap-2">
+                  <InputOTPGroup className="gap-2 sm:gap-3">
                     {Array.from({ length: 6 }).map((_, i) => (
-                      <InputOTPSlot key={i} index={i} />
+                      <InputOTPSlot key={i} index={i} className="h-12 w-10 sm:h-14 sm:w-12 rounded-lg border-2 text-lg font-semibold" />
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep("phone")}>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => setStep("phone")} className="rounded-lg">
                   Change number
                 </Button>
-                <Button className="flex-1" onClick={handleOtpVerify} disabled={loading || otp.length !== 6}>
-                  {loading ? "Verifying..." : "Verify"}
+                <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handleOtpVerify} disabled={loading || otp.length !== 6}>
+                  {loading ? "Verifying…" : "Verify"}
                 </Button>
               </div>
             </motion.div>
@@ -385,25 +383,39 @@ export default function Auth() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
-              className="space-y-3"
+              className="space-y-4"
             >
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
+                <label className="text-sm font-semibold text-foreground">Email address</label>
+                <p className="text-xs text-muted-foreground mb-2">We’ll send a sign-in link to your inbox</p>
                 <Input
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1"
+                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
                   autoFocus
                 />
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep("method")}>
+              <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50">
+                <Checkbox
+                  checked={termsAccepted}
+                  onCheckedChange={(c) => setTermsAccepted(!!c)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-muted-foreground">
+                  I agree to the{" "}
+                  <Link to="/#terms" className="text-primary font-medium underline hover:no-underline">Terms &amp; Conditions</Link>
+                  {" "}and{" "}
+                  <Link to="/#privacy" className="text-primary font-medium underline hover:no-underline">Privacy Policy</Link>.
+                </span>
+              </label>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => setStep("method")} className="rounded-lg">
                   Back
                 </Button>
-                <Button className="flex-1" onClick={handleMagicSubmit} disabled={loading}>
-                  {loading ? "Sending..." : "Send Magic Link"}
+                <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handleMagicSubmit} disabled={loading || !termsAccepted}>
+                  {loading ? "Sending…" : "Send Magic Link"}
                 </Button>
               </div>
             </motion.div>
@@ -415,39 +427,52 @@ export default function Auth() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
-              className="space-y-3"
+              className="space-y-4"
             >
               <p className="text-xs text-muted-foreground">
-                New? Enter email + password to create an account. Existing? Same form signs you in.
+                New user? We’ll create an account. Already have one? Same form signs you in.
               </p>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
+                <label className="text-sm font-semibold text-foreground">Email</label>
                 <Input
                   type="email"
-                  placeholder="admin@street.com"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1"
+                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Password</label>
+                <label className="text-sm font-semibold text-foreground">Password</label>
                 <Input
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1"
+                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
                   autoComplete="current-password"
                 />
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setStep("method"); setPassword(""); }}>
+              <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50">
+                <Checkbox
+                  checked={termsAccepted}
+                  onCheckedChange={(c) => setTermsAccepted(!!c)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-muted-foreground">
+                  I agree to the{" "}
+                  <Link to="/#terms" className="text-primary font-medium underline hover:no-underline">Terms &amp; Conditions</Link>
+                  {" "}and{" "}
+                  <Link to="/#privacy" className="text-primary font-medium underline hover:no-underline">Privacy Policy</Link>.
+                </span>
+              </label>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => { setStep("method"); setPassword(""); }} className="rounded-lg">
                   Back
                 </Button>
-                <Button className="flex-1" onClick={handleEmailPasswordSubmit} disabled={loading}>
-                  {loading ? "Signing in..." : "Sign in / Sign up"}
+                <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handleEmailPasswordSubmit} disabled={loading || !termsAccepted}>
+                  {loading ? "Signing in…" : "Sign in / Sign up"}
                 </Button>
               </div>
             </motion.div>
@@ -456,27 +481,36 @@ export default function Auth() {
           {step === "sent" && (
             <motion.div
               key="sent"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-3 rounded-lg border border-border bg-muted/50 p-4"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="space-y-4 rounded-xl border-2 border-primary/20 bg-primary/5 p-5"
             >
-              <p className="text-sm font-medium">Check your inbox</p>
-              <p className="text-xs text-muted-foreground">
-                We sent a magic link to {email}. Click it to sign in. You can close this tab.
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/15">
+                  <Mail size={24} className="text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">Check your inbox</p>
+                  <p className="text-xs text-muted-foreground">We sent a magic link to {email}</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Click the link in the email to sign in. You can close this tab.
               </p>
-              <Button variant="outline" onClick={() => setStep("method")}>
-                Use different method
+              <Button variant="outline" onClick={() => setStep("method")} className="rounded-lg w-full sm:w-auto">
+                Use a different method
               </Button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          By signing in, you agree to our terms and privacy policy.
-        </p>
-      </motion.div>
+            <p className="mt-6 text-center text-xs text-muted-foreground">
+              By signing in, you agree to our terms and privacy policy.
+            </p>
+          </div>
+        </motion.div>
       </div>
-      <div className="w-full">
+      <div className="w-full mt-auto pt-6">
         <MakeInIndiaFooter />
       </div>
     </div>
