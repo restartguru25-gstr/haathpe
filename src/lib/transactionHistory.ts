@@ -126,7 +126,7 @@ function escapeCsvCell(s: string): string {
 export function downloadTransactionHistoryCsv(data: TransactionHistoryData): void {
   const rows: string[] = [
     "Transaction History – For SVANidhi / proof of business",
-    `Vendor,${escapeCsvCell(data.vendorName)}`,
+    `Dukaanwaala,${escapeCsvCell(data.vendorName)}`,
     `Generated,${escapeCsvCell(new Date(data.generatedAt).toLocaleString("en-IN"))}`,
     `Period,${escapeCsvCell(data.fromDate)} to ${escapeCsvCell(data.toDate)}`,
     "",
@@ -148,7 +148,7 @@ export function downloadTransactionHistoryCsv(data: TransactionHistoryData): voi
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `VendorHub-Transaction-History-${data.vendorName.replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `haathpe-Transaction-History-${data.vendorName.replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -163,7 +163,7 @@ function buildTransactionHistoryPdf(data: TransactionHistoryData): jsPDF {
   y += 8;
   doc.setFontSize(10);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Vendor: ${data.vendorName}`, margin, y);
+  doc.text(`Dukaanwaala: ${data.vendorName}`, margin, y);
   y += 5;
   doc.text(`Generated: ${new Date(data.generatedAt).toLocaleString("en-IN")}`, margin, y);
   y += 5;
@@ -243,7 +243,7 @@ function buildTransactionHistoryPdf(data: TransactionHistoryData): jsPDF {
 
 export function downloadTransactionHistoryPdf(data: TransactionHistoryData): void {
   const doc = buildTransactionHistoryPdf(data);
-  const filename = `VendorHub-Transaction-History-${data.vendorName.replace(/\s+/g, "-").slice(0, 20)}-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = `haathpe-Transaction-History-${data.vendorName.replace(/\s+/g, "-").slice(0, 20)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(filename);
 }
 
@@ -262,7 +262,7 @@ export function shareOrDownloadTransactionHistory(
   const blob = doc.output("blob");
   const file = new File(
     [blob],
-    `VendorHub-Transaction-History-${data.vendorName.replace(/\s+/g, "-").slice(0, 20)}-${new Date().toISOString().slice(0, 10)}.pdf`,
+    `haathpe-Transaction-History-${data.vendorName.replace(/\s+/g, "-").slice(0, 20)}-${new Date().toISOString().slice(0, 10)}.pdf`,
     { type: "application/pdf" }
   );
   if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {

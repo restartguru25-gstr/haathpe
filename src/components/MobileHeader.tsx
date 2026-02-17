@@ -14,10 +14,10 @@ export default function MobileHeader() {
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <Link to="/dashboard" className="flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-          V
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground font-brand tracking-widest">
+          h
         </div>
-        <span className="text-lg font-bold text-foreground">VendorHub</span>
+        <span className="brand-haathpe text-lg">haathpe</span>
       </Link>
       <div className="flex items-center gap-1">
         <Link to="/notifications" className="relative">

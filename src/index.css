@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@200;300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -114,5 +114,29 @@
 
   .glass-card {
     @apply bg-card/80 backdrop-blur-md border border-border/50;
+  }
+
+  /* haathpe brand – ultra posh, modern for Indians */
+  .brand-haathpe {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-transform: lowercase;
+    @apply text-foreground;
+  }
+  .brand-haathpe-accent {
+    background: linear-gradient(135deg, hsl(222 80% 40%), hsl(25 95% 53%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .dark .brand-haathpe {
+    @apply text-foreground;
+  }
+  .dark .brand-haathpe-accent {
+    background: linear-gradient(135deg, hsl(222 80% 55%), hsl(25 95% 53%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }

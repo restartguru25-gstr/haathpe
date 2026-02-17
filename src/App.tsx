@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
@@ -24,6 +25,11 @@ import Admin from "./pages/Admin";
 import Sales from "./pages/Sales";
 import POS from "./pages/POS";
 import PublicMenu from "./pages/PublicMenu";
+import CustomerLogin from "./pages/CustomerLogin";
+import CustomerOrders from "./pages/CustomerOrders";
+import OrderTracking from "./pages/OrderTracking";
+import Search from "./pages/Search";
+import OndcExport from "./pages/OndcExport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +38,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
+        <CustomerAuthProvider>
         <AppProvider>
           <Toaster />
           <Sonner />
@@ -60,12 +67,18 @@ const App = () => (
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/pos" element={<POS />} />
+                <Route path="/vendor/ondc-export" element={<OndcExport />} />
               </Route>
+              <Route path="/search" element={<Search />} />
               <Route path="/menu/:vendorId" element={<PublicMenu />} />
+              <Route path="/order/:orderId" element={<OrderTracking />} />
+              <Route path="/customer-login" element={<CustomerLogin />} />
+              <Route path="/customer/orders" element={<CustomerOrders />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </AppProvider>
+        </CustomerAuthProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

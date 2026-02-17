@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Store, Plus, Pencil, QrCode, ChevronRight, Banknote, Gift } from "lucide-react";
+import { Store, Plus, Pencil, QrCode, ChevronRight, Banknote, Gift, Star, Sparkles, FileJson } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,9 +21,15 @@ import {
   updateVendorMenuItem,
   addCustomVendorMenuItem,
   getSectorIdFromStallType,
+  getVendorReviews,
+  getCustomerOrders,
+  updateCustomerOrderStatus,
   type DefaultMenuItem,
   type VendorMenuItem,
+  type VendorReview,
+  type CustomerOrder,
 } from "@/lib/sales";
+import { getOndcOrdersForVendor, type OndcOrder } from "@/lib/ondcOrders";
 import {
   getVendorIncentives,
   getTodayEntryCount,
@@ -33,13 +39,18 @@ import {
   getThisMonthEarnings,
   type VendorIncentive,
 } from "@/lib/incentives";
+import { getVendorPlatformFee, getDefaultFeePercent, formatFeeDisplay } from "@/lib/platformFees";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/lib/supabase";
+import { upgradeToPremiumMock } from "@/lib/premium";
+import { isShopOpen } from "@/lib/shopDetails";
+import { Clock } from "lucide-react";
 
 export default function Sales() {
   const { t } = useApp();
   const { profile } = useProfile();
-  const { user, refreshProfile, isLoading: authLoading } = useSession();
+  const { user, refreshProfile, profile: rawProfile, isLoading: authLoading } = useSession();
   const vendorId = user?.id ?? "";
 
   const [defaultItems, setDefaultItems] = useState<DefaultMenuItem[]>([]);
@@ -56,8 +67,14 @@ export default function Sales() {
   const [last7Days, setLast7Days] = useState(0);
   const [thisMonth, setThisMonth] = useState(0);
   const [slabs, setSlabs] = useState<{ id: string; slab_type: string; min_count: number; max_count: number | null; reward_amount: number }[]>([]);
+  const [reviews, setReviews] = useState<VendorReview[]>([]);
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
+  const [ondcOrders, setOndcOrders] = useState<OndcOrder[]>([]);
+  const [upgrading, setUpgrading] = useState(false);
+  const [platformFeeDisplay, setPlatformFeeDisplay] = useState<string>("");
 
   const sectorId = getSectorIdFromStallType(profile?.stallType ?? null);
+  const isPremium = profile?.premiumTier === "premium";
 
   useEffect(() => {
     if (user?.id && typeof refreshProfile === "function") refreshProfile();
@@ -95,18 +112,91 @@ export default function Sales() {
       getIncentiveSlabs(),
       getLast7DaysEarnings(vendorId),
       getThisMonthEarnings(vendorId),
-    ]).then(([inc, count, s, last7, month]) => {
+      getVendorReviews(vendorId),
+      getCustomerOrders(vendorId, { limit: 20 }),
+      getOndcOrdersForVendor(vendorId),
+      Promise.all([getVendorPlatformFee(vendorId), getDefaultFeePercent()]).then(([fee, def]) =>
+        formatFeeDisplay(fee ?? null, def)
+      ),
+    ]).then(([inc, count, s, last7, month, revs, ords, ondc, feeDisplay]) => {
       setIncentives(inc);
       setTodayCount(count);
       setSlabs(s);
       setLast7Days(last7);
       setThisMonth(month);
+      setReviews(revs);
+      setCustomerOrders(ords);
+      setOndcOrders(ondc);
+      setPlatformFeeDisplay(feeDisplay as string);
     });
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (!vendorId) return;
+    const channel = supabase
+      .channel(`sales-orders-${vendorId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "customer_orders",
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        () => {
+          getCustomerOrders(vendorId, { limit: 20 }).then(setCustomerOrders);
+          getVendorReviews(vendorId).then(setReviews);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ondc_orders",
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        (payload) => {
+          const row = payload.new as { total?: number };
+          const amount = Number(row?.total ?? 0).toFixed(0);
+          toast.success(t("newOnlineOrderToast").replace("{amount}", amount));
+          getOndcOrdersForVendor(vendorId).then(setOndcOrders);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "ondc_orders",
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        () => getOndcOrdersForVendor(vendorId).then(setOndcOrders)
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "platform_fees",
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        async () => {
+          const [fee, def] = await Promise.all([
+            getVendorPlatformFee(vendorId),
+            getDefaultFeePercent(),
+          ]);
+          setPlatformFeeDisplay(formatFeeDisplay(fee ?? null, def));
+          toast.success(t("platformFeeUpdated"));
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, [vendorId]);
 
   const handleActivateDefault = async () => {
     if (!sectorId || !vendorId) {
-      toast.error("Set your stall type in Profile to activate default menu.");
+      toast.error("Set your dukaan type in Profile to activate default menu.");
       return;
     }
     setActivating(true);
@@ -182,6 +272,33 @@ export default function Sales() {
     }
   };
 
+  const handleOrderStatusChange = async (orderId: string, newStatus: "pending" | "prepared" | "ready" | "delivered" | "paid") => {
+    const result = await updateCustomerOrderStatus(vendorId, orderId, newStatus);
+    if (result.ok) {
+      setCustomerOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+      toast.success("Status updated");
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const handlePremiumUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const result = await upgradeToPremiumMock();
+      if (result.ok) {
+        toast.success("Premium activated! (Mock — real payment coming soon)");
+        if (typeof refreshProfile === "function") refreshProfile();
+      } else {
+        toast.error(result.error ?? "Failed");
+      }
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-muted/20">
@@ -196,8 +313,44 @@ export default function Sales() {
   return (
     <div className="min-h-screen bg-muted/20 pb-28 md:pb-4">
       <div className="container max-w-2xl px-4 py-6">
+        <div className="mb-4">
+          <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            {platformFeeDisplay === "Exempt"
+              ? t("platformFeeExempt")
+              : `${t("platformFeeLabel")}: ${platformFeeDisplay}`}
+            <span className="block text-xs mt-0.5">{t("platformFeeAdminNote")}</span>
+          </div>
+        </div>
+
+        {rawProfile && (
+          <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+            {(() => {
+              const status = isShopOpen({
+                opening_hours: rawProfile.opening_hours ?? undefined,
+                weekly_off: rawProfile.weekly_off ?? undefined,
+                holidays: rawProfile.holidays ?? undefined,
+                is_online: rawProfile.is_online,
+              });
+              return (
+                <>
+                  <span className={`inline-flex items-center gap-2 text-sm font-medium ${status.open ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
+                    <Clock size={16} />
+                    {status.open ? t("shopOpenNow") : t("shopClosedNow")}
+                  </span>
+                  <Link to="/profile">
+                    <Button variant="ghost" size="sm" className="h-8 text-xs">{t("editTimings")}</Button>
+                  </Link>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl font-extrabold tracking-tight">{t("mySalesMenu")}</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">{t("mySalesMenu")}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{t("salesPageSubtitle")}</p>
+          </div>
           <div className="flex gap-2">
             <Link to="/pos">
               <Button variant="outline" size="sm" className="gap-2">
@@ -209,7 +362,136 @@ export default function Sales() {
                 <QrCode size={16} /> {t("qrCodeMenu")}
               </Button>
             </Link>
+            <Link to="/vendor/ondc-export">
+              <Button variant="outline" size="sm" className="gap-2">
+                <FileJson size={16} /> {t("catalogExport")}
+              </Button>
+            </Link>
           </div>
+        </div>
+
+        {!isPremium && (
+          <div className="mb-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 font-semibold text-amber-900 dark:text-amber-100">
+                  <Sparkles size={18} /> {t("premiumUpgrade")} — {t("premiumPrice")}
+                </div>
+                <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">{t("premiumBenefits")}</p>
+              </div>
+              <Button size="sm" onClick={handlePremiumUpgrade} disabled={upgrading} className="shrink-0">
+                {upgrading ? "..." : "Upgrade (mock)"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Customer Reviews card */}
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Star size={18} className="text-amber-500 fill-amber-500" />
+            <span className="font-semibold">{t("customerReviews")}</span>
+          </div>
+          {reviews.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("noReviewsYet")}</p>
+          ) : (
+            <>
+              <p className="mb-3 text-sm text-muted-foreground">
+                {t("averageRating")}: <strong className="text-foreground">
+                  {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}
+                </strong> / 5 ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})
+              </p>
+              <ul className="max-h-40 overflow-y-auto space-y-2">
+                {reviews.slice(0, 10).map((r) => (
+                  <li key={r.order_id} className="text-sm border-b border-border/50 pb-2 last:border-0">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${i <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                        />
+                      ))}
+                    </div>
+                    {r.review_text && <p className="text-muted-foreground">{r.review_text}</p>}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {r.reviewed_at ? new Date(r.reviewed_at).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+
+        {/* Recent customer orders */}
+        {customerOrders.length > 0 && (
+          <div className="mb-6 rounded-xl border border-border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="font-semibold">Recent orders</span>
+              <Link to="/pos">
+                <Button variant="outline" size="sm">POS</Button>
+              </Link>
+            </div>
+            <ul className="space-y-2 max-h-48 overflow-y-auto">
+              {customerOrders.slice(0, 10).map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-2 text-sm border-b border-border/50 pb-2 last:border-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">₹{Number(o.total).toFixed(0)} · {(o.items as { item_name: string; qty: number }[]).slice(0, 2).map((i) => `${i.item_name}×${i.qty}`).join(", ")}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString()}</p>
+                  </div>
+                  <select
+                    value={o.status}
+                    onChange={(e) => handleOrderStatusChange(o.id, e.target.value as "pending" | "prepared" | "ready" | "delivered" | "paid")}
+                    className="rounded border border-input bg-background px-2 py-1 text-xs"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="prepared">Preparing</option>
+                    <option value="ready">Ready</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Online Orders (includes all online/direct orders) */}
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="font-semibold">{t("onlineOrders")}</span>
+            <Link to="/vendor/ondc-export">
+              <Button variant="ghost" size="sm">{t("catalogExport")}</Button>
+            </Link>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {t("onlineOrderFeeNote")}
+          </p>
+          {ondcOrders.length > 0 ? (
+            <ul className="space-y-2 max-h-48 overflow-y-auto">
+              {ondcOrders.slice(0, 10).map((o) => (
+                <li key={o.id} className="flex flex-col gap-1 text-sm border-b border-border/50 pb-2 last:border-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">₹{Number(o.total).toFixed(0)} · {t("orderSourceOnline")}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${o.payment_status === "paid" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
+                      {o.payment_status === "paid" ? t("paid") : o.payment_status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {(o.items ?? []).slice(0, 2).map((i) => `${i.item_name}×${i.qty}`).join(", ")}
+                  </p>
+                  {o.payment_status === "paid" && o.vendor_amount != null && (
+                    <p className="text-xs text-primary font-medium">
+                      {t("yourShare")} ₹{Number(o.vendor_amount).toFixed(0)}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t("noOnlineOrders")}</p>
+          )}
         </div>
 
         {/* Daily Incentives card */}
@@ -256,13 +538,13 @@ export default function Sales() {
 
         {!sectorId && (
           <div className="mb-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            <p className="mb-3 font-semibold">Step 1: Set your Stall type</p>
+            <p className="mb-3 font-semibold">Step 1: Set your {t("dukaanType")}</p>
             <p className="mb-3">
-              Go to <strong>Profile</strong> and choose a <strong>Stall type</strong>. That decides which default menu you get (e.g. Tea Stall → Chai, Snack, Bun Maska; PaniPuri → Pani Puri, Sev Puri, Dahi Puri).
+              Go to <strong>Profile</strong> and choose a <strong>{t("dukaanType")}</strong>. That decides which default menu you get (e.g. Tea Stall → Chai, Snack; Kirana → essentials; PaniPuri → Pani Puri, Sev Puri).
             </p>
-            <p className="mb-3 text-amber-800 dark:text-amber-300">Examples: <strong>Tea Stall</strong>, <strong>PaniPuri</strong>, <strong>Tiffin Centres</strong>, <strong>Pan Shops</strong>, <strong>Fast Food Carts</strong>.</p>
+            <p className="mb-3 text-amber-800 dark:text-amber-300">Examples: <strong>Kirana Store</strong>, <strong>General Store</strong>, <strong>Tea Stall</strong>, <strong>PaniPuri</strong>, <strong>Hardware Shop</strong>, <strong>Saloon/Spa</strong>.</p>
             <Link to="/profile">
-              <Button size="sm" variant="outline" className="border-amber-300 bg-white dark:border-amber-700 dark:bg-amber-950/50">Open Profile → Set stall type</Button>
+              <Button size="sm" variant="outline" className="border-amber-300 bg-white dark:border-amber-700 dark:bg-amber-950/50">Open Profile → Set {t("dukaanType")}</Button>
             </Link>
           </div>
         )}
@@ -270,7 +552,7 @@ export default function Sales() {
         {sectorId && defaultItems.length > 0 && vendorItems.length === 0 && (
           <div className="mb-6 rounded-xl border-2 border-primary/20 bg-card p-6">
             <p className="mb-4 text-center font-medium text-foreground">
-              Default menu for <strong>{profile.stallType}</strong> — {defaultItems.length} items. You can edit prices after activating.
+              Default menu for your dukaan type <strong>{profile.stallType}</strong> — {defaultItems.length} items. You can edit prices after activating.
             </p>
             <div className="mb-4 max-h-48 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Preview (name · price range)</p>
@@ -389,7 +671,7 @@ export default function Sales() {
           <div className="mb-6 rounded-xl border-2 border-dashed border-border bg-muted/30 p-5">
             <p className="mb-3 font-semibold text-foreground">Add an item manually</p>
             <p className="mb-4 text-sm text-muted-foreground">
-              You can add menu items one by one (e.g. if you haven&apos;t set a stall type or want custom items).
+              You can add menu items one by one (e.g. if you haven&apos;t set a dukaan type or want custom items).
             </p>
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-[140px] flex-1">
@@ -424,7 +706,7 @@ export default function Sales() {
           <div className="mt-6 rounded-xl border border-border bg-card p-4">
             <p className="mb-2 text-sm font-semibold">{t("qrCodeMenu")}</p>
             <p className="mb-3 text-xs text-muted-foreground">
-              Share this link or QR so customers can view your menu and place orders.
+              Share this link or QR so customers can view your dukaan menu and place orders.
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <img

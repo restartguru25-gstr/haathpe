@@ -60,6 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(existing);
         return;
       }
+      if ((u.user_metadata as { role?: string } | undefined)?.role === "customer") {
+        setProfile(null);
+        return;
+      }
       const phone = u.phone ?? null;
       const { data: newProfile, error } = await supabase
         .from("profiles")

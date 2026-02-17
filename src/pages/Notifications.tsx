@@ -31,7 +31,7 @@ export default function Notifications() {
     if (!user?.id) return;
     await markAllNotificationsRead(user.id);
     setList((prev) => prev.map((n) => ({ ...n, read: true })));
-    window.dispatchEvent(new Event("vendorhub:notifications-updated"));
+    window.dispatchEvent(new Event("haathpe:notifications-updated"));
   };
 
   const unreadCount = list.filter((n) => !n.read).length;

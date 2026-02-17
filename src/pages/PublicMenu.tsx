@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { ShoppingCart, Plus, Minus, Check } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
+import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy } from "lucide-react";
 import { AdBanner } from "@/components/AdBanner";
+import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { Button } from "@/components/ui/button";
 import { getActiveVendorMenuForPublic, createCustomerOrder, getVendorZone, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
+import { supabase } from "@/lib/supabase";
+import { isShopOpen, formatTimeForDisplay, type ShopDetails } from "@/lib/shopDetails";
+import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
+import { useApp } from "@/contexts/AppContext";
+import { toggleFavorite, appendOrderToHistory } from "@/lib/customer";
 import { toast } from "sonner";
 
 type CartLine = { item: VendorMenuItem; qty: number };
@@ -29,12 +35,22 @@ function cartTotals(lines: CartLine[]) {
 
 export default function PublicMenu() {
   const { vendorId } = useParams<{ vendorId: string }>();
+  const { t, lang } = useApp();
+  const { customer, isCustomer, refreshCustomer } = useCustomerAuth();
   const [menu, setMenu] = useState<VendorMenuItem[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [vendorZone, setVendorZone] = useState<string | null>(null);
+  const [vendorName, setVendorName] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+  const [deliveryOption, setDeliveryOption] = useState<"pickup" | "self_delivery">("pickup");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [togglingFavorite, setTogglingFavorite] = useState<string | null>(null);
+  const [shopDetails, setShopDetails] = useState<ShopDetails | null>(null);
 
   useEffect(() => {
     if (!vendorId) {
@@ -44,14 +60,55 @@ export default function PublicMenu() {
     Promise.all([
       getActiveVendorMenuForPublic(vendorId),
       getVendorZone(vendorId),
-    ]).then(([list, zone]) => {
+      supabase.from("profiles").select("name, opening_hours, weekly_off, holidays, is_online").eq("id", vendorId).single(),
+    ]).then(([list, zone, profileRes]) => {
       setMenu(list);
       setVendorZone(zone);
+      const p = profileRes.data as { name?: string; opening_hours?: Record<string, string>; weekly_off?: string; holidays?: string[]; is_online?: boolean } | null;
+      setVendorName(p?.name ?? null);
+      setShopDetails(p ? { opening_hours: p.opening_hours, weekly_off: p.weekly_off, holidays: p.holidays, is_online: p.is_online } : null);
       setLoading(false);
     });
   }, [vendorId]);
 
+  useEffect(() => {
+    if (!vendorId) return;
+    const channel = supabase
+      .channel(`public-menu-profile-${vendorId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${vendorId}` },
+        (payload) => {
+          const newRow = payload.new as { opening_hours?: Record<string, string>; weekly_off?: string; holidays?: string[]; is_online?: boolean };
+          setShopDetails({ opening_hours: newRow.opening_hours, weekly_off: newRow.weekly_off, holidays: newRow.holidays, is_online: newRow.is_online });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (customer?.favorites) setFavorites(customer.favorites);
+  }, [customer?.favorites]);
+
+  const handleToggleFavorite = async (itemId: string) => {
+    if (!customer) return;
+    setTogglingFavorite(itemId);
+    const result = await toggleFavorite(customer.id, itemId, favorites);
+    setTogglingFavorite(null);
+    if (result.ok && result.favorites) {
+      setFavorites(result.favorites);
+      refreshCustomer();
+    }
+  };
+
+  const shopStatus = isShopOpen(shopDetails);
+  const canOrder = shopStatus.open;
+
   const addToCart = (item: VendorMenuItem, qty = 1) => {
+    if (!canOrder) return;
     setCart((prev) => {
       const existing = prev.find((l) => l.item.id === item.id);
       if (existing) {
@@ -75,7 +132,7 @@ export default function PublicMenu() {
   const { total } = cartTotals(cart);
 
   const handlePayOnline = async () => {
-    if (!vendorId || cart.length === 0) return;
+    if (!vendorId || cart.length === 0 || !canOrder) return;
     setPlacing(true);
     try {
       const items = cartToOrderItems(cart);
@@ -88,9 +145,25 @@ export default function PublicMenu() {
         payment_method: "online",
         status: "pending",
         payment_id: null,
+        customer_phone: customer?.phone ?? null,
+        delivery_option: deliveryOption,
+        delivery_address: deliveryOption === "self_delivery" && deliveryAddress.trim() ? deliveryAddress.trim() : null,
       });
       if (result.ok) {
-        toast.success("Order placed! Vendor will be notified.");
+        toast.success("Order placed! Dukaanwaala will be notified.");
+        if (customer && result.id) {
+          const entry = {
+            order_id: result.id,
+            vendor_id: vendorId,
+            vendor_name: vendorName ?? undefined,
+            total,
+            items: items.map((i) => ({ item_name: i.item_name, qty: i.qty, price: i.price })),
+            created_at: new Date().toISOString(),
+          };
+          await appendOrderToHistory(customer.id, entry);
+          toast.success(t("orderSavedToHistory"));
+        }
+        setPlacedOrderId(result.id ?? null);
         setOrderPlaced(true);
         setCart([]);
       } else {
@@ -105,46 +178,124 @@ export default function PublicMenu() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-muted/20 flex items-center justify-center">
-        <p className="text-muted-foreground">Loading menu...</p>
+      <div className="min-h-screen bg-muted/20 flex flex-col">
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading menu...</p>
+        </div>
+        <MakeInIndiaFooter />
       </div>
     );
   }
 
   if (!vendorId || menu.length === 0) {
     return (
-      <div className="min-h-screen bg-muted/20 flex items-center justify-center p-4">
-        <p className="text-muted-foreground text-center">Menu not found or not published.</p>
+      <div className="min-h-screen bg-muted/20 flex flex-col">
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-muted-foreground text-center">Menu not found or not published.</p>
+        </div>
+        <MakeInIndiaFooter />
       </div>
     );
   }
 
   if (orderPlaced) {
+    if (!placedOrderId) {
+      return (
+        <div className="min-h-screen bg-muted/20 flex flex-col pb-24">
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="rounded-xl border border-border bg-card p-6 text-center">
+              <Check size={48} className="mx-auto mb-3 text-green-600" />
+              <h2 className="text-xl font-bold">Order placed!</h2>
+              <p className="mt-2 text-sm text-muted-foreground">The dukaanwaala will be notified.</p>
+              <Link to="/" className="mt-4 inline-block"><Button>Go home</Button></Link>
+            </div>
+          </div>
+          <MakeInIndiaFooter />
+        </div>
+      );
+    }
+    const trackingUrl = typeof window !== "undefined" ? `${window.location.origin}/order/${placedOrderId}` : "";
+    const handleCopyTracking = () => {
+      navigator.clipboard.writeText(trackingUrl).then(() => toast.success("Link copied!"));
+    };
     return (
-      <div className="min-h-screen bg-muted/20 pb-24">
-        <div className="container max-w-lg mx-auto px-4 py-6">
+      <div className="min-h-screen bg-muted/20 flex flex-col pb-24">
+        <div className="container flex-1 max-w-lg mx-auto px-4 py-6">
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 p-6 text-center">
             <Check size={48} className="mx-auto mb-3 text-green-600" />
             <h2 className="text-xl font-bold text-green-900 dark:text-green-100">Order placed!</h2>
-            <p className="mt-2 text-sm text-green-800 dark:text-green-200">The vendor will be notified. Pay at the stall when you collect.</p>
+            <p className="mt-2 text-sm text-green-800 dark:text-green-200">The dukaanwaala will be notified. Pay at the dukaan when you collect.</p>
+            {deliveryOption === "self_delivery" && (
+              <p className="mt-2 text-sm text-green-700 dark:text-green-300">{t("vendorWillDeliver")}</p>
+            )}
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 mb-4">
+            <p className="text-xs text-muted-foreground mb-1">{t("orderId")}</p>
+            <p className="font-mono text-sm break-all mb-3">{placedOrderId}</p>
+            <Link to={`/order/${placedOrderId}`}>
+              <Button variant="outline" className="w-full mb-2">{t("trackOrder")}</Button>
+            </Link>
+            <Button variant="secondary" size="sm" className="w-full gap-2" onClick={handleCopyTracking}>
+              <Copy size={16} /> {t("shareTracking")}
+            </Button>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 mb-4">
+            <p className="text-xs text-muted-foreground mb-2">Dukaan: {vendorName ?? "Dukaanwaala"}</p>
+            <p className="text-sm">Contact dukaanwaala for pickup time or delivery ETA.</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="mb-2 text-xs text-muted-foreground">Sponsored</p>
             <AdBanner vendorId={vendorId ?? undefined} vendorZone={vendorZone} page="confirmation" variant="banner" />
           </div>
         </div>
+        <MakeInIndiaFooter />
       </div>
     );
   }
+
+  const loginReturnTo = `/menu/${vendorId}`;
 
   return (
     <div className="min-h-screen bg-muted/20 pb-24">
       <div className="container max-w-lg mx-auto px-4 py-6 flex flex-col md:flex-row gap-6">
       <div className="flex-1 min-w-0">
+        {!bannerDismissed && !isCustomer && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+            <span className="flex-1 min-w-0">{t("customerLoginBanner")}</span>
+            <Link to={`/customer-login?returnTo=${encodeURIComponent(loginReturnTo)}`}>
+              <Button variant="link" size="sm" className="shrink-0 h-auto p-0 text-primary">{t("signIn")}</Button>
+            </Link>
+            <button type="button" onClick={() => setBannerDismissed(true)} className="shrink-0 p-1 rounded hover:bg-primary/10" aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        {!canOrder && (
+          <div className="mb-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4 text-center dark:border-amber-800 dark:bg-amber-950/30">
+            <p className="text-lg font-bold text-amber-900 dark:text-amber-100">{t("dukaanClosedTitle")}</p>
+            <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+              {lang === "hi" ? shopStatus.messageHi : lang === "te" ? shopStatus.messageTe : shopStatus.message}
+            </p>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t("currentlyUnavailable")}</p>
+          </div>
+        )}
+        {isCustomer && (
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">{t("welcomeBack")} {customer?.name || customer?.phone}</p>
+            <Link to="/customer/orders">
+              <Button variant="ghost" size="sm">{t("customerOrders")}</Button>
+            </Link>
+          </div>
+        )}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">V</div>
-            <span className="text-lg font-bold">VendorHub Menu</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold font-brand tracking-widest">h</div>
+            <span className="brand-haathpe text-lg">Haathpe Menu</span>
+            {canOrder && (
+              <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
+                Open Now {shopStatus.closesAt ? `• Closes ${formatTimeForDisplay(shopStatus.closesAt)}` : ""}
+              </span>
+            )}
           </div>
           {cart.length > 0 && (
             <span className="rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
@@ -157,8 +308,13 @@ export default function PublicMenu() {
           {menu.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4"
+              className={`relative flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 ${!canOrder ? "opacity-75" : ""}`}
             >
+              {!canOrder && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
+                  <span className="rounded bg-muted px-2 py-1 text-xs font-medium">{t("currentlyUnavailable")}</span>
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <span className="mr-1">{item.image_url ?? "🍽️"}</span>
                 <span className="font-medium">{item.item_name}</span>
@@ -168,13 +324,25 @@ export default function PublicMenu() {
                 <span className="text-sm font-semibold text-primary">₹{item.custom_selling_price}</span>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => updateQty(item.id, -1)}>
+                {isCustomer && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-9 w-9 shrink-0 ${favorites.includes(item.id) ? "text-red-500" : "text-muted-foreground"}`}
+                    onClick={() => handleToggleFavorite(item.id)}
+                    disabled={togglingFavorite === item.id || !canOrder}
+                    title={favorites.includes(item.id) ? t("removeFromFavorites") : t("addToFavorites")}
+                  >
+                    <Heart size={18} className={favorites.includes(item.id) ? "fill-current" : ""} />
+                  </Button>
+                )}
+                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => updateQty(item.id, -1)} disabled={!canOrder}>
                   <Minus size={16} />
                 </Button>
                 <span className="w-8 text-center text-sm">
                   {cart.find((l) => l.item.id === item.id)?.qty ?? 0}
                 </span>
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => addToCart(item)}>
+                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => addToCart(item)} disabled={!canOrder}>
                   <Plus size={16} />
                 </Button>
               </div>
@@ -195,16 +363,56 @@ export default function PublicMenu() {
               <p className="text-xs text-muted-foreground mb-2">While you wait…</p>
               <AdBanner vendorId={vendorId} vendorZone={vendorZone} page="cart" variant="banner" />
             </div>
-            <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card p-4 safe-area-pb">
-            <div className="container max-w-lg mx-auto flex items-center justify-between gap-4">
-              <span className="font-bold">₹{total.toFixed(2)}</span>
-              <Button onClick={handlePayOnline} disabled={placing} className="gap-2">
-                <ShoppingCart size={18} /> Place order (pay at stall)
-              </Button>
+            <div className="mb-4 p-4 rounded-lg border border-border bg-card">
+              <p className="text-sm font-medium mb-2">Delivery option</p>
+              <div className="flex gap-4 mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="delivery"
+                    checked={deliveryOption === "pickup"}
+                    onChange={() => setDeliveryOption("pickup")}
+                  />
+                  <span className="text-sm">{t("deliveryPickup")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="delivery"
+                    checked={deliveryOption === "self_delivery"}
+                    onChange={() => setDeliveryOption("self_delivery")}
+                  />
+                  <span className="text-sm">{t("deliverySelf")}</span>
+                </label>
+              </div>
+              {deliveryOption === "self_delivery" && (
+                <input
+                  type="text"
+                  placeholder={t("deliveryAddressPlaceholder")}
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              )}
             </div>
-          </div>
+            <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card p-4 safe-area-pb">
+            <div className="container max-w-lg mx-auto">
+              <p className="text-xs text-muted-foreground mb-1">{t("gstNote")}</p>
+              <div className="flex items-center justify-between gap-4">
+                <span className="font-bold">₹{total.toFixed(2)}</span>
+                <Button
+                onClick={handlePayOnline}
+                disabled={placing || !canOrder || (deliveryOption === "self_delivery" && !deliveryAddress.trim())}
+                className="gap-2"
+              >
+                  <ShoppingCart size={18} /> Place order (pay at dukaan)
+                </Button>
+              </div>
+            </div>
+            </div>
           </>
         )}
+      <MakeInIndiaFooter />
     </div>
   );
 }

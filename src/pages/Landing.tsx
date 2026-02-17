@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
 import { Language } from "@/lib/data";
@@ -30,7 +31,7 @@ const features = [
   {
     icon: Truck,
     title: "Easy Supplies",
-    desc: "Paper plates, cups, matchboxes — delivered to your stall in hours across Hyderabad.",
+    desc: "Paper plates, cups, matchboxes — delivered to your dukaan in hours across Hyderabad.",
     emoji: "📦",
   },
   {
@@ -48,35 +49,35 @@ const features = [
 ];
 
 const steps = [
-  { step: 1, title: "Sign up", body: "Create your vendor account with phone or email in under a minute." },
+  { step: 1, title: "Sign up", body: "Create your dukaan account with phone or email in under a minute." },
   { step: 2, title: "Order supplies", body: "Browse the catalog, add to cart, and place orders. Same-day delivery in Hyderabad." },
-  { step: 3, title: "Build streak & credit", body: "Order regularly to build your streak and unlock credit lines for your stall." },
+  { step: 3, title: "Build streak & credit", body: "Order regularly to build your streak and unlock credit lines for your dukaan." },
   { step: 4, title: "Earn rewards", body: "Collect points, enter daily draws, and redeem for vouchers and prizes." },
 ];
 
 const testimonials = [
   {
     name: "Raju",
-    stall: "Tea stall near Charminar",
+    stall: "Tea dukaan near Charminar",
     quote: "Credit line helped me stock up before Ramadan. No more running to the wholesaler every day.",
     avatar: "☕",
   },
   {
     name: "Lakshmi",
-    stall: "Snacks stall, Secunderabad",
+    stall: "Snacks dukaan, Secunderabad",
     quote: "Points got my family a trip to Tirupati. This app is like a bonus for doing what I already do.",
     avatar: "🍿",
   },
   {
     name: "Suresh",
-    stall: "Beverage stall, Gachibowli",
+    stall: "Beverage dukaan, Gachibowli",
     quote: "Delivery is fast. I order in the morning and get supplies by afternoon. Game changer.",
     avatar: "🥤",
   },
 ];
 
 const stats = [
-  { value: "1000+", label: "Vendors" },
+  { value: "1000+", label: "Dukaanwaale" },
   { value: "50K+", label: "Orders delivered" },
   { value: "Hyderabad", label: "Serving now" },
 ];
@@ -89,8 +90,8 @@ const buyBullets = [
 ];
 
 const sellBullets = [
-  "Ready default menu for your sector",
-  "Quick POS at stall (cash/UPI)",
+  "Ready default menu for your dukaan type",
+  "Quick POS at dukaan (cash/UPI)",
   "Online orders via QR code",
   "Track sales, profits & re-order suggestions",
 ];
@@ -126,10 +127,10 @@ export default function Landing() {
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-md">
-              V
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-md font-brand tracking-widest">
+              h
             </div>
-            <span className="text-xl font-bold tracking-tight text-foreground">VendorHub</span>
+            <span className="brand-haathpe text-xl">haathpe</span>
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex">
@@ -140,10 +141,13 @@ export default function Landing() {
               How it works
             </a>
             <a href="#testimonials" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              Vendors
+              Dukaanwaale
             </a>
             <Link to="/catalog" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               Catalog
+            </Link>
+            <Link to="/search" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+              {t("searchFindVendors")}
             </Link>
           </nav>
 
@@ -206,7 +210,7 @@ export default function Landing() {
         >
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-1.5 text-sm font-medium text-primary-foreground">
             <MapPin size={14} className="shrink-0" />
-            Serving roadside vendors in Hyderabad
+            Kirana, tea stall, hardware & more — Hyderabad
           </div>
           <h1 className="mb-5 text-4xl font-extrabold leading-[1.15] text-primary-foreground md:text-5xl lg:text-6xl">
             {t("heroHeadline")}
@@ -214,13 +218,21 @@ export default function Landing() {
           <p className="mb-10 text-base text-primary-foreground/90 md:text-lg max-w-2xl mx-auto">
             {t("heroSubtitle")}
           </p>
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Link to="/catalog">
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+            <Link to="/search">
               <Button
                 size="lg"
                 className="h-12 bg-accent px-8 text-base font-bold text-accent-foreground shadow-lg transition-all hover:bg-accent/90 hover:shadow-xl"
               >
-                Get started <ArrowRight className="ml-2 size-5" />
+                {t("searchFindVendors")} <ArrowRight className="ml-2 size-5" />
+              </Button>
+            </Link>
+            <Link to="/catalog">
+              <Button
+                size="lg"
+                className="h-12 px-8 text-base font-bold border-2 border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+              >
+                Get started
               </Button>
             </Link>
             <Link to="/catalog">
@@ -250,7 +262,37 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      {/* Dual mode: Purchases vs Sales */}
+      {/* Category chips */}
+      <section className="border-b border-border bg-background px-4 py-8">
+        <div className="mx-auto max-w-5xl">
+          <p className="mb-4 text-center text-sm font-medium text-muted-foreground">
+            For every chhoti dukaan — kirana to saloon
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {[
+              { key: "chipKirana" as const, emoji: "🏪" },
+              { key: "chipGeneral" as const, emoji: "🏬" },
+              { key: "chipTeaStall" as const, emoji: "☕" },
+              { key: "chipPaniPuri" as const, emoji: "🎪" },
+              { key: "chipHardware" as const, emoji: "🔧" },
+              { key: "chipSaloon" as const, emoji: "💇" },
+              { key: "disposables" as const, emoji: "🥤" },
+              { key: "electricals" as const, emoji: "⚡" },
+            ].map(({ key, emoji }) => (
+              <Link
+                key={key}
+                to="/search"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted hover:border-primary/30"
+              >
+                <span>{emoji}</span>
+                <span>{t(key)}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Dual mode: Buy supplies vs My Shop (sell) */}
       <section className="border-b border-border bg-muted/20 px-4 py-12 md:py-16">
         <div className="mx-auto max-w-5xl grid grid-cols-1 gap-6 md:grid-cols-2">
           <motion.div
@@ -260,6 +302,9 @@ export default function Landing() {
           >
             <Card className="h-full border-2 border-primary/20 bg-card shadow-md transition-all hover:shadow-lg hover:border-primary/30">
               <CardHeader className="pb-3">
+                <span className="mb-2 inline-block rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+                  {t("tileBuyBadge")}
+                </span>
                 <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
                   <ShoppingCart className="h-7 w-7 text-primary" />
                 </div>
@@ -293,6 +338,9 @@ export default function Landing() {
           >
             <Card className="h-full border-2 border-accent/20 bg-card shadow-md transition-all hover:shadow-lg hover:border-accent/30">
               <CardHeader className="pb-3">
+                <span className="mb-2 inline-block rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground">
+                  {t("tileSellBadge")}
+                </span>
                 <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
                   <Store className="h-7 w-7 text-accent" />
                 </div>
@@ -321,6 +369,14 @@ export default function Landing() {
             </Card>
           </motion.div>
         </div>
+        <div className="mx-auto mt-8 flex justify-center">
+          <Link to="/search">
+            <Button variant="secondary" size="lg" className="gap-2">
+              <MapPin className="h-4 w-4" />
+              {t("searchFindVendors")}
+            </Button>
+          </Link>
+        </div>
       </section>
 
       {/* Features */}
@@ -333,7 +389,7 @@ export default function Landing() {
             className="mb-12 text-center"
           >
             <h2 className="mb-3 text-3xl font-bold md:text-4xl">
-              Why vendors <span className="text-gradient">love us</span>
+              Why dukaanwaale <span className="text-gradient">love us</span>
             </h2>
             <p className="mx-auto max-w-xl text-muted-foreground">
               Built for the daily grind. Order supplies, build credit, and earn rewards — all from your phone.
@@ -402,7 +458,7 @@ export default function Landing() {
             viewport={{ once: true }}
             className="mb-12 text-center"
           >
-            <h2 className="mb-3 text-3xl font-bold md:text-4xl">Vendors like you</h2>
+            <h2 className="mb-3 text-3xl font-bold md:text-4xl">Dukaanwaale like you</h2>
             <p className="mx-auto max-w-xl text-muted-foreground">
               Real stories from Hyderabad’s chai wallahs, snack sellers, and street food heroes.
             </p>
@@ -449,7 +505,7 @@ export default function Landing() {
           >
             <h2 className="mb-3 text-3xl font-bold md:text-4xl">What you can order</h2>
             <p className="text-muted-foreground">
-              Disposables, essentials, and ready-to-use kits for your stall.
+              Disposables, essentials, and ready-to-use kits for your dukaan.
             </p>
           </motion.div>
           <motion.div
@@ -486,10 +542,10 @@ export default function Landing() {
           className="mx-auto max-w-2xl"
         >
           <h2 className="mb-3 text-2xl font-bold text-primary-foreground md:text-3xl">
-            Ready to grow your stall?
+            Ready to grow your dukaan?
           </h2>
           <p className="mb-8 text-primary-foreground/90">
-            Join 1000+ vendors in Hyderabad. Get supplies delivered, build credit, and earn rewards.
+            Join 1000+ dukaanwaale in Hyderabad. Get supplies delivered, build credit, and earn rewards.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link to="/dashboard">
@@ -511,10 +567,10 @@ export default function Landing() {
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-col items-center gap-8 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-                V
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-brand tracking-widest">
+                h
               </div>
-              <span className="font-bold text-foreground">VendorHub</span>
+              <span className="brand-haathpe font-semibold">haathpe</span>
             </div>
             <div className="flex flex-wrap justify-center gap-6 md:gap-8">
               <Link to="/catalog" className="text-sm text-muted-foreground hover:text-foreground">Catalog</Link>
@@ -525,11 +581,14 @@ export default function Landing() {
               <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground">{t("signInSignUp")}</Link>
             </div>
           </div>
-          <div className="mt-8 flex flex-col items-center gap-2 border-t border-border pt-8 text-center text-sm text-muted-foreground md:flex-row md:justify-between">
-            <p>© 2026 VendorHub. Made with ❤️ for street vendors in Hyderabad.</p>
-            <p className="flex items-center gap-1">
-              <MapPin className="size-3.5" /> Hyderabad, India
-            </p>
+          <div className="mt-8 flex flex-col items-center gap-4 border-t border-border pt-8 text-center text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-6">
+              <p>© 2026 Haathpe. {t("footerTagline")}</p>
+              <p className="flex items-center gap-1">
+                <MapPin className="size-3.5" /> Hyderabad, India
+              </p>
+            </div>
+            <MakeInIndiaFooter />
           </div>
         </div>
       </footer>

@@ -196,11 +196,38 @@ export default function Catalog() {
   return (
     <div className="min-h-screen bg-muted/20 pb-6">
       <div className="container max-w-4xl px-4 py-6">
+        {/* Category chips - for dukaan types */}
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Shop by dukaan type</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "chipKirana" as const, emoji: "🏪" },
+              { key: "chipGeneral" as const, emoji: "🏬" },
+              { key: "chipTeaStall" as const, emoji: "☕" },
+              { key: "chipPaniPuri" as const, emoji: "🎪" },
+              { key: "chipHardware" as const, emoji: "🔧" },
+              { key: "chipSaloon" as const, emoji: "💇" },
+              { key: "disposables" as const, emoji: "🥤" },
+              { key: "electricals" as const, emoji: "⚡" },
+            ].map(({ key, emoji }) => (
+              <Link
+                key={key}
+                to="/search"
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+              >
+                <span>{emoji}</span>
+                <span>{t(key)}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{t("catalog")}</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-0.5">{t("catalogPageSubtitle")}</p>
+            <p className="text-sm text-muted-foreground mt-1">
               {useCatalogMode
                 ? `${catalogFiltered.length} ${catalogFiltered.length === 1 ? "product" : "products"}`
                 : `${filtered.length} ${filtered.length === 1 ? "product" : "products"}`}

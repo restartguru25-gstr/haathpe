@@ -62,7 +62,7 @@ export default function BottomNav() {
         })}
       </div>
       <div className="flex items-center justify-center gap-2 border-t border-border/60 bg-muted/30 px-4 py-1.5">
-        <span className="text-[10px] font-semibold text-foreground/80">VendorHub</span>
+        <span className="brand-haathpe text-[10px] font-medium">haathpe</span>
         <span className="text-muted-foreground">·</span>
         <a href="/#terms" className="text-[10px] text-muted-foreground hover:underline">
           Terms

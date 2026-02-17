@@ -28,6 +28,10 @@ export interface Database {
           udyam_number?: string | null;
           fssai_license?: string | null;
           other_business_details?: string | null;
+          opening_hours?: Record<string, string> | null;
+          weekly_off?: string | null;
+          holidays?: string[] | null;
+          is_online?: boolean | null;
         };
         Insert: {
           id: string;
@@ -53,6 +57,10 @@ export interface Database {
           udyam_number?: string | null;
           fssai_license?: string | null;
           other_business_details?: string | null;
+          opening_hours?: Record<string, string> | null;
+          weekly_off?: string | null;
+          holidays?: string[] | null;
+          is_online?: boolean | null;
         };
         Update: {
           id?: string;
@@ -78,6 +86,10 @@ export interface Database {
           udyam_number?: string | null;
           fssai_license?: string | null;
           other_business_details?: string | null;
+          opening_hours?: Record<string, string> | null;
+          weekly_off?: string | null;
+          holidays?: string[] | null;
+          is_online?: boolean | null;
         };
       };
       push_subscriptions: {

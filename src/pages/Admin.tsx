@@ -19,6 +19,8 @@ import {
   Banknote,
   Image,
   UserPlus,
+  Zap,
+  Percent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +74,24 @@ import {
   type IncentiveSlab,
 } from "@/lib/incentives";
 import { getAdminAds, upsertAd, deleteAd, uploadAdImage, type Ad } from "@/lib/ads";
+import {
+  getOndcOrdersForAdmin,
+  getPlatformFeeConfig,
+  updatePlatformFee,
+  type OndcOrder,
+} from "@/lib/ondcOrders";
+import {
+  getAllVendorFees,
+  getVendorsForFeeAdmin,
+  getDefaultFeePercent,
+  upsertPlatformFee,
+  bulkSetDefaultPercent,
+  bulkExemptVendors,
+  getPlatformFeeSummaryThisMonth,
+  formatFeeDisplay,
+  type PlatformFeeWithVendor,
+  type FeeType,
+} from "@/lib/platformFees";
 
 interface AdminProfile {
   id: string;
@@ -153,6 +173,28 @@ export default function Admin() {
   const [editingAd, setEditingAd] = useState<Ad | null>(null);
   const [savingAd, setSavingAd] = useState(false);
   const [adForm, setAdForm] = useState({ brand_name: "", title: "", image_url: "", link_url: "", zone: "general", is_active: true, priority: 0 });
+  const [ondcOrders, setOndcOrders] = useState<OndcOrder[]>([]);
+  const [loadingOndc, setLoadingOndc] = useState(false);
+  const [feeConfig, setFeeConfig] = useState<{ fee_percent: number } | null>(null);
+  const [feeInput, setFeeInput] = useState("");
+  const [savingFee, setSavingFee] = useState(false);
+  const [vendorFees, setVendorFees] = useState<PlatformFeeWithVendor[]>([]);
+  const [loadingVendorFees, setLoadingVendorFees] = useState(false);
+  const [feeSummary, setFeeSummary] = useState<{ total_fee: number; order_count: number }>({ total_fee: 0, order_count: 0 });
+  const [feeFormOpen, setFeeFormOpen] = useState(false);
+  const [feeFormVendor, setFeeFormVendor] = useState<PlatformFeeWithVendor | null>(null);
+  const [feeForm, setFeeForm] = useState({
+    vendor_id: "",
+    fee_type: "percentage" as FeeType,
+    fee_value: 3,
+    min_order_value: 0,
+    is_exempt: false,
+  });
+  const [savingFeeForm, setSavingFeeForm] = useState(false);
+  const [selectedFeeVendorIds, setSelectedFeeVendorIds] = useState<Set<string>>(new Set());
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [defaultFeePercent, setDefaultFeePercent] = useState(3);
+  const [bulkDefaultPercent, setBulkDefaultPercent] = useState("3");
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -274,6 +316,130 @@ export default function Admin() {
     setLoadingAds(false);
   };
 
+  const loadOndc = async () => {
+    setLoadingOndc(true);
+    const [ords, cfg] = await Promise.all([getOndcOrdersForAdmin(), getPlatformFeeConfig()]);
+    setOndcOrders(ords);
+    setFeeConfig(cfg);
+    setFeeInput(cfg ? String(cfg.fee_percent) : "3");
+    setLoadingOndc(false);
+  };
+
+  const handleSaveFee = async () => {
+    const n = parseFloat(feeInput);
+    if (Number.isNaN(n) || n < 0 || n > 100) {
+      toast.error("Enter a fee between 0 and 100");
+      return;
+    }
+    setSavingFee(true);
+    try {
+      const { ok, error } = await updatePlatformFee(n);
+      if (ok) {
+        toast.success(`Platform fee set to ${n}%`);
+        setFeeConfig({ fee_percent: n });
+        loadOndc();
+        loadPlatformFees();
+      } else toast.error(error ?? "Failed");
+    } finally {
+      setSavingFee(false);
+    }
+  };
+
+  const openFeeForm = (row: PlatformFeeWithVendor | null) => {
+    if (row) {
+      setFeeFormVendor(row);
+      setFeeForm({
+        vendor_id: row.vendor_id,
+        fee_type: row.fee_type,
+        fee_value: row.fee_value || 3,
+        min_order_value: row.min_order_value || 0,
+        is_exempt: row.is_exempt,
+      });
+    } else {
+      setFeeFormVendor(null);
+      setFeeForm({
+        vendor_id: "",
+        fee_type: "percentage",
+        fee_value: 3,
+        min_order_value: 0,
+        is_exempt: false,
+      });
+    }
+    setFeeFormOpen(true);
+  };
+
+  const handleSaveFeeForm = async () => {
+    if (!feeForm.vendor_id) {
+      toast.error("Select a vendor");
+      return;
+    }
+    if (feeForm.is_exempt) {
+      setFeeForm((f) => ({ ...f, fee_type: "percentage", fee_value: 0, min_order_value: 0 }));
+    }
+    setSavingFeeForm(true);
+    try {
+      const { ok, error } = await upsertPlatformFee(feeForm.vendor_id, {
+        fee_type: feeForm.fee_type,
+        fee_value: feeForm.fee_value,
+        min_order_value: feeForm.min_order_value,
+        is_exempt: feeForm.is_exempt,
+      });
+      if (ok) {
+        toast.success("Fee updated");
+        setFeeFormOpen(false);
+        loadPlatformFees();
+      } else toast.error(error ?? "Failed");
+    } finally {
+      setSavingFeeForm(false);
+    }
+  };
+
+  const handleBulkSetDefault = async () => {
+    const n = parseFloat(bulkDefaultPercent);
+    if (Number.isNaN(n) || n < 0 || n > 100) {
+      toast.error("Enter a valid percentage (0–100)");
+      return;
+    }
+    setSavingFeeForm(true);
+    try {
+      const { ok, count, error } = await bulkSetDefaultPercent(n);
+      if (ok) {
+        toast.success(`Default ${n}% applied to ${count} vendor(s)`);
+        loadPlatformFees();
+      } else toast.error(error ?? "Failed");
+    } finally {
+      setSavingFeeForm(false);
+    }
+  };
+
+  const handleBulkExempt = async () => {
+    const ids = Array.from(selectedFeeVendorIds);
+    if (ids.length === 0) {
+      toast.error("Select vendors first");
+      return;
+    }
+    setSavingFeeForm(true);
+    try {
+      const { ok, error } = await bulkExemptVendors(ids);
+      if (ok) {
+        toast.success(`${ids.length} vendor(s) exempted`);
+        setSelectedFeeVendorIds(new Set());
+        loadPlatformFees();
+      } else toast.error(error ?? "Failed");
+    } finally {
+      setSavingFeeForm(false);
+    }
+  };
+
+  const toggleFeeVendorSelection = (id: string) => {
+    setSelectedFeeVendorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleRunDailyCalc = async () => {
     setDailyCalcRunning(true);
     try {
@@ -331,6 +497,23 @@ export default function Admin() {
     else loadSvanidhiRequests();
   };
 
+  const loadPlatformFees = async () => {
+    setLoadingVendorFees(true);
+    try {
+      const [fees, summary, defaultPct] = await Promise.all([
+        getAllVendorFees(),
+        getPlatformFeeSummaryThisMonth(),
+        getDefaultFeePercent(),
+      ]);
+      setVendorFees(fees);
+      setFeeSummary(summary);
+      setDefaultFeePercent(defaultPct);
+      setFeeInput(String(defaultPct));
+    } finally {
+      setLoadingVendorFees(false);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       loadVendors();
@@ -340,6 +523,8 @@ export default function Admin() {
       loadSvanidhiRequests();
       loadIncentives();
       loadAds();
+      loadOndc();
+      loadPlatformFees();
     }
   }, [isAdmin]);
 
@@ -630,6 +815,12 @@ export default function Admin() {
           <TabsTrigger value="ads" className="flex items-center gap-2">
             <Image size={16} /> Ads
           </TabsTrigger>
+          <TabsTrigger value="ondc" className="flex items-center gap-2">
+            <Zap size={16} /> ONDC
+          </TabsTrigger>
+          <TabsTrigger value="platformFees" className="flex items-center gap-2">
+            <Percent size={16} /> Platform Fees
+          </TabsTrigger>
           <TabsTrigger value="actions" className="flex items-center gap-2">
             <Trophy size={16} /> Actions
           </TabsTrigger>
@@ -651,7 +842,7 @@ export default function Admin() {
                     <tr>
                       <th className="text-left p-3 font-semibold">Name</th>
                       <th className="text-left p-3 font-semibold">Phone</th>
-                      <th className="text-left p-3 font-semibold">Stall</th>
+                      <th className="text-left p-3 font-semibold">Dukaan</th>
                       <th className="text-right p-3 font-semibold">Credit</th>
                       <th className="text-right p-3 font-semibold">Streak</th>
                       <th className="text-right p-3 font-semibold">Points</th>
@@ -1060,6 +1251,190 @@ export default function Admin() {
           )}
         </TabsContent>
 
+        <TabsContent value="ondc" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Label>Platform fee %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={feeInput}
+                  onChange={(e) => setFeeInput(e.target.value)}
+                  className="w-20"
+                />
+              </div>
+              <Button size="sm" onClick={handleSaveFee} disabled={savingFee}>
+                {savingFee ? <Loader2 size={14} className="animate-spin" /> : null}
+                Save
+              </Button>
+              {feeConfig && <span className="text-sm text-muted-foreground">Current: {feeConfig.fee_percent}%</span>}
+            </div>
+            <Button variant="outline" size="sm" onClick={loadOndc} disabled={loadingOndc}>
+              <RefreshCw size={14} className={loadingOndc ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          {loadingOndc ? (
+            <Skeleton className="h-64 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">ID</th>
+                      <th className="text-left p-3 font-semibold">Vendor</th>
+                      <th className="text-left p-3 font-semibold">Buyer App</th>
+                      <th className="text-right p-3 font-semibold">Total</th>
+                      <th className="text-right p-3 font-semibold">Platform Fee</th>
+                      <th className="text-right p-3 font-semibold">Vendor Amount</th>
+                      <th className="text-left p-3 font-semibold">Payment</th>
+                      <th className="text-left p-3 font-semibold">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ondcOrders.map((o) => (
+                      <tr key={o.id} className="border-t border-border">
+                        <td className="p-3 font-mono text-xs truncate max-w-[120px]">{o.ondc_transaction_id || o.id.slice(0, 8)}</td>
+                        <td className="p-3 truncate max-w-[100px]">{o.vendor_id.slice(0, 8)}…</td>
+                        <td className="p-3">{o.buyer_app ?? "—"}</td>
+                        <td className="p-3 text-right">₹{Number(o.total).toFixed(0)}</td>
+                        <td className="p-3 text-right">₹{Number(o.platform_fee ?? 0).toFixed(0)}</td>
+                        <td className="p-3 text-right font-medium">₹{Number(o.vendor_amount ?? 0).toFixed(0)}</td>
+                        <td className="p-3">
+                          <span className={o.payment_status === "paid" ? "text-green-600" : o.payment_status === "failed" ? "text-red-600" : "text-muted-foreground"}>
+                            {o.payment_status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-muted-foreground text-xs">{new Date(o.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {ondcOrders.length === 0 && (
+                <p className="p-6 text-center text-muted-foreground">No ONDC orders yet. Webhook: /functions/v1/ondc-webhook</p>
+              )}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Retry failed payouts: Invoke RazorpayX manually or contact support. (Auto-retry coming in future.)
+          </p>
+        </TabsContent>
+
+        <TabsContent value="platformFees" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
+              <Banknote size={24} className="text-primary" />
+              <div>
+                <p className="text-sm text-muted-foreground">Platform fee this month</p>
+                <p className="text-xl font-bold">₹{Number(feeSummary.total_fee).toFixed(0)}</p>
+                <p className="text-xs text-muted-foreground">{feeSummary.order_count} orders</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label>Default % (for vendors without custom fee)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={feeInput || defaultFeePercent}
+                onChange={(e) => setFeeInput(e.target.value)}
+                className="w-20"
+              />
+              <Button size="sm" onClick={handleSaveFee} disabled={savingFee}>
+                {savingFee ? <Loader2 size={14} className="animate-spin" /> : null} Save
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => openFeeForm(null)}>
+              <Plus size={14} /> Set fee for vendor
+            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={bulkDefaultPercent}
+                onChange={(e) => setBulkDefaultPercent(e.target.value)}
+                className="w-20"
+                placeholder="%"
+              />
+              <Button variant="outline" size="sm" onClick={handleBulkSetDefault} disabled={savingFeeForm}>
+                Set default % for all
+              </Button>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleBulkExempt} disabled={savingFeeForm || selectedFeeVendorIds.size === 0}>
+              Exempt selected ({selectedFeeVendorIds.size})
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadPlatformFees} disabled={loadingVendorFees}>
+              <RefreshCw size={14} className={loadingVendorFees ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          {loadingVendorFees ? (
+            <Skeleton className="h-64 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="w-10 p-3" />
+                      <th className="text-left p-3 font-semibold">Vendor</th>
+                      <th className="text-left p-3 font-semibold">Dukaan Type</th>
+                      <th className="text-left p-3 font-semibold">Current Fee</th>
+                      <th className="text-left p-3 font-semibold">Effective From</th>
+                      <th className="w-20 p-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendorFees
+                      .filter((v) => !vendorSearch || (v.vendor_name?.toLowerCase().includes(vendorSearch.toLowerCase()) ?? false))
+                      .map((row) => (
+                        <tr key={row.vendor_id} className="border-t border-border">
+                          <td className="p-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedFeeVendorIds.has(row.vendor_id)}
+                              onChange={() => toggleFeeVendorSelection(row.vendor_id)}
+                            />
+                          </td>
+                          <td className="p-3 font-medium">{row.vendor_name ?? row.vendor_id.slice(0, 8) + "…"}</td>
+                          <td className="p-3 text-muted-foreground">{row.stall_type ?? "—"}</td>
+                          <td className="p-3">{formatFeeDisplay(row.id ? row : null, defaultFeePercent)}</td>
+                          <td className="p-3 text-muted-foreground text-xs">
+                            {row.effective_from ? new Date(row.effective_from).toLocaleDateString() : "—"}
+                          </td>
+                          <td className="p-3">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openFeeForm(row)}>
+                              <Pencil size={14} />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              {vendorFees.length === 0 && (
+                <p className="p-6 text-center text-muted-foreground">No vendors. Add vendors with dukaan type to manage fees.</p>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Search vendor..."
+              value={vendorSearch}
+              onChange={(e) => setVendorSearch(e.target.value)}
+              className="max-w-xs"
+            />
+          </div>
+        </TabsContent>
+
         <TabsContent value="actions" className="space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -1274,6 +1649,92 @@ export default function Admin() {
         </SheetContent>
       </Sheet>
 
+      {/* Platform fee form sheet */}
+      <Sheet open={feeFormOpen} onOpenChange={(open) => !open && setFeeFormOpen(false)}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{feeFormVendor ? "Edit platform fee" : "Set fee for vendor"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div>
+              <Label>Vendor</Label>
+              <Select
+                value={feeForm.vendor_id}
+                onValueChange={(v) => setFeeForm((f) => ({ ...f, vendor_id: v }))}
+                disabled={!!feeFormVendor}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select vendor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendorFees.map((v) => (
+                    <SelectItem key={v.vendor_id} value={v.vendor_id}>
+                      {v.vendor_name ?? v.vendor_id.slice(0, 8)} — {v.stall_type ?? "—"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="fee-exempt"
+                checked={feeForm.is_exempt}
+                onChange={(e) => setFeeForm((f) => ({ ...f, is_exempt: e.target.checked }))}
+              />
+              <Label htmlFor="fee-exempt">Exempt this vendor completely</Label>
+            </div>
+            {!feeForm.is_exempt && (
+              <>
+                <div>
+                  <Label>Fee type</Label>
+                  <Select
+                    value={feeForm.fee_type}
+                    onValueChange={(v) => setFeeForm((f) => ({ ...f, fee_type: v as FeeType }))}
+                  >
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="percentage">Percentage</SelectItem>
+                      <SelectItem value="fixed">Fixed (₹)</SelectItem>
+                      <SelectItem value="slab">Slab</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>{feeForm.fee_type === "percentage" ? "Percentage (%)" : feeForm.fee_type === "fixed" ? "Fixed amount (₹)" : "Fee value (₹)"}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={feeForm.fee_type === "percentage" ? 0.5 : 1}
+                    value={feeForm.fee_value}
+                    onChange={(e) => setFeeForm((f) => ({ ...f, fee_value: parseFloat(e.target.value) || 0 }))}
+                    className="mt-1.5"
+                  />
+                </div>
+                {feeForm.fee_type === "slab" && (
+                  <div>
+                    <Label>Min order value (₹) — fee applies when order ≥ this</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={feeForm.min_order_value}
+                      onChange={(e) => setFeeForm((f) => ({ ...f, min_order_value: parseFloat(e.target.value) || 0 }))}
+                      className="mt-1.5"
+                    />
+                  </div>
+                )}
+              </>
+            )}
+            <Button className="w-full" onClick={handleSaveFeeForm} disabled={savingFeeForm}>
+              {savingFeeForm ? <Loader2 size={16} className="animate-spin" /> : null}
+              Save
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Edit vendor sheet */}
       <Sheet open={!!editVendor} onOpenChange={(open) => !open && setEditVendor(null)}>
         <SheetContent side="right" className="overflow-y-auto">
@@ -1299,11 +1760,11 @@ export default function Admin() {
                 />
               </div>
               <div>
-                <Label>Stall type</Label>
+                <Label>Dukaan type</Label>
                 <Input
                   value={editVendor.stall_type ?? ""}
                   onChange={(e) => setEditVendor({ ...editVendor, stall_type: e.target.value })}
-                  placeholder="e.g. Tea Stall"
+                  placeholder="e.g. Kirana Store, Tea Stall, Hardware"
                   className="mt-1.5"
                 />
               </div>

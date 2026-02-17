@@ -13,12 +13,14 @@ import {
   Store,
   Banknote,
   Package,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useApp } from "@/contexts/AppContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useSession } from "@/contexts/AuthContext";
+import { isShopOpen } from "@/lib/shopDetails";
 import { sampleOrders } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { getSalesStats } from "@/lib/sales";
@@ -53,7 +55,7 @@ function getOrderStatusStyle(status: string) {
 export default function Dashboard() {
   const { t } = useApp();
   const { profile, isLoading } = useProfile();
-  const { user } = useSession();
+  const { user, profile: rawProfile, refreshProfile } = useSession();
   const [orders, setOrders] = useState<{ id: string; total: number; date: string; status: string }[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [salesStats, setSalesStats] = useState<{
@@ -154,7 +156,26 @@ export default function Dashboard() {
               {name}
               <span className="ml-1.5 text-xl opacity-90">{stallIcon}</span>
             </h1>
-            <p className="text-sm text-muted-foreground">Your {stallType} — keep the hustle going.</p>
+            <p className="text-sm text-muted-foreground">{t("dashboardGreeting")}</p>
+            {rawProfile && (() => {
+              const status = isShopOpen({
+                opening_hours: rawProfile.opening_hours ?? undefined,
+                weekly_off: rawProfile.weekly_off ?? undefined,
+                holidays: rawProfile.holidays ?? undefined,
+                is_online: rawProfile.is_online,
+              });
+              return (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${status.open ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"}`}>
+                    <Clock size={12} />
+                    {status.open ? t("shopOpenNow") : t("shopClosedNow")}
+                  </span>
+                  <Link to="/profile">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs">{t("editTimings")}</Button>
+                  </Link>
+                </div>
+              );
+            })()}
           </div>
         </motion.div>
 
@@ -231,81 +252,96 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Quick actions */}
-        <div className="mb-6 grid grid-cols-2 gap-3">
-          <motion.div {...fadeUp(5)}>
+        {/* Quick actions - uniform tile height on mobile */}
+        <div className="mb-6 grid grid-cols-2 gap-3 [grid-auto-rows:1fr]">
+          <motion.div {...fadeUp(5)} className="min-h-[5.5rem]">
             <Link
               to="/catalog"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+              className="flex h-full min-h-[5.5rem] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                 <ShoppingBag size={20} className="text-primary" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">Browse catalog</p>
-                <p className="text-xs text-muted-foreground">Order supplies</p>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="font-semibold truncate">{t("catalog")}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{t("catalogPageSubtitle")}</p>
               </div>
-              <ChevronRight size={18} className="text-muted-foreground" />
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
             </Link>
           </motion.div>
-          <motion.div {...fadeUp(6)}>
+          <motion.div {...fadeUp(6)} className="min-h-[5.5rem]">
             <Link
               to="/loyalty"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+              className="flex h-full min-h-[5.5rem] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10">
                 <Ticket size={20} className="text-accent" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">Check draws</p>
-                <p className="text-xs text-muted-foreground">Today&apos;s winner</p>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="font-semibold truncate">Check draws</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">Today&apos;s winner</p>
               </div>
-              <ChevronRight size={18} className="text-muted-foreground" />
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
             </Link>
           </motion.div>
-          <motion.div {...fadeUp(7)}>
+          <motion.div {...fadeUp(7)} className="min-h-[5.5rem]">
             <Link
               to="/catalog"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+              className="flex h-full min-h-[5.5rem] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                 <RotateCcw size={20} className="text-primary" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">Reorder last kit</p>
-                <p className="text-xs text-muted-foreground">One tap</p>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="font-semibold truncate">Reorder last kit</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">One tap</p>
               </div>
-              <ChevronRight size={18} className="text-muted-foreground" />
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
             </Link>
           </motion.div>
-          <motion.div {...fadeUp(8)}>
+          <motion.div {...fadeUp(8)} className="min-h-[5.5rem]">
             <Link
               to="/orders"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+              className="flex h-full min-h-[5.5rem] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-success/10">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success/10">
                 <Receipt size={20} className="text-success" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">My orders</p>
-                <p className="text-xs text-muted-foreground">Track & reorder</p>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="font-semibold truncate">{t("orders")}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{t("ordersPageSubtitle")}</p>
               </div>
-              <ChevronRight size={18} className="text-muted-foreground" />
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
             </Link>
           </motion.div>
-          <motion.div {...fadeUp(8.5)}>
+          <motion.div {...fadeUp(8.5)} className="min-h-[5.5rem]">
             <Link
               to="/swap"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+              className="flex h-full min-h-[5.5rem] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10">
                 <Package size={20} className="text-amber-600 dark:text-amber-400" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">Vendor Swap</p>
-                <p className="text-xs text-muted-foreground">Buy or sell excess stock</p>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="font-semibold truncate">{t("vendorSwap")}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">Buy or sell excess stock</p>
               </div>
-              <ChevronRight size={18} className="text-muted-foreground" />
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
+            </Link>
+          </motion.div>
+          <motion.div {...fadeUp(8.6)} className="min-h-[5.5rem]">
+            <Link
+              to="/sales"
+              className="flex h-full min-h-[5.5rem] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10">
+                <Store size={20} className="text-accent" />
+              </div>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="font-semibold truncate">{t("sales")}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{t("salesPageSubtitle")}</p>
+              </div>
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
             </Link>
           </motion.div>
         </div>

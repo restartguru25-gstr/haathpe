@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 import TopNav from "@/components/TopNav";
 import MobileHeader from "@/components/MobileHeader";
+import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import CartFAB from "@/components/CartFAB";
 import { useProfile } from "@/hooks/useProfile";
 import { useApp } from "@/contexts/AppContext";
@@ -72,8 +73,11 @@ export default function AppLayout() {
     <div className="min-h-screen bg-background">
       <TopNav />
       <MobileHeader />
-      <main className="pb-28 md:pb-4">
-        <Outlet />
+      <main className="pb-28 md:pb-4 flex flex-col min-h-[calc(100vh-4rem)]">
+        <div className="flex-1">
+          <Outlet />
+        </div>
+        <MakeInIndiaFooter />
       </main>
       <CartFAB />
       <BottomNav />

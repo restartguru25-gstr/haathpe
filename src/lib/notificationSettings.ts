@@ -1,4 +1,4 @@
-const KEY = "vendorhub_notification_settings";
+const KEY = "haathpe_notification_settings";
 
 export interface NotificationSettings {
   orderUpdates: boolean;

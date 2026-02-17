@@ -31,10 +31,10 @@ export default function TopNav() {
     <header className="sticky top-0 z-50 hidden border-b border-border bg-card/95 backdrop-blur-md md:block">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-            V
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground font-brand tracking-widest">
+            h
           </div>
-          <span className="text-xl font-bold text-foreground">VendorHub</span>
+          <span className="brand-haathpe text-xl">haathpe</span>
         </Link>
 
         <nav className="flex items-center gap-1">

@@ -195,7 +195,7 @@ export default function Orders() {
   const handlePrintInvoice = () => {
     if (!invoiceOrder) return;
     const lines: string[] = [
-      "VendorHub – Tax Invoice",
+      "haathpe – Tax Invoice",
       "------------------------",
       `Order: ${formatOrderId(invoiceOrder.id)}`,
       `Date: ${invoiceOrder.date}`,
@@ -232,7 +232,7 @@ export default function Orders() {
   const handleDownloadInvoice = () => {
     if (!invoiceOrder) return;
     const lines: string[] = [
-      "VendorHub – Tax Invoice",
+      "haathpe – Tax Invoice",
       "------------------------",
       `Order: ${formatOrderId(invoiceOrder.id)}`,
       `Date: ${invoiceOrder.date}`,
@@ -259,7 +259,7 @@ export default function Orders() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `VendorHub-Invoice-${formatOrderId(invoiceOrder.id).replace("#", "")}.txt`;
+    a.download = `haathpe-Invoice-${formatOrderId(invoiceOrder.id).replace("#", "")}.txt`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Invoice downloaded");
@@ -272,7 +272,7 @@ export default function Orders() {
     let y = 18;
 
     doc.setFontSize(18);
-    doc.text("VendorHub – Tax Invoice", 14, y);
+    doc.text("haathpe – Tax Invoice", 14, y);
     y += 10;
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
@@ -367,7 +367,8 @@ export default function Orders() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold tracking-tight">{t("orders")}</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-0.5">{t("ordersPageSubtitle")}</p>
+          <p className="text-sm text-muted-foreground mt-1">
             {filtered.length} {filtered.length === 1 ? "order" : "orders"}
           </p>
         </div>

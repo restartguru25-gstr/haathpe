@@ -171,13 +171,13 @@ export default function POS() {
             </div>
             <h2 className="mb-2 text-center text-lg font-bold text-foreground">No menu yet</h2>
             <p className="mb-4 text-center text-sm text-muted-foreground">
-              Add your shop menu in <strong>My Shop Menu</strong>, then return here — items will appear as tappable tiles.
+              Add your shop menu in <strong>Mera Dukaan</strong>, then return here — items will appear as tappable tiles.
             </p>
             <div className="mx-auto mb-6 max-w-sm space-y-3 rounded-lg bg-muted/50 p-4 text-left text-sm">
               <p className="font-medium text-foreground">Two ways to add your menu:</p>
               <ol className="list-inside list-decimal space-y-1.5 text-muted-foreground">
-                <li><strong className="text-foreground">Set stall type</strong> in Profile (e.g. Tea Stall, PaniPuri), then in My Shop Menu tap <strong className="text-foreground">Activate Default Menu</strong>.</li>
-                <li><strong className="text-foreground">Or add items one by one</strong> in My Shop Menu — no stall type needed.</li>
+                <li><strong className="text-foreground">Set dukaan type</strong> in Profile (e.g. Tea Stall, PaniPuri), then in Mera Dukaan tap <strong className="text-foreground">Activate Default Menu</strong>.</li>
+                <li><strong className="text-foreground">Or add items one by one</strong> in Mera Dukaan — no dukaan type needed.</li>
               </ol>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
@@ -185,7 +185,7 @@ export default function POS() {
                 <Button className="w-full sm:w-auto">{t("mySalesMenu")} → Add menu</Button>
               </Link>
               <Link to="/profile" className="inline-block">
-                <Button variant="outline" className="w-full sm:w-auto">Profile → Set stall type</Button>
+                <Button variant="outline" className="w-full sm:w-auto">Profile → Set dukaan type</Button>
               </Link>
             </div>
           </div>

@@ -21,8 +21,8 @@ export function useUnreadNotifications(): { unreadCount: number; refresh: () => 
 
   useEffect(() => {
     const onUpdate = () => refresh();
-    window.addEventListener("vendorhub:notifications-updated", onUpdate);
-    return () => window.removeEventListener("vendorhub:notifications-updated", onUpdate);
+    window.addEventListener("haathpe:notifications-updated", onUpdate);
+    return () => window.removeEventListener("haathpe:notifications-updated", onUpdate);
   }, [refresh]);
 
   return { unreadCount, refresh };

@@ -23,6 +23,7 @@ import {
   X,
   Package,
   UserPlus,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,14 @@ import {
   shareOrDownloadTransactionHistory,
 } from "@/lib/transactionHistory";
 import { requestPayout } from "@/lib/incentives";
+import {
+  isShopOpen,
+  buildOpeningHours,
+  getOpenCloseFromHours,
+  TIME_OPTIONS,
+  WEEKLY_OFF_OPTIONS,
+  type ShopDetails,
+} from "@/lib/shopDetails";
 
 const fadeUp = (i: number) => ({
   initial: { opacity: 0, y: 14 },
@@ -73,17 +82,25 @@ const LANG_OPTIONS: { value: Language; label: string; full: string }[] = [
 ];
 
 const STALL_TYPES = [
+  "Kirana Store",
+  "General Store",
+  "Kirana/General Store",
   "Tea Stall",
   "Beverage Stalls",
   "Food Stall",
   "Snacks Stall",
   "Panipuri Stall",
+  "Tiffin Centre",
+  "Pan Shop",
+  "Fast Food",
+  "Hardware Shop",
+  "Saloon/Spa",
 ];
 
 export default function Profile() {
   const { t, lang, setLang } = useApp();
   const { profile, isLoading } = useProfile();
-  const { signOut, user, refreshProfile } = useSession();
+  const { signOut, user, refreshProfile, profile: rawProfile } = useSession();
   const { isAdmin } = useAdmin();
   const [editOpen, setEditOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -100,6 +117,7 @@ export default function Profile() {
     udyamNumber: "",
     fssaiLicense: "",
     otherBusinessDetails: "",
+    upiId: "",
   });
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -109,6 +127,15 @@ export default function Profile() {
   const [txHistoryLoading, setTxHistoryLoading] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
+  const [shopTimingsOpen, setShopTimingsOpen] = useState(false);
+  const [shopForm, setShopForm] = useState({
+    openTime: "08:00",
+    closeTime: "22:00",
+    weeklyOff: "",
+    holidaysText: "",
+    isOnline: true,
+  });
+  const [savingShop, setSavingShop] = useState(false);
 
   const {
     name,
@@ -130,12 +157,27 @@ export default function Profile() {
     udyamNumber,
     fssaiLicense,
     otherBusinessDetails,
+    upiId,
   } = profile;
   const creditPercent = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0;
 
   useEffect(() => {
     setNotifSettings(getNotificationSettings());
   }, [notifOpen]);
+
+  useEffect(() => {
+    if (shopTimingsOpen && rawProfile) {
+      const { open, close } = getOpenCloseFromHours(rawProfile.opening_hours);
+      const holidays = Array.isArray(rawProfile.holidays) ? rawProfile.holidays : [];
+      setShopForm({
+        openTime: open,
+        closeTime: close,
+        weeklyOff: rawProfile.weekly_off ?? "",
+        holidaysText: holidays.join("\n"),
+        isOnline: rawProfile.is_online !== false,
+      });
+    }
+  }, [shopTimingsOpen, rawProfile]);
 
   useEffect(() => {
     if (notifOpen && user?.id && isPushSupported()) {
@@ -166,6 +208,7 @@ export default function Profile() {
       udyamNumber: udyamNumber || "",
       fssaiLicense: fssaiLicense || "",
       otherBusinessDetails: otherBusinessDetails || "",
+      upiId: upiId || "",
     });
     setEditOpen(true);
   };
@@ -196,6 +239,7 @@ export default function Profile() {
         udyam_number: (editForm.udyamNumber || "").trim() || null,
         fssai_license: (editForm.fssaiLicense || "").trim() || null,
         other_business_details: (editForm.otherBusinessDetails || "").trim() || null,
+        upi_id: (editForm.upiId || "").trim() || null,
       };
       const { error: businessError } = await supabase
         .from("profiles")
@@ -327,6 +371,11 @@ export default function Profile() {
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-bold">{name}</h2>
               <p className="text-sm text-muted-foreground">{stallType}</p>
+              {stallType && stallType !== "Default" && (
+                <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  <ShieldCheck size={12} /> {t("ondcEnabled")} · {t("ondcMenuLive")}
+                </p>
+              )}
               {phone && (
                 <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Phone size={12} /> {phone}
@@ -448,6 +497,59 @@ export default function Profile() {
           </div>
         </motion.div>
 
+        {/* Dukaan Timings & Online Status */}
+        {user?.id && (
+          <motion.div
+            {...fadeUp(3.2)}
+            className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm"
+          >
+            <h3 className="mb-3 flex items-center gap-2 text-base font-bold">
+              <Clock size={18} className="text-primary" />
+              {t("shopTimingsTitle")}
+            </h3>
+            <p className="mb-3 text-xs text-muted-foreground">{t("shopTimingsDesc")}</p>
+            {(() => {
+              const details: ShopDetails = {
+                opening_hours: rawProfile?.opening_hours ?? undefined,
+                weekly_off: rawProfile?.weekly_off ?? undefined,
+                holidays: rawProfile?.holidays ?? undefined,
+                is_online: rawProfile?.is_online,
+              };
+              const status = isShopOpen(details);
+              const statusKey = lang === "hi" ? "messageHi" : lang === "te" ? "messageTe" : "message";
+              return (
+                <>
+                  <div className="mb-3 flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <span className={`text-sm font-semibold ${status.open ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
+                      {status.open ? t("shopOpenNow") : t("shopClosedNow")}
+                    </span>
+                    <Switch
+                      checked={rawProfile?.is_online !== false}
+                      onCheckedChange={async (checked) => {
+                        if (!user?.id) return;
+                        const { error } = await supabase
+                          .from("profiles")
+                          .update({ is_online: checked })
+                          .eq("id", user.id);
+                        if (error) {
+                          toast.error("Could not update");
+                          return;
+                        }
+                        await refreshProfile();
+                        toast.success(checked ? "Online orders enabled" : "Online orders disabled");
+                      }}
+                    />
+                  </div>
+                  <p className="mb-3 text-xs text-muted-foreground">{status[statusKey]}</p>
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => setShopTimingsOpen(true)}>
+                    Edit timings & holidays
+                  </Button>
+                </>
+              );
+            })()}
+          </motion.div>
+        )}
+
         {/* SVANidhi Boost – govt scheme link with transaction proof stub */}
         {user?.id && (
           <motion.div
@@ -459,7 +561,7 @@ export default function Profile() {
               SVANidhi Boost
             </h3>
             <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
-              PM SVANidhi loans for street vendors. Your app data (purchases & sales) can be used as proof for instant credit.
+              PM SVANidhi loans for chhoti dukaan & vendors. Your app data (purchases & sales) can be used as proof for instant credit.
             </p>
             <div className="flex flex-col gap-2">
               <Button
@@ -507,7 +609,7 @@ export default function Profile() {
                   if (!user?.id) return;
                   setTxHistoryLoading(true);
                   try {
-                    const data = await fetchTransactionHistory(user.id, name || "Vendor");
+                    const data = await fetchTransactionHistory(user.id, name || "Dukaanwaala");
                     downloadTransactionHistoryPdf(data);
                     toast.success("PDF downloaded. Use it for SVANidhi upload.");
                   } catch {
@@ -529,7 +631,7 @@ export default function Profile() {
                   if (!user?.id) return;
                   setTxHistoryLoading(true);
                   try {
-                    const data = await fetchTransactionHistory(user.id, name || "Vendor");
+                    const data = await fetchTransactionHistory(user.id, name || "Dukaanwaala");
                     downloadTransactionHistoryCsv(data);
                     toast.success("CSV downloaded. Use for SVANidhi or Excel.");
                   } catch {
@@ -552,7 +654,7 @@ export default function Profile() {
                     if (!user?.id) return;
                     setTxHistoryLoading(true);
                     try {
-                      const data = await fetchTransactionHistory(user.id, name || "Vendor");
+                      const data = await fetchTransactionHistory(user.id, name || "Dukaanwaala");
                       shareOrDownloadTransactionHistory(data, "pdf", () => {
                         toast.success("Shared or downloaded. Use for SVANidhi upload.");
                         setTxHistoryLoading(false);
@@ -647,7 +749,7 @@ export default function Profile() {
             <Link to="/swap">
               <Button variant="outline" className="w-full justify-between text-sm">
                 <span className="flex items-center gap-2">
-                  <Package size={16} /> Vendor Swap
+                  <Package size={16} /> {t("vendorSwap")}
                 </span>
                 <ChevronRight size={16} className="text-muted-foreground" />
               </Button>
@@ -725,7 +827,7 @@ export default function Profile() {
               />
             </div>
             <div>
-              <Label htmlFor="edit-stall-type">Stall type</Label>
+              <Label htmlFor="edit-stall-type">{t("dukaanType")}</Label>
               <select
                 id="edit-stall-type"
                 value={editForm.stallType}
@@ -741,7 +843,7 @@ export default function Profile() {
               </select>
             </div>
             <div>
-              <Label htmlFor="edit-address">Stall address</Label>
+              <Label htmlFor="edit-address">{t("dukaanAddress")}</Label>
               <Input
                 id="edit-address"
                 value={editForm.stallAddress}
@@ -845,6 +947,17 @@ export default function Profile() {
               />
             </div>
             <div>
+              <Label htmlFor="edit-upi">{t("upiForPayout")}</Label>
+              <Input
+                id="edit-upi"
+                value={editForm.upiId}
+                onChange={(e) => setEditForm((f) => ({ ...f, upiId: e.target.value }))}
+                placeholder={t("upiPlaceholder")}
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t("upiPayoutHint")}</p>
+            </div>
+            <div>
               <Label htmlFor="edit-phone">Phone</Label>
               <Input
                 id="edit-phone"
@@ -856,6 +969,116 @@ export default function Profile() {
             </div>
             <Button onClick={handleSaveProfile} className="w-full" disabled={saving}>
               {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Dukaan Timings sheet */}
+      <Sheet open={shopTimingsOpen} onOpenChange={setShopTimingsOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[90vh] overflow-y-auto">
+          <SheetHeader className="text-left">
+            <SheetTitle>{t("shopTimingsTitle")}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <p className="font-medium">{t("onlineOrdersAvailable")}</p>
+                <p className="text-xs text-muted-foreground">When OFF, customers cannot place orders from your menu</p>
+              </div>
+              <Switch
+                checked={shopForm.isOnline}
+                onCheckedChange={(v) => setShopForm((f) => ({ ...f, isOnline: v }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>{t("openTime")}</Label>
+                <select
+                  value={shopForm.openTime}
+                  onChange={(e) => setShopForm((f) => ({ ...f, openTime: e.target.value }))}
+                  className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {TIME_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>{t("closeTime")}</Label>
+                <select
+                  value={shopForm.closeTime}
+                  onChange={(e) => setShopForm((f) => ({ ...f, closeTime: e.target.value }))}
+                  className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {TIME_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <Label>{t("weeklyOff")}</Label>
+              <select
+                value={shopForm.weeklyOff}
+                onChange={(e) => setShopForm((f) => ({ ...f, weeklyOff: e.target.value }))}
+                className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {WEEKLY_OFF_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="shop-holidays">{t("shopHolidays")}</Label>
+              <textarea
+                id="shop-holidays"
+                value={shopForm.holidaysText}
+                onChange={(e) => setShopForm((f) => ({ ...f, holidaysText: e.target.value }))}
+                placeholder="2026-03-01\n2026-08-15"
+                className="mt-1.5 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                rows={4}
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={savingShop}
+              onClick={async () => {
+                if (!user?.id) return;
+                const open = shopForm.openTime;
+                const close = shopForm.closeTime;
+                if (parseInt(open.replace(":", ""), 10) >= parseInt(close.replace(":", ""), 10)) {
+                  toast.error("Opening time must be before closing time");
+                  return;
+                }
+                setSavingShop(true);
+                try {
+                  const holidays = shopForm.holidaysText
+                    .split(/[\n,]+/)
+                    .map((s) => s.trim())
+                    .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+                  const openingHours = buildOpeningHours(open, close, shopForm.weeklyOff || null);
+                  const { error } = await supabase
+                    .from("profiles")
+                    .update({
+                      opening_hours: openingHours,
+                      weekly_off: shopForm.weeklyOff || null,
+                      holidays,
+                      is_online: shopForm.isOnline,
+                    })
+                    .eq("id", user.id);
+                  if (error) throw error;
+                  await refreshProfile();
+                  setShopTimingsOpen(false);
+                  toast.success(t("profileUpdated"));
+                } catch (e) {
+                  toast.error("Could not save. Try again.");
+                } finally {
+                  setSavingShop(false);
+                }
+              }}
+            >
+              {savingShop ? "Saving…" : "Save"}
             </Button>
           </div>
         </SheetContent>

@@ -25,14 +25,24 @@ export interface DisplayProfile {
   udyamNumber: string;
   fssaiLicense: string;
   otherBusinessDetails: string;
+  premiumTier: "free" | "basic" | "premium";
+  upiId: string;
 }
 
 const stallIcons: Record<string, string> = {
+  "Kirana Store": "🏪",
+  "General Store": "🏬",
+  "Kirana/General Store": "🏪",
   "Tea Stall": "☕",
   "Beverage Stalls": "🥤",
   "Food Stall": "🍲",
   "Snacks Stall": "🍿",
   "Panipuri Stall": "🎪",
+  "Tiffin Centre": "🍱",
+  "Pan Shop": "🍃",
+  "Fast Food": "🍔",
+  "Hardware Shop": "🔧",
+  "Saloon/Spa": "💇",
   "Default": "🛒",
 };
 
@@ -47,12 +57,14 @@ function profileToDisplay(p: Profile | null): DisplayProfile {
     udyam_number?: string | null;
     fssai_license?: string | null;
     other_business_details?: string | null;
+    upi_id?: string | null;
     available_balance?: number | null;
     zone?: string | null;
+    premium_tier?: string | null;
   };
   const shopUrls = raw.shop_photo_urls;
   return {
-    name: p.name || "Vendor",
+    name: p.name || "Dukaanwaala",
     stallType,
     stallIcon: stallIcons[stallType] || stallIcons.Default,
     phone: p.phone || vendorProfile.phone,
@@ -74,6 +86,8 @@ function profileToDisplay(p: Profile | null): DisplayProfile {
     udyamNumber: raw.udyam_number ?? "",
     fssaiLicense: raw.fssai_license ?? "",
     otherBusinessDetails: raw.other_business_details ?? "",
+    premiumTier: (raw.premium_tier as "free" | "basic" | "premium") || "free",
+    upiId: raw.upi_id ?? "",
   };
 }
 
@@ -101,6 +115,8 @@ function vendorProfileToDisplay(): DisplayProfile {
     udyamNumber: "",
     fssaiLicense: "",
     otherBusinessDetails: "",
+    premiumTier: "free" as const,
+    upiId: "",
   };
 }
 

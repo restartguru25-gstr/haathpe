@@ -1,5 +1,5 @@
-/* VendorHub: service worker – push notifications + offline caching */
-const CACHE_NAME = "vendorhub-v1";
+/* haathpe: service worker – push notifications + offline caching */
+const CACHE_NAME = "haathpe-v1";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -37,7 +37,7 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const data = event.data?.json?.() ?? {};
-  const title = data.title || "VendorHub";
+  const title = data.title || "haathpe";
   const options = { body: data.body || "", icon: "/icons/icon.svg" };
   event.waitUntil(self.registration.showNotification(title, options));
 });

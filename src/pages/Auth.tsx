@@ -8,15 +8,18 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/AuthContext";
+import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
+import { useApp } from "@/contexts/AppContext";
 import { setMyReferrer } from "@/lib/incentives";
 
 // Dummy credentials for testing (dev only)
-const TEST_EMAIL = "test@vendorhub.in";
+const TEST_EMAIL = "test@haathpe.com";
 const TEST_PASSWORD = "Test123!";
 
 type AuthStep = "method" | "phone" | "otp" | "magic" | "sent" | "password";
 
 export default function Auth() {
+  const { t } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -245,7 +248,8 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background">
+    <div className="min-h-screen flex flex-col items-center px-4 py-12 bg-background">
+      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -259,12 +263,13 @@ export default function Auth() {
         </Link>
 
         <div className="mb-8 flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-            V
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground font-brand tracking-widest">
+            h
           </div>
-          <span className="text-xl font-bold">VendorHub</span>
+          <span className="brand-haathpe text-xl">haathpe</span>
         </div>
 
+        <p className="mb-2 text-sm font-medium text-primary">{t("tagline")}</p>
         <h1 className="mb-2 text-2xl font-extrabold">Sign in / Sign up</h1>
         <p className="mb-6 text-muted-foreground text-sm">
           New users: create an account. Existing: sign in. Phone OTP, magic link, or email &amp; password.
@@ -307,7 +312,7 @@ export default function Auth() {
                   onClick={handleTestLogin}
                   disabled={loading}
                 >
-                  <TestTube size={18} /> Test login (test@vendorhub.in / Test123!)
+                  <TestTube size={18} /> Test login (test@haathpe.com / Test123!)
                 </Button>
               )}
             </motion.div>
@@ -470,6 +475,10 @@ export default function Auth() {
           By signing in, you agree to our terms and privacy policy.
         </p>
       </motion.div>
+      </div>
+      <div className="w-full">
+        <MakeInIndiaFooter />
+      </div>
     </div>
   );
 }

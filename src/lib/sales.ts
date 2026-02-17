@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { calculatePlatformFee } from "./platformFees";
 
 export interface DefaultMenuItem {
   id: string;
@@ -47,12 +48,15 @@ export interface CustomerOrder {
   gst_amount: number;
   total: number;
   payment_method: "cash" | "upi" | "online";
-  status: "pending" | "prepared" | "delivered" | "paid";
+  status: "pending" | "prepared" | "ready" | "delivered" | "paid";
   payment_id: string | null;
   created_at: string;
 }
 
 const STALL_TO_SECTOR: Record<string, string> = {
+  "Kirana Store": "a0000002-0002-4000-8000-000000000002",
+  "General Store": "a0000002-0002-4000-8000-000000000002",
+  "Kirana/General Store": "a0000002-0002-4000-8000-000000000002",
   "Tea Stall": "a0000004-0004-4000-8000-000000000004",
   "Tea Stalls": "a0000004-0004-4000-8000-000000000004",
   "Beverage Stalls": "a0000004-0004-4000-8000-000000000004",
@@ -62,11 +66,14 @@ const STALL_TO_SECTOR: Record<string, string> = {
   "PaniPuri": "a0000001-0001-4000-8000-000000000001",
   "Panipuri": "a0000001-0001-4000-8000-000000000001",
   "Tiffin Centres": "a0000002-0002-4000-8000-000000000002",
+  "Tiffin Centre": "a0000002-0002-4000-8000-000000000002",
   "Tiffin": "a0000002-0002-4000-8000-000000000002",
   "Pan Shops": "a0000003-0003-4000-8000-000000000003",
   "Pan Shop": "a0000003-0003-4000-8000-000000000003",
   "Fast Food Carts": "a0000005-0005-4000-8000-000000000005",
   "Fast Food": "a0000005-0005-4000-8000-000000000005",
+  "Hardware Shop": "a0000002-0002-4000-8000-000000000002",
+  "Saloon/Spa": "a0000002-0002-4000-8000-000000000002",
 };
 
 export function getSectorIdFromStallType(stallType: string | null): string | null {
@@ -198,6 +205,7 @@ export async function createCustomerOrder(
   vendorId: string,
   payload: {
     customer_name_phone?: string | null;
+    customer_phone?: string | null;
     items: CustomerOrderItem[];
     subtotal: number;
     gst_amount: number;
@@ -205,13 +213,18 @@ export async function createCustomerOrder(
     payment_method: "cash" | "upi" | "online";
     status?: "pending" | "paid";
     payment_id?: string | null;
+    delivery_option?: "pickup" | "self_delivery";
+    delivery_address?: string | null;
   }
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { platform_fee, vendor_amount } = await calculatePlatformFee(vendorId, payload.total);
+
   const { data, error } = await supabase
     .from("customer_orders")
     .insert({
       vendor_id: vendorId,
       customer_name_phone: payload.customer_name_phone ?? null,
+      customer_phone: payload.customer_phone ?? null,
       items: payload.items,
       subtotal: payload.subtotal,
       gst_amount: payload.gst_amount,
@@ -219,11 +232,74 @@ export async function createCustomerOrder(
       payment_method: payload.payment_method,
       status: payload.status ?? "pending",
       payment_id: payload.payment_id ?? null,
+      delivery_option: payload.delivery_option ?? "pickup",
+      delivery_address: payload.delivery_address ?? null,
+      platform_fee,
+      vendor_amount,
     })
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
   return { ok: true, id: data?.id };
+}
+
+export interface TrackedOrder {
+  id: string;
+  vendor_id: string;
+  status: string;
+  created_at: string;
+  vendor_name: string | null;
+  delivery_option: string;
+  delivery_address: string | null;
+}
+
+/** Get order for public tracking (shareable link). */
+export async function getOrderForTracking(orderId: string): Promise<TrackedOrder | null> {
+  const { data, error } = await supabase.rpc("get_order_for_tracking", {
+    p_order_id: orderId,
+  });
+  if (error || !data || !Array.isArray(data) || data.length === 0) return null;
+  const row = data[0] as {
+    id: string;
+    vendor_id: string;
+    status: string;
+    created_at: string;
+    vendor_name: string | null;
+    delivery_option: string;
+    delivery_address: string | null;
+  };
+  return { ...row, delivery_option: row.delivery_option ?? "pickup" };
+}
+
+export interface VendorReview {
+  order_id: string;
+  rating: number;
+  review_text: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+/** Get vendor reviews for dashboard. */
+export async function getVendorReviews(vendorId: string): Promise<VendorReview[]> {
+  const { data, error } = await supabase.rpc("get_vendor_reviews", {
+    p_vendor_id: vendorId,
+  });
+  if (error) return [];
+  return (data ?? []) as VendorReview[];
+}
+
+/** Update customer order status (vendor only). */
+export async function updateCustomerOrderStatus(
+  vendorId: string,
+  orderId: string,
+  status: "pending" | "prepared" | "ready" | "delivered" | "paid"
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase
+    .from("customer_orders")
+    .update({ status })
+    .eq("id", orderId)
+    .eq("vendor_id", vendorId);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 export async function getCustomerOrders(

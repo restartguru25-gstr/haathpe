@@ -28,7 +28,7 @@ const fadeUp = (i: number) => ({
 
 const REDEEM_OPTIONS = [
   { id: "trip", reward_type: "family_trip" as const, title: "Family Trip Voucher", points: 500, emoji: "✈️", desc: "Travel voucher for 2" },
-  { id: "repair", reward_type: "repair_kit" as const, title: "Free Repair Kit", points: 200, emoji: "🧰", desc: "Stall maintenance kit" },
+  { id: "repair", reward_type: "repair_kit" as const, title: "Free Repair Kit", points: 200, emoji: "🧰", desc: "Dukaan maintenance kit" },
   { id: "credit", reward_type: "credit_boost" as const, title: "₹500 Credit Boost", points: 300, emoji: "💰", desc: "Add to your credit line" },
   { id: "supplies", reward_type: "supplies_kit" as const, title: "Premium Supplies Kit", points: 400, emoji: "📦", desc: "Curated essentials" },
 ];

@@ -48,13 +48,13 @@ export const COURSES: Course[] = [
     emoji: "📱",
     sections: [
       { id: "s1", title: "Why go digital", content: "Customers often don't carry cash. UPI and cards make it easy for them to pay and for you to get money safely." },
-      { id: "s2", title: "Setting up UPI", content: "Use your phone number with any UPI app (GPay, PhonePe, etc.). Create a QR code and stick it near your stall." },
+      { id: "s2", title: "Setting up UPI", content: "Use your phone number with any UPI app. Create a QR code and stick it near your dukaan." },
       { id: "s3", title: "Accepting payments", content: "Check the app when customer says they've paid. You'll see the amount and name. Match before giving order." },
     ],
   },
   {
     id: "growth",
-    title: "Growing Your Stall",
+    title: "Growing Your Dukaan",
     desc: "Tips to increase footfall and sales",
     duration: "2 hrs",
     emoji: "📈",

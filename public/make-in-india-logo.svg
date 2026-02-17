@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 36" width="140" height="36">
+  <rect width="140" height="36" rx="3" fill="#003366"/>
+  <text x="70" y="22" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle" letter-spacing="0.5">Make in India</text>
+  <rect x="15" y="28" width="110" height="2" rx="1" fill="#FF9933"/>
+  <rect x="15" y="30" width="110" height="1" fill="#FFFFFF"/>
+  <rect x="15" y="31" width="110" height="1" fill="#138808"/>
+</svg>
