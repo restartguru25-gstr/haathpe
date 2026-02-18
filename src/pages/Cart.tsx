@@ -168,8 +168,9 @@ export default function Cart() {
       );
       navigate("/orders");
     } catch (e) {
-      console.error(e);
-      toast.error("Could not place order. Try again.");
+      const errMsg = e instanceof Error ? e.message : (e && typeof e === "object" && "message" in e) ? String((e as { message?: string }).message) : null;
+      if (errMsg && typeof window !== "undefined") console.error("[Cart] Place order failed:", errMsg);
+      toast.error(errMsg && errMsg.length < 80 ? errMsg : "Could not place order. Try again.");
     } finally {
       setPlacing(false);
     }

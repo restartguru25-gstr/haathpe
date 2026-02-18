@@ -32,16 +32,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (error) {
-      console.warn("Profile fetch error:", error.message);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      if (error) {
+        if (error?.message !== "AbortError: signal is aborted without reason" && error?.name !== "AbortError") {
+          console.warn("Profile fetch error:", error.message);
+        }
+        return null;
+      }
+      return data as Profile;
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return null;
+      console.warn("Profile fetch error:", e);
       return null;
     }
-    return data as Profile;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -65,26 +73,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const phone = u.phone ?? null;
-      const { data: newProfile, error } = await supabase
-        .from("profiles")
-        .upsert(
-          {
-            id: u.id,
-            phone,
-            name: u.user_metadata?.name ?? null,
-            stall_type: u.user_metadata?.stall_type ?? null,
-            stall_address: u.user_metadata?.stall_address ?? null,
-            preferred_language: (u.user_metadata?.preferred_language as "en" | "hi" | "te") ?? "en",
-          },
-          { onConflict: "id" }
-        )
-        .select()
-        .single();
-      if (error) {
-        console.warn("Profile create error:", error.message);
+      let newProfile: Profile | null = null;
+      let profileError: unknown = null;
+      try {
+        const res = await supabase
+          .from("profiles")
+          .upsert(
+            {
+              id: u.id,
+              phone,
+              name: u.user_metadata?.name ?? null,
+              stall_type: u.user_metadata?.stall_type ?? null,
+              stall_address: u.user_metadata?.stall_address ?? null,
+              preferred_language: (u.user_metadata?.preferred_language as "en" | "hi" | "te") ?? "en",
+            },
+            { onConflict: "id" }
+          )
+          .select()
+          .single();
+        profileError = res.error;
+        if (!res.error) newProfile = res.data as Profile;
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        console.warn("Profile create error:", e);
         return;
       }
-      setProfile(newProfile as Profile);
+      if (profileError) {
+        const err = profileError as { message?: string; name?: string };
+        if (err?.name !== "AbortError" && err?.message !== "AbortError: signal is aborted without reason") {
+          console.warn("Profile create error:", err?.message);
+        }
+        return;
+      }
+      if (newProfile) setProfile(newProfile);
     },
     [fetchProfile]
   );

@@ -84,6 +84,7 @@ export default function Auth() {
       setStep("otp");
       toast.success("OTP sent! Check your phone.");
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
       toast.error("Something went wrong. Try Magic Link instead.");
       setStep("method");
     } finally {
@@ -110,6 +111,7 @@ export default function Auth() {
       toast.success("Signed in!");
       navigate(nextPath, { replace: true });
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
       toast.error("Invalid OTP. Please try again.");
     } finally {
       setLoading(false);
@@ -147,6 +149,7 @@ export default function Auth() {
       setStep("sent");
       toast.success("Check your email for the magic link!");
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
       toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -213,7 +216,8 @@ export default function Auth() {
         return;
       }
       toast.error(signUpError.message || "Sign up failed.");
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
       toast.error(emailPasswordMode === "signin" ? "Sign in failed. Please try again." : "Sign up failed. Please try again.");
     } finally {
       setLoading(false);
