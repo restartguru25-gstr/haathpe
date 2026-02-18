@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
 import { supabase } from "@/lib/supabase";
 import { createCashfreeSession, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
+import { awardCoinsForPaidOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
+import CongratsOverlay from "@/components/CongratsOverlay";
 
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
   const [status, setStatus] = useState<"loading" | "paid" | "pending" | "error">("loading");
   const [testingGateway, setTestingGateway] = useState(false);
+  const [congrats, setCongrats] = useState<{ coins: number; cashback: number } | null>(null);
+  const [showCongratsOverlay, setShowCongratsOverlay] = useState(false);
+  const awardCalled = useRef(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -36,8 +41,33 @@ export default function PaymentReturn() {
       .catch(() => setStatus("error"));
   }, [orderId]);
 
+  useEffect(() => {
+    if (status !== "paid" || !orderId || awardCalled.current) return;
+    awardCalled.current = true;
+    awardCoinsForPaidOrder(orderId)
+      .then((res) => {
+        if (res.ok && (res.coins != null || res.cashback != null)) {
+          setCongrats({ coins: res.coins ?? 2, cashback: res.cashback ?? 2 });
+          setShowCongratsOverlay(true);
+        } else if (res.ok) {
+          getCoinsPerPayment().then((c) => {
+            setCongrats({ coins: c, cashback: 2 });
+            setShowCongratsOverlay(true);
+          });
+        }
+      })
+      .catch(() => {});
+  }, [status, orderId]);
+
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col pb-24">
+      {showCongratsOverlay && congrats && (
+        <CongratsOverlay
+          coins={congrats.coins}
+          cashback={congrats.cashback}
+          onComplete={() => setShowCongratsOverlay(false)}
+        />
+      )}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         {status === "loading" && (
           <div className="flex flex-col items-center gap-3">

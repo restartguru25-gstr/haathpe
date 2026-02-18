@@ -1,33 +1,64 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Wallet, ArrowLeft, LogOut, ChevronRight, Plus, Minus, Gift } from "lucide-react";
+import { Wallet, ArrowLeft, LogOut, ChevronRight, Plus, Minus, Gift, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
-import { getWalletBalance, getWalletTransactions, type WalletTransaction } from "@/lib/wallet";
+import { getWalletBalanceAndCoins, getWalletTransactions, type WalletTransaction } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const COUNT_UP_DURATION_MS = 900;
+
+function useCountUp(value: number, enabled: boolean) {
+  const [display, setDisplay] = useState(0);
+  const startRef = useRef(0);
+  useEffect(() => {
+    if (!enabled) {
+      setDisplay(value);
+      startRef.current = value;
+      return;
+    }
+    const start = startRef.current;
+    const diff = value - start;
+    startRef.current = value;
+    if (diff === 0) return;
+    const startTime = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / COUNT_UP_DURATION_MS);
+      const easeOut = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(start + diff * easeOut));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [value, enabled]);
+  return display;
+}
 
 export default function CustomerWallet() {
   const { t } = useApp();
   const navigate = useNavigate();
   const { customer, isLoading: authLoading, isCustomer, signOutCustomer } = useCustomerAuth();
   const [balance, setBalance] = useState(0);
+  const [coins, setCoins] = useState(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const displayBalance = useCountUp(balance, !loading);
+  const displayCoins = useCountUp(coins, !loading);
 
   const load = useCallback(async () => {
     if (!customer?.id) {
       setLoading(false);
       return;
     }
-    const [bal, tx] = await Promise.all([
-      getWalletBalance(customer.id),
+    const [wallet, tx] = await Promise.all([
+      getWalletBalanceAndCoins(customer.id),
       getWalletTransactions(customer.id, { limit: 10 }),
     ]);
-    setBalance(bal);
+    setBalance(wallet.balance);
+    setCoins(wallet.coins);
     setTransactions(tx);
     setLoading(false);
   }, [customer?.id]);
@@ -94,20 +125,31 @@ export default function CustomerWallet() {
 
       <div className="container max-w-lg mx-auto px-4 py-6">
         {loading ? (
-          <Skeleton className="h-48 rounded-3xl mb-6" />
+          <Skeleton className="h-52 rounded-3xl mb-6" />
         ) : (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1E40AF] to-[#F97316] p-6 shadow-xl"
+            className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-[#1E40AF] to-[#F97316] p-6 shadow-xl backdrop-blur-sm"
           >
             <div className="absolute inset-0 bg-black/5" />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#1E40AF]/90 to-[#F97316]/90 backdrop-blur-[1px]" />
             <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet size={20} className="text-white/90" />
-                <span className="text-sm font-medium text-white/90">{t("walletBalance")}</span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Wallet size={20} className="text-white/90" />
+                  <span className="text-sm font-medium text-white/90">{t("walletBalance")}</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-full bg-[#FFD700]/20 px-3 py-1 border border-[#FFD700]/40">
+                  <Coins size={16} className="text-[#FFD700]" />
+                  <span className="text-sm font-bold text-[#FFD700]">{displayCoins}</span>
+                  <span className="text-xs text-white/80">coins</span>
+                </div>
               </div>
-              <p className="text-4xl font-bold text-white tracking-tight">₹{balance.toFixed(0)}</p>
+              <p className="text-4xl font-bold text-white tracking-tight drop-shadow-md">
+                ₹{displayBalance.toFixed(0)}
+              </p>
+              <p className="text-xs text-white/70 mt-1">Available to use or redeem</p>
               <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
@@ -118,7 +160,7 @@ export default function CustomerWallet() {
               </div>
               <Link to="/customer/redemption" className="mt-6 block">
                 <Button
-                  className="w-full bg-white/20 hover:bg-white/30 text-white border-0"
+                  className="w-full bg-[#FFD700]/20 hover:bg-[#FFD700]/30 text-[#FFD700] border border-[#FFD700]/50 font-semibold"
                   variant="outline"
                 >
                   <Gift size={18} className="mr-2" />
@@ -145,7 +187,7 @@ export default function CustomerWallet() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center"
+              className="rounded-2xl border border-dashed border-border bg-card/50 backdrop-blur-sm p-8 text-center"
             >
               <p className="text-muted-foreground">{t("noTransactions")}</p>
               <p className="text-sm text-muted-foreground mt-1">{t("earnCoinsOnOrder")}</p>
@@ -157,8 +199,8 @@ export default function CustomerWallet() {
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.04 }}
-                whileHover={{ scale: 1.01 }}
-                className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+                whileHover={{ scale: 1.02 }}
+                className="flex items-center gap-4 rounded-xl border border-border bg-card/80 backdrop-blur-sm p-4 shadow-sm hover:shadow-md transition-shadow"
               >
                 <div
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
@@ -177,13 +219,18 @@ export default function CustomerWallet() {
                     {new Date(tx.created_at).toLocaleDateString()} · {new Date(tx.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
-                <span
-                  className={`font-semibold ${
-                    tx.type === "credit" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                  }`}
-                >
-                  {tx.type === "credit" ? "+" : "-"}₹{Number(tx.amount).toFixed(0)}
-                </span>
+                <div className="text-right">
+                  <span
+                    className={`font-semibold block ${
+                      tx.type === "credit" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {tx.type === "credit" ? "+" : "-"}₹{Number(tx.amount).toFixed(0)}
+                  </span>
+                  {tx.coins != null && tx.coins > 0 && (
+                    <span className="text-xs text-[#B8860B] font-medium">+{tx.coins} coins</span>
+                  )}
+                </div>
               </motion.div>
             ))
           )}

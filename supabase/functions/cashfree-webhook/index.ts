@@ -74,6 +74,8 @@ serve(async (req) => {
         console.error("cashfree-webhook customer_orders:", updateErr);
         return jsonResponse({ error: updateErr.message }, 500);
       }
+      const { error: awardErr } = await supabase.rpc("award_coins_for_paid_order", { p_order_id: orderId });
+      if (awardErr) console.error("cashfree-webhook award_coins:", awardErr);
       return jsonResponse({ received: true, order_id: orderId, updated: true, table: "customer_orders" });
     }
 
@@ -96,6 +98,8 @@ serve(async (req) => {
         console.error("cashfree-webhook orders:", updateErr);
         return jsonResponse({ error: updateErr.message }, 500);
       }
+      const { error: awardErr } = await supabase.rpc("award_coins_for_paid_order", { p_order_id: orderId });
+      if (awardErr) console.error("cashfree-webhook award_coins:", awardErr);
       return jsonResponse({ received: true, order_id: orderId, updated: true, table: "orders" });
     }
 

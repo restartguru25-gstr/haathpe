@@ -10,6 +10,7 @@ export interface WalletTransaction {
   customer_id: string;
   type: "credit" | "debit" | "redemption";
   amount: number;
+  coins?: number;
   description: string | null;
   order_id: string | null;
   created_at: string;
@@ -40,6 +41,35 @@ export async function getWalletBalance(customerId: string): Promise<number> {
   if (error) return 0;
   const row = Array.isArray(data) ? data[0] : data;
   return row?.balance != null ? Number(row.balance) : 0;
+}
+
+/** Get wallet balance and coins. */
+export async function getWalletBalanceAndCoins(customerId: string): Promise<{ balance: number; coins: number }> {
+  const { data, error } = await supabase.rpc("get_or_create_wallet", { p_customer_id: customerId });
+  if (error) return { balance: 0, coins: 0 };
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    balance: row?.balance != null ? Number(row.balance) : 0,
+    coins: row?.coins != null ? Number(row.coins) : 0,
+  };
+}
+
+/** Award coins for a paid order (idempotent; works for orders + customer_orders). Call from client when payment success. */
+export async function awardCoinsForPaidOrder(orderId: string): Promise<{
+  ok: boolean;
+  coins?: number;
+  cashback?: number;
+  error?: string;
+}> {
+  const { data, error } = await supabase.rpc("award_coins_for_paid_order", { p_order_id: orderId });
+  if (error) return { ok: false, error: error.message };
+  const res = data as { ok?: boolean; coins?: number; cashback?: number; error?: string } | null;
+  if (!res?.ok) return { ok: false, error: res?.error ?? "Already awarded or invalid" };
+  return {
+    ok: true,
+    coins: res.coins != null ? Number(res.coins) : undefined,
+    cashback: res.cashback != null ? Number(res.cashback) : undefined,
+  };
 }
 
 /** Award coins for order (credit wallet). Returns new balance. */

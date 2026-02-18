@@ -129,13 +129,18 @@ export default function CustomerTransactions() {
                     {new Date(tx.created_at).toLocaleDateString()} · {new Date(tx.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
-                <span
-                  className={`font-bold ${
-                    tx.type === "credit" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                  }`}
-                >
-                  {tx.type === "credit" ? "+" : "-"}₹{Number(tx.amount).toFixed(0)}
-                </span>
+                <div className="text-right">
+                  <span
+                    className={`font-bold block ${
+                      tx.type === "credit" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {tx.type === "credit" ? "+" : "-"}₹{Number(tx.amount).toFixed(0)}
+                  </span>
+                  {tx.coins != null && tx.coins > 0 && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">+{tx.coins} coins</span>
+                  )}
+                </div>
               </motion.div>
             ))}
           </div>
