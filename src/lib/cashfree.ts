@@ -58,10 +58,11 @@ export async function createCashfreeSession(
     });
     clearTimeout(timeoutId);
 
-    if (typeof window !== "undefined") console.log("[CART] Order creation HTTP status:", res.status);
+    if (typeof window !== "undefined") console.log("[CART] 3. Backend responded with status:", res.status);
 
     if (!res.ok) {
       const errText = await res.text();
+      if (typeof window !== "undefined") console.log("[CART] 4. Raw response body:", errText);
       if (typeof window !== "undefined") console.error("[CART] Order creation failed – status:", res.status, "body:", errText);
       let errMsg: string;
       try {
@@ -74,7 +75,8 @@ export async function createCashfreeSession(
     }
 
     const data = (await res.json().catch(() => ({}))) as { payment_session_id?: string };
-    if (typeof window !== "undefined") console.log("[CART] Order created successfully, has session_id:", !!data?.payment_session_id);
+    if (typeof window !== "undefined") console.log("[CART] 4. Raw response body (success):", JSON.stringify({ ...data, payment_session_id: data?.payment_session_id ? "(present)" : undefined }));
+    if (typeof window !== "undefined") console.log("[CART] 5. Parsed data – has payment_session_id:", !!data?.payment_session_id);
 
     const payment_session_id = data?.payment_session_id;
     if (!payment_session_id) {
@@ -99,12 +101,12 @@ export async function createCashfreeSession(
 export async function openCashfreeCheckout(paymentSessionId: string): Promise<void> {
   if (typeof window === "undefined") return;
   const mode = CASHFREE_MODE === "production" ? "production" : "sandbox";
-  if (typeof window !== "undefined") console.log("[CART] Loading Cashfree SDK, mode:", mode);
+  if (typeof window !== "undefined") console.log("[CART] 7. Loading Cashfree SDK, mode:", mode);
   const { load } = await import("@cashfreepayments/cashfree-js");
   const cashfree = await load({ mode });
-  if (typeof window !== "undefined") console.log("[CART] Cashfree SDK loaded:", !!cashfree);
+  if (typeof window !== "undefined") console.log("[CART] 8. Cashfree SDK loaded:", !!cashfree);
   if (!cashfree) throw new Error("Cashfree SDK failed to load");
-  if (typeof window !== "undefined") console.log("[CART] Calling checkout with redirectTarget _self");
+  if (typeof window !== "undefined") console.log("[CART] 9. Launching Cashfree checkout with redirectTarget _self");
   cashfree.checkout({
     paymentSessionId,
     redirectTarget: "_self",

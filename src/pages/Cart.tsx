@@ -55,7 +55,7 @@ export default function Cart() {
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
-    if (typeof window !== "undefined") console.log("[CART] Place Order button clicked – starting flow");
+    if (typeof window !== "undefined") console.log("[CART] 1. Button clicked – starting");
     setPlacing(true);
     setPaymentError(null);
     try {
@@ -65,7 +65,7 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
-      if (typeof window !== "undefined") console.log("[CART] Creating order in DB...");
+      if (typeof window !== "undefined") console.log("[CART] 2. Sending request: create order in DB, then Cashfree session");
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -83,7 +83,7 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
-      if (typeof window !== "undefined") console.log("[CART] Order created in DB, id:", order.id);
+      if (typeof window !== "undefined") console.log("[CART] 2b. Order created in DB, id:", order.id);
       const rows = cart.map((item) => {
         const unitPriceRupees = getLinePrice(item);
         const row: Record<string, unknown> = {
@@ -106,10 +106,9 @@ export default function Cart() {
       if (itemsError) throw itemsError;
 
       const cashfreeOn = isCashfreeConfigured();
-      if (typeof window !== "undefined") console.log("[CART] Cashfree configured:", cashfreeOn);
+      if (typeof window !== "undefined") console.log("[CART] 2c. Cashfree configured:", cashfreeOn);
       if (cashfreeOn) {
         const returnUrl = `${window.location.origin}/payment/return?order_id=${order.id}`;
-        if (typeof window !== "undefined") console.log("[CART] Creating Cashfree session...");
         const sessionRes = await createCashfreeSession({
           order_id: order.id,
           order_amount: Math.round(finalTotal),
@@ -117,13 +116,13 @@ export default function Cart() {
           return_url: returnUrl,
           order_note: `Cart order ${order.id} – ₹${finalTotal.toFixed(0)}`,
         });
-        if (typeof window !== "undefined") console.log("[CART] Session response:", sessionRes.ok ? "ok, payment_session_id received" : "failed:", sessionRes.ok ? undefined : (sessionRes as { error: string }).error);
+        if (!sessionRes.ok && typeof window !== "undefined") console.error("[CART] Backend error or no session_id – see step 4 raw body above");
         if (sessionRes.ok) {
+          if (typeof window !== "undefined") console.log("[CART] 6. Session ID received, length:", sessionRes.payment_session_id?.length);
           clearCart();
           setPlacing(false);
           setRedirectingToPayment(true);
           try {
-            if (typeof window !== "undefined") console.log("[CART] Launching Cashfree checkout with session_id:", sessionRes.payment_session_id?.slice(0, 20) + "...");
             await openCashfreeCheckout(sessionRes.payment_session_id);
           } catch (err) {
             setRedirectingToPayment(false);
@@ -315,9 +314,9 @@ export default function Cart() {
             <AlertDialog open={redirectingToPayment}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Complete Your Order</AlertDialogTitle>
+                  <AlertDialogTitle>Payment Options</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Securely complete payment to place your order. Cash or UPI options available.
+                    Choose Cash or UPI to complete your order securely.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
