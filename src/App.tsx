@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,36 +10,48 @@ import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 import { PaymentNotificationProvider } from "@/contexts/PaymentNotificationContext";
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Landing from "./pages/Landing";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Catalog from "./pages/Catalog";
-import Cart from "./pages/Cart";
-import Orders from "./pages/Orders";
-import Loyalty from "./pages/Loyalty";
-import Profile from "./pages/Profile";
-import Forum from "./pages/Forum";
-import Swap from "./pages/Swap";
-import Courses from "./pages/Courses";
-import Notifications from "./pages/Notifications";
-import CourseDetail from "./pages/CourseDetail";
-import Admin from "./pages/Admin";
-import Sales from "./pages/Sales";
-import POS from "./pages/POS";
-import VendorEntry from "./pages/VendorEntry";
-import PublicMenu from "./pages/PublicMenu";
-import PayDirect from "./pages/PayDirect";
-import CustomerLogin from "./pages/CustomerLogin";
-import CustomerOrders from "./pages/CustomerOrders";
-import CustomerWallet from "./pages/CustomerWallet";
-import CustomerTransactions from "./pages/CustomerTransactions";
-import CustomerRedemption from "./pages/CustomerRedemption";
-import OrderTracking from "./pages/OrderTracking";
-import Search from "./pages/Search";
-import OndcExport from "./pages/OndcExport";
-import MenuLanding from "./pages/MenuLanding";
-import Contact from "./pages/Contact";
-import NotFound from "./pages/NotFound";
+
+// Lazy-load pages so initial bundle is small and each route loads on demand (faster first load, better UX)
+const Landing = lazy(() => import("./pages/Landing"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Catalog = lazy(() => import("./pages/Catalog"));
+const Cart = lazy(() => import("./pages/Cart"));
+const Orders = lazy(() => import("./pages/Orders"));
+const Loyalty = lazy(() => import("./pages/Loyalty"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Forum = lazy(() => import("./pages/Forum"));
+const Swap = lazy(() => import("./pages/Swap"));
+const Courses = lazy(() => import("./pages/Courses"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const CourseDetail = lazy(() => import("./pages/CourseDetail"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Sales = lazy(() => import("./pages/Sales"));
+const POS = lazy(() => import("./pages/POS"));
+const VendorEntry = lazy(() => import("./pages/VendorEntry"));
+const PublicMenu = lazy(() => import("./pages/PublicMenu"));
+const PayDirect = lazy(() => import("./pages/PayDirect"));
+const CustomerLogin = lazy(() => import("./pages/CustomerLogin"));
+const CustomerOrders = lazy(() => import("./pages/CustomerOrders"));
+const CustomerWallet = lazy(() => import("./pages/CustomerWallet"));
+const CustomerTransactions = lazy(() => import("./pages/CustomerTransactions"));
+const CustomerRedemption = lazy(() => import("./pages/CustomerRedemption"));
+const OrderTracking = lazy(() => import("./pages/OrderTracking"));
+const Search = lazy(() => import("./pages/Search"));
+const OndcExport = lazy(() => import("./pages/OndcExport"));
+const MenuLanding = lazy(() => import("./pages/MenuLanding"));
+const Contact = lazy(() => import("./pages/Contact"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+/** Shown while a lazy route chunk is loading — keeps UX responsive */
+function PageLoader() {
+  return (
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 p-4" aria-busy="true">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <p className="text-sm text-muted-foreground">Loading…</p>
+    </div>
+  );
+}
 
 const queryClient = new QueryClient();
 
@@ -52,6 +65,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
@@ -92,6 +106,7 @@ const App = () => (
               <Route path="/contact" element={<Contact />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
           </PaymentNotificationProvider>
         </AppProvider>
