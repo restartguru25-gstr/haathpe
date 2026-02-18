@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
+import { supabase } from "@/lib/supabase";
 import { createCashfreeSession, isCashfreeConfigured } from "@/lib/cashfree";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
@@ -20,11 +21,17 @@ export default function PaymentReturn() {
     }
     getOrderForTracking(orderId)
       .then((order) => {
-        if (!order) {
-          setStatus("error");
-          return;
+        if (order) {
+          setStatus(order.status === "paid" ? "paid" : "pending");
+          return undefined;
         }
-        setStatus(order.status === "paid" ? "paid" : "pending");
+        return supabase.from("orders").select("id, status").eq("id", orderId).single();
+      })
+      .then((res) => {
+        if (res === undefined) return;
+        const data = (res as { data?: { status?: string } | null }).data;
+        if (data?.status) setStatus(data.status === "paid" ? "paid" : "pending");
+        else setStatus("error");
       })
       .catch(() => setStatus("error"));
   }, [orderId]);
@@ -50,6 +57,9 @@ export default function PaymentReturn() {
             </p>
             <Link to={orderId ? `/order/${orderId}` : "/"}>
               <Button className="w-full">Track order</Button>
+            </Link>
+            <Link to="/orders" className="block mt-2">
+              <Button variant="outline" className="w-full">View my orders</Button>
             </Link>
             <Link to="/" className="block mt-3">
               <Button variant="ghost" className="w-full">Back to home</Button>

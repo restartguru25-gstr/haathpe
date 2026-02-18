@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { createDirectPaymentOrder } from "@/lib/sales";
 import { awardCoinsForOrder, getCoinsPerPayment } from "@/lib/wallet";
+import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
@@ -77,14 +78,33 @@ export default function PayDirect() {
         note: note.trim() || undefined,
       });
       if (result.ok && result.id) {
+        const vendorName = vendor?.name ?? "Dukaanwaala";
+
+        if (isCashfreeConfigured()) {
+          const returnUrl = `${window.location.origin}/payment/return?order_id=${result.id}`;
+          const sessionRes = await createCashfreeSession({
+            order_id: result.id,
+            order_amount: amountNum,
+            customer_phone: customer?.phone ?? undefined,
+            customer_id: customer?.id ?? undefined,
+            return_url: returnUrl,
+            order_note: `Direct payment ₹${amountNum} – ${vendorName}`,
+          });
+          if (sessionRes.ok) {
+            setPaying(false);
+            await openCashfreeCheckout(sessionRes.payment_session_id);
+            return;
+          }
+          toast.error(sessionRes.error ?? "Payment gateway error");
+        }
+
         setOrderId(result.id);
         setDone(true);
         if (customer && result.id) {
-          const vendorName = vendor?.name ?? undefined;
           await appendOrderToHistory(customer.id, {
             order_id: result.id,
             vendor_id: vendorId,
-            vendor_name: vendorName,
+            vendor_name: vendor?.name ?? undefined,
             total: amountNum,
             items: [{ item_name: "Direct payment", qty: 1, price: amountNum }],
             created_at: new Date().toISOString(),
@@ -261,7 +281,9 @@ export default function PayDirect() {
             </Button>
           </motion.div>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Pay at the counter. UPI & card payments coming soon.
+            {isCashfreeConfigured()
+              ? "Pay online with card/UPI or pay at the counter."
+              : "Pay at the counter. UPI & card payments coming soon."}
           </p>
         </div>
       </div>

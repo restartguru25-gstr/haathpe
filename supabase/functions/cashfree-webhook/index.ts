@@ -52,34 +52,54 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { data: order, error: fetchErr } = await supabase
+    const { data: coOrder, error: coErr } = await supabase
       .from("customer_orders")
       .select("id, status")
       .eq("id", orderId)
       .single();
 
-    if (fetchErr || !order) {
-      return jsonResponse({ received: true, skip: "order not found" });
+    if (!coErr && coOrder) {
+      const row = coOrder as { status?: string };
+      if (row.status === "paid") {
+        return jsonResponse({ received: true, duplicate: true });
+      }
+      const { error: updateErr } = await supabase
+        .from("customer_orders")
+        .update({
+          status: "paid",
+          payment_id: cfPaymentId ?? "cashfree",
+        })
+        .eq("id", orderId);
+      if (updateErr) {
+        console.error("cashfree-webhook customer_orders:", updateErr);
+        return jsonResponse({ error: updateErr.message }, 500);
+      }
+      return jsonResponse({ received: true, order_id: orderId, updated: true, table: "customer_orders" });
     }
 
-    if ((order as { status?: string }).status === "paid") {
-      return jsonResponse({ received: true, duplicate: true });
+    const { data: catalogOrder, error: ordErr } = await supabase
+      .from("orders")
+      .select("id, status")
+      .eq("id", orderId)
+      .single();
+
+    if (!ordErr && catalogOrder) {
+      const row = catalogOrder as { status?: string };
+      if (row.status === "paid") {
+        return jsonResponse({ received: true, duplicate: true });
+      }
+      const { error: updateErr } = await supabase
+        .from("orders")
+        .update({ status: "paid" })
+        .eq("id", orderId);
+      if (updateErr) {
+        console.error("cashfree-webhook orders:", updateErr);
+        return jsonResponse({ error: updateErr.message }, 500);
+      }
+      return jsonResponse({ received: true, order_id: orderId, updated: true, table: "orders" });
     }
 
-    const { error: updateErr } = await supabase
-      .from("customer_orders")
-      .update({
-        status: "paid",
-        payment_id: cfPaymentId ?? "cashfree",
-      })
-      .eq("id", orderId);
-
-    if (updateErr) {
-      console.error("cashfree-webhook update:", updateErr);
-      return jsonResponse({ error: updateErr.message }, 500);
-    }
-
-    return jsonResponse({ received: true, order_id: orderId, updated: true });
+    return jsonResponse({ received: true, skip: "order not found" });
   } catch (e) {
     console.error("cashfree-webhook:", e);
     return jsonResponse({ error: String(e) }, 500);

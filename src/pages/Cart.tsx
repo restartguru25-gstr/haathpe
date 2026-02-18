@@ -8,6 +8,7 @@ import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
+import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -39,75 +40,101 @@ export default function Cart() {
     setPlacing(true);
     try {
       const userId = user?.id;
-      if (userId) {
-        const { data: order, error: orderError } = await supabase
-          .from("orders")
-          .insert({
-            user_id: userId,
-            total: Math.round(finalTotal),
-            status: "pending",
-            gst_total: hasGst ? Math.round(pricing.gstTotal) : null,
-            subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
-            eco_flag: hasEco,
-          })
-          .select("id")
-          .single();
-        if (orderError) throw orderError;
-        if (order?.id) {
-          const rows = cart.map((item) => {
-            const unitPriceRupees = getLinePrice(item);
-            const row: Record<string, unknown> = {
-              order_id: order.id,
-              product_id: item.product.id,
-              product_name: item.variantLabel
-                ? `${getProductName(item.product, lang)} — ${item.variantLabel}`
-                : getProductName(item.product, lang),
-              qty: item.qty,
-              unit_price: Math.round(unitPriceRupees),
-              variant_id: item.variantId || null,
-              variant_label: item.variantLabel || null,
-              mrp: item.mrpPaise != null ? Math.round(item.mrpPaise / 100) : null,
-              gst_rate: item.gstRate ?? null,
-              discount_amount: null,
-            };
-            return row;
-          });
-          const { error: itemsError } = await supabase.from("order_items").insert(rows);
-          if (itemsError) throw itemsError;
-          await createNotification(
-            userId,
-            "order_update",
-            "Order placed",
-            `Your order of ₹${finalTotal} has been placed.`
-          );
-          await supabase.rpc("upsert_purchase_today", {
-            p_user_id: userId,
-            p_amount: finalTotal,
-          });
-          if (finalTotal >= 1000) {
-            const { error: drawErr } = await supabase.from("draws_entries").insert({
-              user_id: userId,
-              draw_date: INDIAN_DATE(),
-              eligible: true,
-            });
-            if (drawErr?.code === "23505") {
-              /* already entered today, ignore */
-            } else if (drawErr) throw drawErr;
-          }
-          await supabase.rpc("add_loyalty_points", {
-            p_user_id: userId,
-            p_points: Math.floor(Math.round(finalTotal) / 100),
-          });
-          await supabase.rpc("refresh_profile_incentives", { p_user_id: userId });
-          if (hasEco) {
-            await supabase.rpc("increment_green_score", {
-              p_user_id: userId,
-              p_delta: 10,
-            });
-          }
-          await refreshProfile();
-        }
+      if (!userId) {
+        toast.error("Please sign in to place an order.");
+        setPlacing(false);
+        return;
       }
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          user_id: userId,
+          total: Math.round(finalTotal),
+          status: "pending",
+          gst_total: hasGst ? Math.round(pricing.gstTotal) : null,
+          subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
+          eco_flag: hasEco,
+        })
+        .select("id")
+        .single();
+      if (orderError) throw orderError;
+      if (!order?.id) {
+        setPlacing(false);
+        return;
+      }
+      const rows = cart.map((item) => {
+        const unitPriceRupees = getLinePrice(item);
+        const row: Record<string, unknown> = {
+          order_id: order.id,
+          product_id: item.product.id,
+          product_name: item.variantLabel
+            ? `${getProductName(item.product, lang)} — ${item.variantLabel}`
+            : getProductName(item.product, lang),
+          qty: item.qty,
+          unit_price: Math.round(unitPriceRupees),
+          variant_id: item.variantId || null,
+          variant_label: item.variantLabel || null,
+          mrp: item.mrpPaise != null ? Math.round(item.mrpPaise / 100) : null,
+          gst_rate: item.gstRate ?? null,
+          discount_amount: null,
+        };
+        return row;
+      });
+      const { error: itemsError } = await supabase.from("order_items").insert(rows);
+      if (itemsError) throw itemsError;
+
+      if (isCashfreeConfigured()) {
+        const returnUrl = `${window.location.origin}/payment/return?order_id=${order.id}`;
+        const sessionRes = await createCashfreeSession({
+          order_id: order.id,
+          order_amount: Math.round(finalTotal),
+          customer_id: userId,
+          return_url: returnUrl,
+          order_note: `Cart order ${order.id} – ₹${finalTotal.toFixed(0)}`,
+        });
+        if (sessionRes.ok) {
+          clearCart();
+          setPlacing(false);
+          await openCashfreeCheckout(sessionRes.payment_session_id);
+          return;
+        }
+        toast.error(sessionRes.error ?? "Payment gateway error");
+        setPlacing(false);
+        return;
+      }
+
+      await createNotification(
+        userId,
+        "order_update",
+        "Order placed",
+        `Your order of ₹${finalTotal} has been placed.`
+      );
+      await supabase.rpc("upsert_purchase_today", {
+        p_user_id: userId,
+        p_amount: finalTotal,
+      });
+      if (finalTotal >= 1000) {
+        const { error: drawErr } = await supabase.from("draws_entries").insert({
+          user_id: userId,
+          draw_date: INDIAN_DATE(),
+          eligible: true,
+        });
+        if (drawErr?.code === "23505") {
+          /* already entered today, ignore */
+        } else if (drawErr) throw drawErr;
+      }
+      await supabase.rpc("add_loyalty_points", {
+        p_user_id: userId,
+        p_points: Math.floor(Math.round(finalTotal) / 100),
+      });
+      await supabase.rpc("refresh_profile_incentives", { p_user_id: userId });
+      if (hasEco) {
+        await supabase.rpc("increment_green_score", {
+          p_user_id: userId,
+          p_delta: 10,
+        });
+      }
+      await refreshProfile();
       clearCart();
       toast.success(
         pricing.subtotalInclusive >= 1000
