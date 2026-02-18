@@ -164,14 +164,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [ensureProfile]);
 
   const signOut = useCallback(async () => {
+    // Clear app state immediately so UI shows logged-out
+    setUser(null);
+    setSession(null);
+    setProfile(null);
     try {
-      await supabase.auth.signOut();
+      // scope: 'local' clears this browser's session even if server call fails
+      await supabase.auth.signOut({ scope: "local" });
     } catch (e) {
       console.warn("Sign out error:", e);
-    } finally {
-      setUser(null);
-      setSession(null);
-      setProfile(null);
     }
   }, []);
 

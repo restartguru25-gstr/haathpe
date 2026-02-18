@@ -197,7 +197,8 @@ export default function Profile() {
       toast.error("Logout failed");
     } finally {
       setLoggingOut(false);
-      window.location.href = "/";
+      // Hard redirect so session is gone and we don't stay on protected route
+      window.location.replace("/");
     }
   };
 

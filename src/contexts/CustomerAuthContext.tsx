@@ -33,12 +33,11 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const signOutCustomer = useCallback(async () => {
+    setCustomer(null);
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     } catch (e) {
       console.warn("Customer sign out error:", e);
-    } finally {
-      setCustomer(null);
     }
   }, []);
 
