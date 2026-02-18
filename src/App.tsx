@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
+import { PaymentNotificationProvider } from "@/contexts/PaymentNotificationContext";
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
@@ -47,6 +48,7 @@ const App = () => (
       <AuthProvider>
         <CustomerAuthProvider>
         <AppProvider>
+          <PaymentNotificationProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -91,6 +93,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          </PaymentNotificationProvider>
         </AppProvider>
         </CustomerAuthProvider>
       </AuthProvider>

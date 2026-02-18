@@ -32,6 +32,7 @@ export interface Database {
           weekly_off?: string | null;
           holidays?: string[] | null;
           is_online?: boolean | null;
+          alert_volume?: "low" | "medium" | "high" | null;
         };
         Insert: {
           id: string;
@@ -61,6 +62,7 @@ export interface Database {
           weekly_off?: string | null;
           holidays?: string[] | null;
           is_online?: boolean | null;
+          alert_volume?: "low" | "medium" | "high" | null;
         };
         Update: {
           id?: string;
@@ -90,6 +92,7 @@ export interface Database {
           weekly_off?: string | null;
           holidays?: string[] | null;
           is_online?: boolean | null;
+          alert_volume?: "low" | "medium" | "high" | null;
         };
       };
       push_subscriptions: {

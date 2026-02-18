@@ -17,6 +17,7 @@ export interface DisplayProfile {
   zone: string | null;
   photoUrl: string | null;
   preferredLanguage: "en" | "hi" | "te";
+  alertVolume: "low" | "medium" | "high";
   greenScore: number;
   businessAddress: string;
   shopPhotoUrls: string[];
@@ -61,6 +62,7 @@ function profileToDisplay(p: Profile | null): DisplayProfile {
     available_balance?: number | null;
     zone?: string | null;
     premium_tier?: string | null;
+    alert_volume?: "low" | "medium" | "high" | null;
   };
   const shopUrls = raw.shop_photo_urls;
   return {
@@ -78,6 +80,7 @@ function profileToDisplay(p: Profile | null): DisplayProfile {
     zone: raw.zone ?? null,
     photoUrl: p.photo_url,
     preferredLanguage: p.preferred_language || "en",
+    alertVolume: (raw.alert_volume as "low" | "medium" | "high") || "medium",
     greenScore: (p as { green_score?: number }).green_score ?? 0,
     businessAddress: raw.business_address ?? raw.stall_address ?? "",
     shopPhotoUrls: Array.isArray(shopUrls) ? shopUrls : [],
@@ -107,6 +110,7 @@ function vendorProfileToDisplay(): DisplayProfile {
     zone: null,
     photoUrl: null,
     preferredLanguage: "en",
+    alertVolume: "medium",
     greenScore: 0,
     businessAddress: "",
     shopPhotoUrls: [],

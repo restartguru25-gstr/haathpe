@@ -4,6 +4,8 @@ import { Store, Trash2, Banknote, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
+import { useProfile } from "@/hooks/useProfile";
+import { usePaymentNotification } from "@/contexts/PaymentNotificationContext";
 import { getVendorMenuItems, createCustomerOrder, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +40,8 @@ function cartTotals(lines: CartLine[]) {
 export default function POS() {
   const { t } = useApp();
   const { user } = useSession();
+  const { profile } = useProfile();
+  const { triggerPaymentReceived } = usePaymentNotification() ?? {};
   const vendorId = user?.id ?? "";
 
   const [menuItems, setMenuItems] = useState<VendorMenuItem[]>([]);
@@ -102,6 +106,17 @@ export default function POS() {
       if (result.ok) {
         setCart([]);
         toast.success("Sale recorded! ₹" + total.toFixed(0));
+        if (result.id && triggerPaymentReceived) {
+          triggerPaymentReceived({
+            amount: total,
+            orderId: result.id,
+            voiceLang: profile.preferredLanguage,
+            vendorPhone: profile.phone ?? null,
+            sendWhatsApp: !!import.meta.env.VITE_WHATSAPP_API_KEY,
+            alertVolume: profile.alertVolume,
+            orderItems: cart.map(({ item, qty }) => ({ item_name: item.item_name, qty })),
+          });
+        }
       } else {
         toast.error(result.error ?? "Failed");
       }

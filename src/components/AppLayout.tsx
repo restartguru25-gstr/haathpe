@@ -9,12 +9,33 @@ import CartFAB from "@/components/CartFAB";
 import { useProfile } from "@/hooks/useProfile";
 import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
+import { usePaidOrderNotification } from "@/hooks/usePaidOrderNotification";
+import { isShopOpen } from "@/lib/shopDetails";
 import { supabase } from "@/lib/supabase";
 
 export default function AppLayout() {
   const { profile, isFromSupabase } = useProfile();
   const { setLang } = useApp();
-  const { user } = useSession();
+  const { user, profile: rawProfile } = useSession();
+  const shopStatus = isShopOpen(
+    rawProfile
+      ? {
+          opening_hours: rawProfile.opening_hours,
+          weekly_off: rawProfile.weekly_off,
+          holidays: rawProfile.holidays,
+          is_online: rawProfile.is_online,
+        }
+      : null
+  );
+
+  usePaidOrderNotification({
+    vendorId: user?.id ?? null,
+    voiceLang: profile.preferredLanguage,
+    vendorPhone: profile.phone ?? null,
+    sendWhatsApp: !!import.meta.env.VITE_WHATSAPP_API_KEY,
+    alertsEnabled: shopStatus.open,
+    alertVolume: (rawProfile as { alert_volume?: "low" | "medium" | "high" } | null)?.alert_volume ?? null,
+  });
 
   useEffect(() => {
     if (isFromSupabase && profile.preferredLanguage) {
@@ -25,7 +46,7 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
-      .channel("customer_orders")
+      .channel("customer_orders_toast")
       .on(
         "postgres_changes",
         {
@@ -34,8 +55,9 @@ export default function AppLayout() {
           table: "customer_orders",
           filter: `vendor_id=eq.${user.id}`,
         },
-        () => {
-          toast.success("New online order!");
+        (payload) => {
+          const row = payload.new as { status?: string };
+          if (row?.status !== "paid") toast.success("New order!");
         }
       )
       .subscribe();

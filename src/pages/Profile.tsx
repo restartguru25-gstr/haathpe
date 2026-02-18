@@ -1129,6 +1129,38 @@ export default function Profile() {
                 onCheckedChange={(v) => handleNotifToggle("drawResults", v)}
               />
             </div>
+            <div className="rounded-lg border border-border p-4">
+              <p className="font-medium">Payment alert volume</p>
+              <p className="mb-3 text-xs text-muted-foreground">Sound level when a payment is received</p>
+              <div className="flex gap-2">
+                {(["low", "medium", "high"] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={async () => {
+                      if (!user?.id) return;
+                      const { error } = await supabase
+                        .from("profiles")
+                        .update({ alert_volume: level })
+                        .eq("id", user.id);
+                      if (error) {
+                        toast.error("Could not update");
+                        return;
+                      }
+                      await refreshProfile();
+                      toast.success("Saved");
+                    }}
+                    className={`rounded-lg px-3 py-2 text-sm font-medium capitalize ${
+                      (rawProfile as { alert_volume?: string } | null)?.alert_volume === level
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
             {isPushSupported() && (
               <div className="flex items-center justify-between rounded-lg border border-border p-4">
                 <div>
