@@ -58,9 +58,11 @@ export interface VendorSearchResult {
   avg_rating?: number | null;
 }
 
+export type VendorSearchResponse = { data: VendorSearchResult[]; error?: string };
+
 export async function getVendorSearchResults(
   filters: VendorSearchFilters
-): Promise<VendorSearchResult[]> {
+): Promise<VendorSearchResponse> {
   const { data, error } = await supabase.rpc("get_vendor_search_results", {
     p_keyword: filters.keyword?.trim() || null,
     p_zone: filters.zone || null,
@@ -69,7 +71,7 @@ export async function getVendorSearchResults(
   });
   if (error) {
     console.error("get_vendor_search_results:", error);
-    return [];
+    return { data: [], error: error.message };
   }
   const rows = (data ?? []) as Array<{
     vendor_id: string;
@@ -82,17 +84,19 @@ export async function getVendorSearchResults(
     premium_tier?: string | null;
     avg_rating?: number | null;
   }>;
-  return rows.map((r) => ({
-    vendor_id: r.vendor_id,
-    name: r.name ?? "",
-    stall_type: r.stall_type ?? null,
-    zone: r.zone ?? null,
-    address: r.address ?? null,
-    menu_preview: Array.isArray(r.menu_preview)
-      ? (r.menu_preview as MenuPreviewItem[])
-      : [],
-    order_count: Number(r.order_count) || 0,
-    premium_tier: r.premium_tier ?? "free",
-    avg_rating: r.avg_rating != null ? Number(r.avg_rating) : null,
-  }));
+  return {
+    data: rows.map((r) => ({
+      vendor_id: r.vendor_id,
+      name: r.name ?? "",
+      stall_type: r.stall_type ?? null,
+      zone: r.zone ?? null,
+      address: r.address ?? null,
+      menu_preview: Array.isArray(r.menu_preview)
+        ? (r.menu_preview as MenuPreviewItem[])
+        : [],
+      order_count: Number(r.order_count) || 0,
+      premium_tier: r.premium_tier ?? "free",
+      avg_rating: r.avg_rating != null ? Number(r.avg_rating) : null,
+    })),
+  };
 }

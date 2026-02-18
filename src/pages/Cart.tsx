@@ -30,6 +30,7 @@ export default function Cart() {
   const { user, refreshProfile } = useSession();
   const pricing = useCartPricing(cart);
   const [placing, setPlacing] = useState(false);
+  const [redirectingToPayment, setRedirectingToPayment] = useState(false);
 
   const finalTotal = pricing.finalTotal;
   const hasGst = pricing.gstTotal > 0;
@@ -95,10 +96,18 @@ export default function Cart() {
         if (sessionRes.ok) {
           clearCart();
           setPlacing(false);
-          await openCashfreeCheckout(sessionRes.payment_session_id);
+          setRedirectingToPayment(true);
+          try {
+            await openCashfreeCheckout(sessionRes.payment_session_id);
+          } catch {
+            setRedirectingToPayment(false);
+            toast.error("Could not open payment page. Check the link in your orders.");
+            navigate("/orders");
+          }
           return;
         }
-        toast.error(sessionRes.error ?? "Payment gateway error");
+        toast.error(sessionRes.error ?? "Payment gateway error. Order placed — pay from Orders.");
+        navigate("/orders");
         setPlacing(false);
         return;
       }
@@ -241,9 +250,13 @@ export default function Cart() {
               className="w-full font-bold"
               size="lg"
               onClick={handlePlaceOrder}
-              disabled={placing}
+              disabled={placing || redirectingToPayment}
             >
-              {placing ? "Placing…" : `${t("placeOrder")} · ₹${finalTotal}`}
+              {redirectingToPayment
+                ? "Redirecting to payment…"
+                : placing
+                  ? "Placing…"
+                  : `${t("placeOrder")} · ₹${finalTotal}`}
             </Button>
           </div>
         </>

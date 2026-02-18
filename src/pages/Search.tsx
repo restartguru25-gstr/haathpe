@@ -36,19 +36,22 @@ export default function Search() {
   const [stallType, setStallType] = useState("");
   const [sort, setSort] = useState<VendorSearchFilters["sort"]>("popular");
   const [results, setResults] = useState<VendorSearchResult[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searched, setSearched] = useState(false);
 
   const runSearch = useCallback(async () => {
     setLoading(true);
     setSearched(true);
-    const list = await getVendorSearchResults({
+    setSearchError(null);
+    const res = await getVendorSearchResults({
       keyword: keyword.trim() || undefined,
       zone: zone || undefined,
       stallType: stallType || undefined,
       sort,
     });
-    setResults(list);
+    setResults(res.data ?? []);
+    if (res.error) setSearchError(res.error);
     setLoading(false);
   }, [keyword, zone, stallType, sort]);
 
@@ -134,7 +137,17 @@ export default function Search() {
           </div>
         </div>
 
-        {loading ? (
+        {searchError ? (
+          <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-6 text-center">
+            <p className="font-medium text-amber-900 dark:text-amber-100">Search is temporarily unavailable</p>
+            <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
+              If you see &quot;column reference vendor_id is ambiguous&quot;, run the SQL fix in Supabase: SQL Editor → paste and run <code className="text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">supabase/fix-vendor-search-ambiguous-vendor_id.sql</code> (see DEPLOY-CASHFREE.md).
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSearchError(null); runSearch(); }}>
+              Try again
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div

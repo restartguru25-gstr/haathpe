@@ -1,7 +1,7 @@
 /**
  * Creates a Cashfree PG order and returns payment_session_id for client-side checkout.
- * Call from frontend after creating customer_order (pending). Use response to open Cashfree checkout.
- *
+ * API: https://www.cashfree.com/docs/api-reference/payments/previous/v2023-08-01/orders/create
+ * Sandbox: https://sandbox.cashfree.com/pg/orders | Production: https://api.cashfree.com/pg/orders
  * Deploy: supabase functions deploy create-cashfree-order
  * Set secrets: CASHFREE_APP_ID, CASHFREE_SECRET_KEY (Supabase Dashboard → Edge Functions → Secrets)
  */

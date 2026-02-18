@@ -79,22 +79,27 @@ export default function Sales() {
   }, [user?.id]);
 
   useEffect(() => {
+    if (!vendorId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const timeoutId = window.setTimeout(() => {
+      setLoading(false);
+    }, 12000);
     const load = async () => {
-      if (!vendorId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
       try {
         const [defaults, vendor] = await Promise.all([
           sectorId ? getDefaultMenuBySector(sectorId) : Promise.resolve([]),
           getVendorMenuItems(vendorId),
         ]);
-        setDefaultItems(defaults);
-        setVendorItems(vendor);
-      } catch {
+        setDefaultItems(defaults ?? []);
+        setVendorItems(vendor ?? []);
+      } catch (e) {
+        console.error("Sales load:", e);
         toast.error("Failed to load menu");
       } finally {
+        window.clearTimeout(timeoutId);
         setLoading(false);
       }
     };
@@ -112,16 +117,20 @@ export default function Sales() {
       getVendorReviews(vendorId),
       getCustomerOrders(vendorId, { limit: 20 }),
       getOndcOrdersForVendor(vendorId),
-    ]).then(([inc, count, s, last7, month, revs, ords, ondc]) => {
-      setIncentives(inc);
-      setTodayCount(count);
-      setSlabs(s);
-      setLast7Days(last7);
-      setThisMonth(month);
-      setReviews(revs);
-      setCustomerOrders(ords);
-      setOndcOrders(ondc);
-    });
+    ])
+      .then(([inc, count, s, last7, month, revs, ords, ondc]) => {
+        setIncentives(inc ?? []);
+        setTodayCount(count ?? 0);
+        setSlabs(s ?? []);
+        setLast7Days(last7 ?? 0);
+        setThisMonth(month ?? 0);
+        setReviews(revs ?? []);
+        setCustomerOrders(ords ?? []);
+        setOndcOrders(ondc ?? []);
+      })
+      .catch((e) => {
+        console.error("Sales dashboard data:", e);
+      });
   }, [vendorId]);
 
   useEffect(() => {

@@ -231,6 +231,28 @@ run the fix in Supabase:
 
 ---
 
+## Production (e.g. Vercel): Cart / Buy supplies checkout
+
+For **Buy supplies → Cart → Place order** to open Cashfree, the **host** (e.g. Vercel) must have these **Environment Variables** set (Vercel → Project → Settings → Environment Variables):
+
+- `VITE_SUPABASE_URL` (your Supabase project URL)
+- `VITE_SUPABASE_ANON_KEY` (anon key)
+- `VITE_CASHFREE_APP_ID` (Cashfree App ID)
+- `VITE_CASHFREE_MODE` = `production` or `sandbox`
+
+Redeploy after adding them. Without these, checkout will place the order but will not redirect to Cashfree.
+
+---
+
+## Performance and UX
+
+- **My Shop / Sales:** If the page stays loading, it now stops after 12 seconds so you see content or can retry. Dashboard data (incentives, orders) failures no longer block the page.
+- **Search:** If you see "column reference vendor_id is ambiguous", run the SQL fix (see Database fix above). The Search page now shows a clear error and "Try again" when the RPC fails.
+- **Cart checkout:** You’ll see "Redirecting to payment…" when Cashfree is about to open; if the gateway fails, you’re sent to Orders with a message.
+- **General:** Routes are lazy-loaded; keep Supabase and (if used) Vercel in the same region for lower latency.
+
+---
+
 ## Secrets (set in Dashboard)
 
 Ensure these are set in **Supabase Dashboard** → **Edge Functions** → **Secrets** (or Project Settings → Edge Functions):
