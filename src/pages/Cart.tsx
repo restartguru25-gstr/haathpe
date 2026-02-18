@@ -168,12 +168,14 @@ export default function Cart() {
       );
       navigate("/orders");
     } catch (e) {
-      const isAbort = e instanceof Error && (e.name === "AbortError" || /aborted/i.test(e.message || ""));
+      const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+      const msg = e && typeof e === "object" && "message" in e ? String((e as { message?: string }).message) : "";
+      const isAbort = name === "AbortError" || /aborted/i.test(msg);
       if (isAbort) {
         if (typeof window !== "undefined") console.warn("[Cart] Place order request was cancelled.");
         return;
       }
-      const errMsg = e instanceof Error ? e.message : (e && typeof e === "object" && "message" in e) ? String((e as { message?: string }).message) : null;
+      const errMsg = msg || (e instanceof Error ? e.message : null);
       if (errMsg && typeof window !== "undefined") console.error("[Cart] Place order failed:", errMsg);
       toast.error(errMsg && errMsg.length < 80 ? errMsg : "Could not place order. Try again.");
     } finally {
