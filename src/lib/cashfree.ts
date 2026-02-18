@@ -43,6 +43,7 @@ export async function createCashfreeSession(
   const res = await fetch(url, {
     method: "POST",
     headers: {
+      "Accept": "application/json",
       "Content-Type": "application/json",
       Authorization: `Bearer ${SUPABASE_ANON}`,
       apikey: SUPABASE_ANON,
