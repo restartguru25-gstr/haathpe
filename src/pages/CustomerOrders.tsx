@@ -6,7 +6,7 @@ import { getOrdersForCustomer, submitOrderReview, type CustomerOrderRow } from "
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LogOut, ArrowLeft, ShoppingBag, Star, ExternalLink } from "lucide-react";
+import { LogOut, ArrowLeft, ShoppingBag, Star, ExternalLink, Wallet } from "lucide-react";
 import ReviewModal from "@/components/ReviewModal";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
 
@@ -90,9 +90,16 @@ export default function CustomerOrders() {
             </Button>
           </Link>
           <h1 className="text-xl font-bold">{t("customerOrdersTitle")}</h1>
-          <Button variant="ghost" size="icon" onClick={handleLogout} title={t("customerLogout")}>
-            <LogOut size={20} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Link to="/customer/wallet">
+              <Button variant="ghost" size="icon" title={t("customerWallet")}>
+                <Wallet size={20} />
+              </Button>
+            </Link>
+            <Button variant="ghost" size="icon" onClick={handleLogout} title={t("customerLogout")}>
+              <LogOut size={20} />
+            </Button>
+          </div>
         </div>
 
         <p className="mb-4 text-sm text-muted-foreground">
@@ -151,6 +158,11 @@ export default function CustomerOrders() {
                     )}
                   </ul>
                   <p className="font-semibold text-primary mb-2">₹{Number(o.total).toFixed(0)}</p>
+                  {o.coins_awarded != null && o.coins_awarded > 0 && (
+                    <p className="text-xs text-green-600 dark:text-green-400 mb-2">
+                      {t("coinsEarned")}: +{o.coins_awarded}
+                    </p>
+                  )}
                   {o.rating != null && (
                     <div className="flex items-center gap-1 text-sm text-amber-600 mb-2">
                       <Star className="h-4 w-4 fill-current" />

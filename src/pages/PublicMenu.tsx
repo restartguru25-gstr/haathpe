@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy, ArrowLeft } from "lucide-react";
 import { AdBanner } from "@/components/AdBanner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { isShopOpen, formatTimeForDisplay, type ShopDetails } from "@/lib/shopDe
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { toggleFavorite, appendOrderToHistory } from "@/lib/customer";
+import { getWalletBalance, awardCoinsForOrder, debitWalletForOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { toast } from "sonner";
 
 type CartLine = { item: VendorMenuItem; qty: number };
@@ -51,6 +52,8 @@ export default function PublicMenu() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [togglingFavorite, setTogglingFavorite] = useState<string | null>(null);
   const [shopDetails, setShopDetails] = useState<ShopDetails | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [useWalletAmount, setUseWalletAmount] = useState(0);
 
   useEffect(() => {
     if (!vendorId) {
@@ -93,6 +96,11 @@ export default function PublicMenu() {
     if (customer?.favorites) setFavorites(customer.favorites);
   }, [customer?.favorites]);
 
+  useEffect(() => {
+    if (!customer?.id) return;
+    getWalletBalance(customer.id).then(setWalletBalance);
+  }, [customer?.id]);
+
   const handleToggleFavorite = async (itemId: string) => {
     if (!customer) return;
     setTogglingFavorite(itemId);
@@ -130,13 +138,20 @@ export default function PublicMenu() {
   };
 
   const { total } = cartTotals(cart);
+  const walletToUse = Math.min(useWalletAmount, walletBalance, total);
+  const payAtDukaan = Math.max(0, total - walletToUse);
 
   const handlePayOnline = async () => {
     if (!vendorId || cart.length === 0 || !canOrder) return;
+    if (customer && walletToUse > walletBalance) {
+      toast.error("Insufficient wallet balance");
+      return;
+    }
     setPlacing(true);
     try {
       const items = cartToOrderItems(cart);
       const { subtotal, gstAmount } = cartTotals(cart);
+      const coinsToAward = customer ? await getCoinsPerPayment() : 0;
       const result = await createCustomerOrder(vendorId, {
         items,
         subtotal,
@@ -146,29 +161,46 @@ export default function PublicMenu() {
         status: "pending",
         payment_id: null,
         customer_phone: customer?.phone ?? null,
+        customer_id: customer?.id ?? null,
         delivery_option: deliveryOption,
         delivery_address: deliveryOption === "self_delivery" && deliveryAddress.trim() ? deliveryAddress.trim() : null,
+        wallet_used: walletToUse,
+        coins_awarded: 0,
       });
-      if (result.ok) {
-        toast.success("Order placed! Dukaanwaala will be notified.");
-        if (customer && result.id) {
-          const entry = {
-            order_id: result.id,
-            vendor_id: vendorId,
-            vendor_name: vendorName ?? undefined,
-            total,
-            items: items.map((i) => ({ item_name: i.item_name, qty: i.qty, price: i.price })),
-            created_at: new Date().toISOString(),
-          };
-          await appendOrderToHistory(customer.id, entry);
-          toast.success(t("orderSavedToHistory"));
-        }
-        setPlacedOrderId(result.id ?? null);
-        setOrderPlaced(true);
-        setCart([]);
-      } else {
+      if (!result.ok || !result.id) {
         toast.error(result.error ?? "Failed");
+        return;
       }
+      if (customer && walletToUse > 0) {
+        const debitRes = await debitWalletForOrder(customer.id, result.id, walletToUse);
+        if (!debitRes.ok) {
+          toast.error(debitRes.error ?? "Wallet debit failed");
+          setPlacing(false);
+          return;
+        }
+      }
+      if (customer && result.id) {
+        const awardRes = await awardCoinsForOrder(result.id, customer.id, coinsToAward);
+        if (awardRes.ok && coinsToAward > 0) {
+          toast.success(t("congratulationsCoins").replace("{n}", String(coinsToAward)));
+        }
+        const entry = {
+          order_id: result.id,
+          vendor_id: vendorId,
+          vendor_name: vendorName ?? undefined,
+          total,
+          items: items.map((i) => ({ item_name: i.item_name, qty: i.qty, price: i.price })),
+          created_at: new Date().toISOString(),
+        };
+        await appendOrderToHistory(customer.id, entry);
+        if (!awardRes.ok || coinsToAward === 0) toast.success(t("orderSavedToHistory"));
+      } else {
+        toast.success("Order placed! Dukaanwaala will be notified.");
+      }
+      setPlacedOrderId(result.id);
+      setOrderPlaced(true);
+      setCart([]);
+      setUseWalletAmount(0);
     } catch {
       toast.error("Failed to place order");
     } finally {
@@ -253,7 +285,7 @@ export default function PublicMenu() {
     );
   }
 
-  const loginReturnTo = `/menu/${vendorId}`;
+  const loginReturnTo = `/menu/${vendorId}/browse`;
 
   return (
     <div className="min-h-screen bg-muted/20 pb-24">
@@ -282,13 +314,21 @@ export default function PublicMenu() {
         {isCustomer && (
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{t("welcomeBack")} {customer?.name || customer?.phone}</p>
-            <Link to="/customer/orders">
-              <Button variant="ghost" size="sm">{t("customerOrders")}</Button>
-            </Link>
+            <div className="flex gap-1">
+              <Link to="/customer/wallet">
+                <Button variant="ghost" size="sm">{t("customerWallet")}</Button>
+              </Link>
+              <Link to="/customer/orders">
+                <Button variant="ghost" size="sm">{t("customerOrders")}</Button>
+              </Link>
+            </div>
           </div>
         )}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <Link to={`/menu/${vendorId}`} className="shrink-0 rounded-lg p-1.5 hover:bg-muted transition-colors" aria-label="Back">
+              <ArrowLeft size={20} className="text-muted-foreground" />
+            </Link>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold font-brand tracking-widest">h</div>
             <span className="brand-haathpe text-lg">Haathpe Menu</span>
             {canOrder && (
@@ -395,17 +435,56 @@ export default function PublicMenu() {
                 />
               )}
             </div>
+            {isCustomer && walletBalance > 0 && (
+              <div className="mb-4 p-4 rounded-xl border border-primary/20 bg-primary/5">
+                <label className="flex items-center gap-2 cursor-pointer mb-2">
+                  <input
+                    type="checkbox"
+                    checked={useWalletAmount > 0}
+                    onChange={(e) => setUseWalletAmount(e.target.checked ? Math.min(walletBalance, total) : 0)}
+                  />
+                  <span className="text-sm font-medium">{t("useWallet")}</span>
+                  <span className="text-sm text-muted-foreground">({t("walletAvailable").replace("{amount}", walletBalance.toFixed(0))})</span>
+                </label>
+                {useWalletAmount > 0 && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={Math.min(walletBalance, total)}
+                      step={1}
+                      value={useWalletAmount}
+                      onChange={(e) => setUseWalletAmount(Number(e.target.value))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-semibold text-primary">₹{useWalletAmount}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card p-4 safe-area-pb">
             <div className="container max-w-lg mx-auto">
               <p className="text-xs text-muted-foreground mb-1">{t("gstNote")}</p>
-              <div className="flex items-center justify-between gap-4">
-                <span className="font-bold">₹{total.toFixed(2)}</span>
+              {walletToUse > 0 && (
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Total</span>
+                  <span>₹{total.toFixed(0)}</span>
+                </div>
+              )}
+              {walletToUse > 0 && (
+                <div className="flex justify-between text-sm text-green-600 dark:text-green-400 mb-1">
+                  <span>{t("useWallet")}</span>
+                  <span>-₹{walletToUse.toFixed(0)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-4 mt-2">
+                <span className="font-bold">Pay ₹{payAtDukaan.toFixed(0)}</span>
                 <Button
-                onClick={handlePayOnline}
-                disabled={placing || !canOrder || (deliveryOption === "self_delivery" && !deliveryAddress.trim())}
-                className="gap-2"
-              >
-                  <ShoppingCart size={18} /> Place order (pay at dukaan)
+                  onClick={handlePayOnline}
+                  disabled={placing || !canOrder || (deliveryOption === "self_delivery" && !deliveryAddress.trim())}
+                  className="gap-2"
+                >
+                  <ShoppingCart size={18} /> Place order
                 </Button>
               </div>
             </div>

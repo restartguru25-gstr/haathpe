@@ -20,7 +20,7 @@ import {
   Image,
   UserPlus,
   Zap,
-  Percent,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,24 +74,14 @@ import {
   type IncentiveSlab,
 } from "@/lib/incentives";
 import { getAdminAds, upsertAd, deleteAd, uploadAdImage, type Ad } from "@/lib/ads";
+import { getOndcOrdersForAdmin, type OndcOrder } from "@/lib/ondcOrders";
 import {
-  getOndcOrdersForAdmin,
-  getPlatformFeeConfig,
-  updatePlatformFee,
-  type OndcOrder,
-} from "@/lib/ondcOrders";
-import {
-  getAllVendorFees,
-  getVendorsForFeeAdmin,
-  getDefaultFeePercent,
-  upsertPlatformFee,
-  bulkSetDefaultPercent,
-  bulkExemptVendors,
-  getPlatformFeeSummaryThisMonth,
-  formatFeeDisplay,
-  type PlatformFeeWithVendor,
-  type FeeType,
-} from "@/lib/platformFees";
+  getAdminRedemptions,
+  approveRedemption,
+  rejectRedemption,
+  getCoinsConfig,
+  updateCoinsConfig,
+} from "@/lib/wallet";
 
 interface AdminProfile {
   id: string;
@@ -175,26 +165,12 @@ export default function Admin() {
   const [adForm, setAdForm] = useState({ brand_name: "", title: "", image_url: "", link_url: "", zone: "general", is_active: true, priority: 0 });
   const [ondcOrders, setOndcOrders] = useState<OndcOrder[]>([]);
   const [loadingOndc, setLoadingOndc] = useState(false);
-  const [feeConfig, setFeeConfig] = useState<{ fee_percent: number } | null>(null);
-  const [feeInput, setFeeInput] = useState("");
-  const [savingFee, setSavingFee] = useState(false);
-  const [vendorFees, setVendorFees] = useState<PlatformFeeWithVendor[]>([]);
-  const [loadingVendorFees, setLoadingVendorFees] = useState(false);
-  const [feeSummary, setFeeSummary] = useState<{ total_fee: number; order_count: number }>({ total_fee: 0, order_count: 0 });
-  const [feeFormOpen, setFeeFormOpen] = useState(false);
-  const [feeFormVendor, setFeeFormVendor] = useState<PlatformFeeWithVendor | null>(null);
-  const [feeForm, setFeeForm] = useState({
-    vendor_id: "",
-    fee_type: "percentage" as FeeType,
-    fee_value: 3,
-    min_order_value: 0,
-    is_exempt: false,
-  });
-  const [savingFeeForm, setSavingFeeForm] = useState(false);
-  const [selectedFeeVendorIds, setSelectedFeeVendorIds] = useState<Set<string>>(new Set());
-  const [vendorSearch, setVendorSearch] = useState("");
-  const [defaultFeePercent, setDefaultFeePercent] = useState(3);
-  const [bulkDefaultPercent, setBulkDefaultPercent] = useState("3");
+  const [customerRedemptions, setCustomerRedemptions] = useState<Awaited<ReturnType<typeof getAdminRedemptions>>>([]);
+  const [loadingCustomerRedemptions, setLoadingCustomerRedemptions] = useState(false);
+  const [approvingRedemptionId, setApprovingRedemptionId] = useState<string | null>(null);
+  const [coinsConfig, setCoinsConfig] = useState<Awaited<ReturnType<typeof getCoinsConfig>>>([]);
+  const [loadingCoinsConfig, setLoadingCoinsConfig] = useState(false);
+  const [savingCoinsConfig, setSavingCoinsConfig] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -263,6 +239,20 @@ export default function Admin() {
     setLoadingRedemptions(false);
   };
 
+  const loadCustomerRedemptions = async () => {
+    setLoadingCustomerRedemptions(true);
+    const list = await getAdminRedemptions();
+    setCustomerRedemptions(list);
+    setLoadingCustomerRedemptions(false);
+  };
+
+  const loadCoinsConfig = async () => {
+    setLoadingCoinsConfig(true);
+    const list = await getCoinsConfig();
+    setCoinsConfig(list);
+    setLoadingCoinsConfig(false);
+  };
+
   const loadSvanidhiRequests = async () => {
     setLoadingSvanidhi(true);
     const { data: rows, error } = await supabase
@@ -318,126 +308,9 @@ export default function Admin() {
 
   const loadOndc = async () => {
     setLoadingOndc(true);
-    const [ords, cfg] = await Promise.all([getOndcOrdersForAdmin(), getPlatformFeeConfig()]);
+    const ords = await getOndcOrdersForAdmin();
     setOndcOrders(ords);
-    setFeeConfig(cfg);
-    setFeeInput(cfg ? String(cfg.fee_percent) : "3");
     setLoadingOndc(false);
-  };
-
-  const handleSaveFee = async () => {
-    const n = parseFloat(feeInput);
-    if (Number.isNaN(n) || n < 0 || n > 100) {
-      toast.error("Enter a fee between 0 and 100");
-      return;
-    }
-    setSavingFee(true);
-    try {
-      const { ok, error } = await updatePlatformFee(n);
-      if (ok) {
-        toast.success(`Platform fee set to ${n}%`);
-        setFeeConfig({ fee_percent: n });
-        loadOndc();
-        loadPlatformFees();
-      } else toast.error(error ?? "Failed");
-    } finally {
-      setSavingFee(false);
-    }
-  };
-
-  const openFeeForm = (row: PlatformFeeWithVendor | null) => {
-    if (row) {
-      setFeeFormVendor(row);
-      setFeeForm({
-        vendor_id: row.vendor_id,
-        fee_type: row.fee_type,
-        fee_value: row.fee_value || 3,
-        min_order_value: row.min_order_value || 0,
-        is_exempt: row.is_exempt,
-      });
-    } else {
-      setFeeFormVendor(null);
-      setFeeForm({
-        vendor_id: "",
-        fee_type: "percentage",
-        fee_value: 3,
-        min_order_value: 0,
-        is_exempt: false,
-      });
-    }
-    setFeeFormOpen(true);
-  };
-
-  const handleSaveFeeForm = async () => {
-    if (!feeForm.vendor_id) {
-      toast.error("Select a vendor");
-      return;
-    }
-    if (feeForm.is_exempt) {
-      setFeeForm((f) => ({ ...f, fee_type: "percentage", fee_value: 0, min_order_value: 0 }));
-    }
-    setSavingFeeForm(true);
-    try {
-      const { ok, error } = await upsertPlatformFee(feeForm.vendor_id, {
-        fee_type: feeForm.fee_type,
-        fee_value: feeForm.fee_value,
-        min_order_value: feeForm.min_order_value,
-        is_exempt: feeForm.is_exempt,
-      });
-      if (ok) {
-        toast.success("Fee updated");
-        setFeeFormOpen(false);
-        loadPlatformFees();
-      } else toast.error(error ?? "Failed");
-    } finally {
-      setSavingFeeForm(false);
-    }
-  };
-
-  const handleBulkSetDefault = async () => {
-    const n = parseFloat(bulkDefaultPercent);
-    if (Number.isNaN(n) || n < 0 || n > 100) {
-      toast.error("Enter a valid percentage (0–100)");
-      return;
-    }
-    setSavingFeeForm(true);
-    try {
-      const { ok, count, error } = await bulkSetDefaultPercent(n);
-      if (ok) {
-        toast.success(`Default ${n}% applied to ${count} vendor(s)`);
-        loadPlatformFees();
-      } else toast.error(error ?? "Failed");
-    } finally {
-      setSavingFeeForm(false);
-    }
-  };
-
-  const handleBulkExempt = async () => {
-    const ids = Array.from(selectedFeeVendorIds);
-    if (ids.length === 0) {
-      toast.error("Select vendors first");
-      return;
-    }
-    setSavingFeeForm(true);
-    try {
-      const { ok, error } = await bulkExemptVendors(ids);
-      if (ok) {
-        toast.success(`${ids.length} vendor(s) exempted`);
-        setSelectedFeeVendorIds(new Set());
-        loadPlatformFees();
-      } else toast.error(error ?? "Failed");
-    } finally {
-      setSavingFeeForm(false);
-    }
-  };
-
-  const toggleFeeVendorSelection = (id: string) => {
-    setSelectedFeeVendorIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   const handleRunDailyCalc = async () => {
@@ -497,23 +370,6 @@ export default function Admin() {
     else loadSvanidhiRequests();
   };
 
-  const loadPlatformFees = async () => {
-    setLoadingVendorFees(true);
-    try {
-      const [fees, summary, defaultPct] = await Promise.all([
-        getAllVendorFees(),
-        getPlatformFeeSummaryThisMonth(),
-        getDefaultFeePercent(),
-      ]);
-      setVendorFees(fees);
-      setFeeSummary(summary);
-      setDefaultFeePercent(defaultPct);
-      setFeeInput(String(defaultPct));
-    } finally {
-      setLoadingVendorFees(false);
-    }
-  };
-
   useEffect(() => {
     if (isAdmin) {
       loadVendors();
@@ -524,7 +380,8 @@ export default function Admin() {
       loadIncentives();
       loadAds();
       loadOndc();
-      loadPlatformFees();
+      loadCustomerRedemptions();
+      loadCoinsConfig();
     }
   }, [isAdmin]);
 
@@ -818,8 +675,11 @@ export default function Admin() {
           <TabsTrigger value="ondc" className="flex items-center gap-2">
             <Zap size={16} /> ONDC
           </TabsTrigger>
-          <TabsTrigger value="platformFees" className="flex items-center gap-2">
-            <Percent size={16} /> Platform Fees
+          <TabsTrigger value="customerRedemptions" className="flex items-center gap-2">
+            <CreditCard size={16} /> Cx Redemptions
+          </TabsTrigger>
+          <TabsTrigger value="coinsConfig" className="flex items-center gap-2">
+            <Coins size={16} /> Coins
           </TabsTrigger>
           <TabsTrigger value="actions" className="flex items-center gap-2">
             <Trophy size={16} /> Actions
@@ -1253,25 +1113,6 @@ export default function Admin() {
 
         <TabsContent value="ondc" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Label>Platform fee %</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.5}
-                  value={feeInput}
-                  onChange={(e) => setFeeInput(e.target.value)}
-                  className="w-20"
-                />
-              </div>
-              <Button size="sm" onClick={handleSaveFee} disabled={savingFee}>
-                {savingFee ? <Loader2 size={14} className="animate-spin" /> : null}
-                Save
-              </Button>
-              {feeConfig && <span className="text-sm text-muted-foreground">Current: {feeConfig.fee_percent}%</span>}
-            </div>
             <Button variant="outline" size="sm" onClick={loadOndc} disabled={loadingOndc}>
               <RefreshCw size={14} className={loadingOndc ? "animate-spin" : ""} /> Refresh
             </Button>
@@ -1288,7 +1129,6 @@ export default function Admin() {
                       <th className="text-left p-3 font-semibold">Vendor</th>
                       <th className="text-left p-3 font-semibold">Buyer App</th>
                       <th className="text-right p-3 font-semibold">Total</th>
-                      <th className="text-right p-3 font-semibold">Platform Fee</th>
                       <th className="text-right p-3 font-semibold">Vendor Amount</th>
                       <th className="text-left p-3 font-semibold">Payment</th>
                       <th className="text-left p-3 font-semibold">Created</th>
@@ -1301,7 +1141,6 @@ export default function Admin() {
                         <td className="p-3 truncate max-w-[100px]">{o.vendor_id.slice(0, 8)}…</td>
                         <td className="p-3">{o.buyer_app ?? "—"}</td>
                         <td className="p-3 text-right">₹{Number(o.total).toFixed(0)}</td>
-                        <td className="p-3 text-right">₹{Number(o.platform_fee ?? 0).toFixed(0)}</td>
                         <td className="p-3 text-right font-medium">₹{Number(o.vendor_amount ?? 0).toFixed(0)}</td>
                         <td className="p-3">
                           <span className={o.payment_status === "paid" ? "text-green-600" : o.payment_status === "failed" ? "text-red-600" : "text-muted-foreground"}>
@@ -1324,115 +1163,167 @@ export default function Admin() {
           </p>
         </TabsContent>
 
-        <TabsContent value="platformFees" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
-              <Banknote size={24} className="text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Platform fee this month</p>
-                <p className="text-xl font-bold">₹{Number(feeSummary.total_fee).toFixed(0)}</p>
-                <p className="text-xs text-muted-foreground">{feeSummary.order_count} orders</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label>Default % (for vendors without custom fee)</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step={0.5}
-                value={feeInput || defaultFeePercent}
-                onChange={(e) => setFeeInput(e.target.value)}
-                className="w-20"
-              />
-              <Button size="sm" onClick={handleSaveFee} disabled={savingFee}>
-                {savingFee ? <Loader2 size={14} className="animate-spin" /> : null} Save
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => openFeeForm(null)}>
-              <Plus size={14} /> Set fee for vendor
-            </Button>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step={0.5}
-                value={bulkDefaultPercent}
-                onChange={(e) => setBulkDefaultPercent(e.target.value)}
-                className="w-20"
-                placeholder="%"
-              />
-              <Button variant="outline" size="sm" onClick={handleBulkSetDefault} disabled={savingFeeForm}>
-                Set default % for all
-              </Button>
-            </div>
-            <Button variant="outline" size="sm" onClick={handleBulkExempt} disabled={savingFeeForm || selectedFeeVendorIds.size === 0}>
-              Exempt selected ({selectedFeeVendorIds.size})
-            </Button>
-            <Button variant="outline" size="sm" onClick={loadPlatformFees} disabled={loadingVendorFees}>
-              <RefreshCw size={14} className={loadingVendorFees ? "animate-spin" : ""} /> Refresh
+        <TabsContent value="customerRedemptions" className="space-y-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={loadCustomerRedemptions} disabled={loadingCustomerRedemptions}>
+              <RefreshCw size={14} className={loadingCustomerRedemptions ? "animate-spin" : ""} /> Refresh
             </Button>
           </div>
-          {loadingVendorFees ? (
-            <Skeleton className="h-64 w-full rounded-xl" />
+          <p className="text-sm text-muted-foreground">Customer wallet redemptions (cash, coupon, cashback). Approve to debit wallet.</p>
+          {loadingCustomerRedemptions ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
           ) : (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="overflow-x-auto max-h-[60vh]">
+              <div className="overflow-x-auto max-h-[50vh]">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th className="w-10 p-3" />
-                      <th className="text-left p-3 font-semibold">Vendor</th>
-                      <th className="text-left p-3 font-semibold">Dukaan Type</th>
-                      <th className="text-left p-3 font-semibold">Current Fee</th>
-                      <th className="text-left p-3 font-semibold">Effective From</th>
-                      <th className="w-20 p-3" />
+                      <th className="text-left p-3 font-semibold">Customer</th>
+                      <th className="text-left p-3 font-semibold">Type</th>
+                      <th className="text-right p-3 font-semibold">Amount</th>
+                      <th className="text-left p-3 font-semibold">Status</th>
+                      <th className="text-left p-3 font-semibold">Date</th>
+                      <th className="w-32 p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {vendorFees
-                      .filter((v) => !vendorSearch || (v.vendor_name?.toLowerCase().includes(vendorSearch.toLowerCase()) ?? false))
-                      .map((row) => (
-                        <tr key={row.vendor_id} className="border-t border-border">
-                          <td className="p-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedFeeVendorIds.has(row.vendor_id)}
-                              onChange={() => toggleFeeVendorSelection(row.vendor_id)}
-                            />
-                          </td>
-                          <td className="p-3 font-medium">{row.vendor_name ?? row.vendor_id.slice(0, 8) + "…"}</td>
-                          <td className="p-3 text-muted-foreground">{row.stall_type ?? "—"}</td>
-                          <td className="p-3">{formatFeeDisplay(row.id ? row : null, defaultFeePercent)}</td>
-                          <td className="p-3 text-muted-foreground text-xs">
-                            {row.effective_from ? new Date(row.effective_from).toLocaleDateString() : "—"}
-                          </td>
-                          <td className="p-3">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openFeeForm(row)}>
-                              <Pencil size={14} />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
+                    {customerRedemptions.map((r) => (
+                      <tr key={r.id} className="border-t border-border">
+                        <td className="p-3">{r.customer_phone ?? r.customer_id}</td>
+                        <td className="p-3">{r.type}</td>
+                        <td className="p-3 text-right">₹{Number(r.amount).toFixed(0)}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            r.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
+                            r.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
+                            "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                          }`}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
+                        <td className="p-3 text-right">
+                          {r.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="mr-1"
+                                disabled={approvingRedemptionId === r.id}
+                                onClick={async () => {
+                                  setApprovingRedemptionId(r.id);
+                                  const ok = await approveRedemption(r.id);
+                                  setApprovingRedemptionId(null);
+                                  if (ok.ok) {
+                                    toast.success("Redemption approved");
+                                    loadCustomerRedemptions();
+                                  } else {
+                                    toast.error(ok.error ?? "Failed");
+                                  }
+                                }}
+                              >
+                                {approvingRedemptionId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive"
+                                onClick={async () => {
+                                  const ok = await rejectRedemption(r.id);
+                                  if (ok.ok) {
+                                    toast.success("Redemption rejected");
+                                    loadCustomerRedemptions();
+                                  }
+                                }}
+                              >
+                                <X size={14} /> Reject
+                              </Button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-              {vendorFees.length === 0 && (
-                <p className="p-6 text-center text-muted-foreground">No vendors. Add vendors with dukaan type to manage fees.</p>
+              {customerRedemptions.length === 0 && (
+                <p className="p-6 text-center text-muted-foreground">No customer redemptions yet.</p>
               )}
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Search vendor..."
-              value={vendorSearch}
-              onChange={(e) => setVendorSearch(e.target.value)}
-              className="max-w-xs"
-            />
+        </TabsContent>
+
+        <TabsContent value="coinsConfig" className="space-y-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={loadCoinsConfig} disabled={loadingCoinsConfig}>
+              <RefreshCw size={14} className={loadingCoinsConfig ? "animate-spin" : ""} /> Refresh
+            </Button>
           </div>
+          <p className="text-sm text-muted-foreground">Coins ≠ cash. Set coins per payment and conversion (e.g. 10 coins = ₹1).</p>
+          {loadingCoinsConfig ? (
+            <Skeleton className="h-32 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+              {coinsConfig.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-lg bg-muted/30">
+                  <div>
+                    <p className="font-medium">{c.scenario}</p>
+                    <p className="text-xs text-muted-foreground">{c.description ?? "—"}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        defaultValue={c.coins_per_payment}
+                        className="w-20"
+                        onBlur={async (e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(v) && v >= 0 && v !== c.coins_per_payment) {
+                            setSavingCoinsConfig(true);
+                            const ok = await updateCoinsConfig(c.scenario, { coins_per_payment: v });
+                            setSavingCoinsConfig(false);
+                            if (ok.ok) {
+                              toast.success("Coins config updated");
+                              loadCoinsConfig();
+                            }
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">coins/payment</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1000}
+                        defaultValue={(c as { coins_to_rupees?: number }).coins_to_rupees ?? 10}
+                        className="w-20"
+                        onBlur={async (e) => {
+                          const v = parseInt(e.target.value, 10);
+                          const curr = (c as { coins_to_rupees?: number }).coins_to_rupees ?? 10;
+                          if (!Number.isNaN(v) && v >= 1 && v !== curr) {
+                            setSavingCoinsConfig(true);
+                            const ok = await updateCoinsConfig(c.scenario, { coins_to_rupees: v });
+                            setSavingCoinsConfig(false);
+                            if (ok.ok) {
+                              toast.success("Coins config updated");
+                              loadCoinsConfig();
+                            }
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">coins = ₹1</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {coinsConfig.length === 0 && (
+                <p className="text-muted-foreground text-center py-4">No coins config. Run migration part22.</p>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="actions" className="space-y-6">
@@ -1645,92 +1536,6 @@ export default function Admin() {
               <input type="checkbox" checked={adForm.is_active} onChange={(e) => setAdForm((f) => ({ ...f, is_active: e.target.checked }))} />
             </div>
             <Button className="w-full" onClick={handleSaveAd} disabled={savingAd}>{savingAd ? "Saving…" : "Save"}</Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Platform fee form sheet */}
-      <Sheet open={feeFormOpen} onOpenChange={(open) => !open && setFeeFormOpen(false)}>
-        <SheetContent side="right" className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{feeFormVendor ? "Edit platform fee" : "Set fee for vendor"}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-6 space-y-4">
-            <div>
-              <Label>Vendor</Label>
-              <Select
-                value={feeForm.vendor_id}
-                onValueChange={(v) => setFeeForm((f) => ({ ...f, vendor_id: v }))}
-                disabled={!!feeFormVendor}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendorFees.map((v) => (
-                    <SelectItem key={v.vendor_id} value={v.vendor_id}>
-                      {v.vendor_name ?? v.vendor_id.slice(0, 8)} — {v.stall_type ?? "—"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="fee-exempt"
-                checked={feeForm.is_exempt}
-                onChange={(e) => setFeeForm((f) => ({ ...f, is_exempt: e.target.checked }))}
-              />
-              <Label htmlFor="fee-exempt">Exempt this vendor completely</Label>
-            </div>
-            {!feeForm.is_exempt && (
-              <>
-                <div>
-                  <Label>Fee type</Label>
-                  <Select
-                    value={feeForm.fee_type}
-                    onValueChange={(v) => setFeeForm((f) => ({ ...f, fee_type: v as FeeType }))}
-                  >
-                    <SelectTrigger className="mt-1.5">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="percentage">Percentage</SelectItem>
-                      <SelectItem value="fixed">Fixed (₹)</SelectItem>
-                      <SelectItem value="slab">Slab</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>{feeForm.fee_type === "percentage" ? "Percentage (%)" : feeForm.fee_type === "fixed" ? "Fixed amount (₹)" : "Fee value (₹)"}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={feeForm.fee_type === "percentage" ? 0.5 : 1}
-                    value={feeForm.fee_value}
-                    onChange={(e) => setFeeForm((f) => ({ ...f, fee_value: parseFloat(e.target.value) || 0 }))}
-                    className="mt-1.5"
-                  />
-                </div>
-                {feeForm.fee_type === "slab" && (
-                  <div>
-                    <Label>Min order value (₹) — fee applies when order ≥ this</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={feeForm.min_order_value}
-                      onChange={(e) => setFeeForm((f) => ({ ...f, min_order_value: parseFloat(e.target.value) || 0 }))}
-                      className="mt-1.5"
-                    />
-                  </div>
-                )}
-              </>
-            )}
-            <Button className="w-full" onClick={handleSaveFeeForm} disabled={savingFeeForm}>
-              {savingFeeForm ? <Loader2 size={16} className="animate-spin" /> : null}
-              Save
-            </Button>
           </div>
         </SheetContent>
       </Sheet>

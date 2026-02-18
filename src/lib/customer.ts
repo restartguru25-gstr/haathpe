@@ -139,13 +139,14 @@ export interface CustomerOrderRow {
   reviewed_at?: string | null;
   delivery_option?: string;
   delivery_address?: string | null;
+  coins_awarded?: number;
 }
 
 /** Fetch customer orders (by customer_phone) for /customer/orders page. */
 export async function getOrdersForCustomer(phone: string): Promise<CustomerOrderRow[]> {
   const { data: orders, error } = await supabase
     .from("customer_orders")
-    .select("id, vendor_id, items, total, status, created_at, rating, review_text, reviewed_at, delivery_option, delivery_address")
+    .select("id, vendor_id, items, total, status, created_at, rating, review_text, reviewed_at, delivery_option, delivery_address, coins_awarded")
     .eq("customer_phone", phone)
     .order("created_at", { ascending: false })
     .limit(50);

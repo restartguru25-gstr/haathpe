@@ -201,11 +201,34 @@ export async function addCustomVendorMenuItem(
   return { ok: true, id: data?.id };
 }
 
+/** Create a direct payment order (pay-like-PhonePe flow). Single line item for the amount. */
+export async function createDirectPaymentOrder(
+  vendorId: string,
+  amount: number,
+  opts?: { customerPhone?: string | null; customerId?: string | null; note?: string | null }
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const items: CustomerOrderItem[] = [
+    { item_name: opts?.note?.trim() ? `Direct payment – ${opts.note.trim().slice(0, 80)}` : "Direct payment", qty: 1, price: amount, gst_rate: 0, gst: 0 },
+  ];
+  return createCustomerOrder(vendorId, {
+    customer_phone: opts?.customerPhone ?? null,
+    customer_id: opts?.customerId ?? null,
+    items,
+    subtotal: amount,
+    gst_amount: 0,
+    total: amount,
+    payment_method: "upi",
+    status: "pending",
+    delivery_option: "pickup",
+  });
+}
+
 export async function createCustomerOrder(
   vendorId: string,
   payload: {
     customer_name_phone?: string | null;
     customer_phone?: string | null;
+    customer_id?: string | null;
     items: CustomerOrderItem[];
     subtotal: number;
     gst_amount: number;
@@ -215,6 +238,8 @@ export async function createCustomerOrder(
     payment_id?: string | null;
     delivery_option?: "pickup" | "self_delivery";
     delivery_address?: string | null;
+    wallet_used?: number;
+    coins_awarded?: number;
   }
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const { platform_fee, vendor_amount } = await calculatePlatformFee(vendorId, payload.total);
@@ -225,6 +250,7 @@ export async function createCustomerOrder(
       vendor_id: vendorId,
       customer_name_phone: payload.customer_name_phone ?? null,
       customer_phone: payload.customer_phone ?? null,
+      customer_id: payload.customer_id ?? null,
       items: payload.items,
       subtotal: payload.subtotal,
       gst_amount: payload.gst_amount,
@@ -236,6 +262,8 @@ export async function createCustomerOrder(
       delivery_address: payload.delivery_address ?? null,
       platform_fee,
       vendor_amount,
+      wallet_used: payload.wallet_used ?? 0,
+      coins_awarded: payload.coins_awarded ?? 0,
     })
     .select("id")
     .single();

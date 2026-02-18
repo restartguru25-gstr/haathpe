@@ -24,12 +24,18 @@ import CourseDetail from "./pages/CourseDetail";
 import Admin from "./pages/Admin";
 import Sales from "./pages/Sales";
 import POS from "./pages/POS";
+import VendorEntry from "./pages/VendorEntry";
 import PublicMenu from "./pages/PublicMenu";
+import PayDirect from "./pages/PayDirect";
 import CustomerLogin from "./pages/CustomerLogin";
 import CustomerOrders from "./pages/CustomerOrders";
+import CustomerWallet from "./pages/CustomerWallet";
+import CustomerTransactions from "./pages/CustomerTransactions";
+import CustomerRedemption from "./pages/CustomerRedemption";
 import OrderTracking from "./pages/OrderTracking";
 import Search from "./pages/Search";
 import OndcExport from "./pages/OndcExport";
+import MenuLanding from "./pages/MenuLanding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,10 +76,16 @@ const App = () => (
                 <Route path="/vendor/ondc-export" element={<OndcExport />} />
               </Route>
               <Route path="/search" element={<Search />} />
-              <Route path="/menu/:vendorId" element={<PublicMenu />} />
+              <Route path="/menu" element={<MenuLanding />} />
+              <Route path="/menu/:vendorId" element={<VendorEntry />} />
+              <Route path="/menu/:vendorId/browse" element={<PublicMenu />} />
+              <Route path="/menu/:vendorId/pay" element={<PayDirect />} />
               <Route path="/order/:orderId" element={<OrderTracking />} />
               <Route path="/customer-login" element={<CustomerLogin />} />
               <Route path="/customer/orders" element={<CustomerOrders />} />
+              <Route path="/customer/wallet" element={<CustomerWallet />} />
+              <Route path="/customer/transactions" element={<CustomerTransactions />} />
+              <Route path="/customer/redemption" element={<CustomerRedemption />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

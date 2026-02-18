@@ -39,7 +39,6 @@ import {
   getThisMonthEarnings,
   type VendorIncentive,
 } from "@/lib/incentives";
-import { getVendorPlatformFee, getDefaultFeePercent, formatFeeDisplay } from "@/lib/platformFees";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
@@ -71,8 +70,6 @@ export default function Sales() {
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
   const [ondcOrders, setOndcOrders] = useState<OndcOrder[]>([]);
   const [upgrading, setUpgrading] = useState(false);
-  const [platformFeeDisplay, setPlatformFeeDisplay] = useState<string>("");
-
   const sectorId = getSectorIdFromStallType(profile?.stallType ?? null);
   const isPremium = profile?.premiumTier === "premium";
 
@@ -115,10 +112,7 @@ export default function Sales() {
       getVendorReviews(vendorId),
       getCustomerOrders(vendorId, { limit: 20 }),
       getOndcOrdersForVendor(vendorId),
-      Promise.all([getVendorPlatformFee(vendorId), getDefaultFeePercent()]).then(([fee, def]) =>
-        formatFeeDisplay(fee ?? null, def)
-      ),
-    ]).then(([inc, count, s, last7, month, revs, ords, ondc, feeDisplay]) => {
+    ]).then(([inc, count, s, last7, month, revs, ords, ondc]) => {
       setIncentives(inc);
       setTodayCount(count);
       setSlabs(s);
@@ -127,7 +121,6 @@ export default function Sales() {
       setReviews(revs);
       setCustomerOrders(ords);
       setOndcOrders(ondc);
-      setPlatformFeeDisplay(feeDisplay as string);
     });
   }, [vendorId]);
 
@@ -172,23 +165,6 @@ export default function Sales() {
           filter: `vendor_id=eq.${vendorId}`,
         },
         () => getOndcOrdersForVendor(vendorId).then(setOndcOrders)
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "platform_fees",
-          filter: `vendor_id=eq.${vendorId}`,
-        },
-        async () => {
-          const [fee, def] = await Promise.all([
-            getVendorPlatformFee(vendorId),
-            getDefaultFeePercent(),
-          ]);
-          setPlatformFeeDisplay(formatFeeDisplay(fee ?? null, def));
-          toast.success(t("platformFeeUpdated"));
-        }
       )
       .subscribe();
     return () => supabase.removeChannel(channel);
@@ -313,15 +289,6 @@ export default function Sales() {
   return (
     <div className="min-h-screen bg-muted/20 pb-28 md:pb-4">
       <div className="container max-w-2xl px-4 py-6">
-        <div className="mb-4">
-          <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-            {platformFeeDisplay === "Exempt"
-              ? t("platformFeeExempt")
-              : `${t("platformFeeLabel")}: ${platformFeeDisplay}`}
-            <span className="block text-xs mt-0.5">{t("platformFeeAdminNote")}</span>
-          </div>
-        </div>
-
         {rawProfile && (
           <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
             {(() => {
@@ -464,9 +431,6 @@ export default function Sales() {
               <Button variant="ghost" size="sm">{t("catalogExport")}</Button>
             </Link>
           </div>
-          <p className="mb-3 text-xs text-muted-foreground">
-            {t("onlineOrderFeeNote")}
-          </p>
           {ondcOrders.length > 0 ? (
             <ul className="space-y-2 max-h-48 overflow-y-auto">
               {ondcOrders.slice(0, 10).map((o) => (
