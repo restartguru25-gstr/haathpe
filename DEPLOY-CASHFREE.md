@@ -12,7 +12,7 @@ Run these commands **in your terminal** from the project folder.
 
 ```bash
 cd /home/surya/Downloads/bizcart-india-main
-npx supabase loginn
+npx supabase login
 ```
 
 A browser window will open; sign in and allow access.
@@ -214,6 +214,20 @@ serve(async (req) => {
   }
 });
 ```
+
+---
+
+## Database fix: Vendor search (error 42702)
+
+If the **Find dukaanwaale** / vendor search page shows:
+
+`column reference "vendor_id" is ambiguous`
+
+run the fix in Supabase:
+
+1. Open **Supabase Dashboard** → your project → **SQL Editor**.
+2. Click **New query**, paste the contents of **`supabase/fix-vendor-search-ambiguous-vendor_id.sql`**, then **Run**.
+3. You should see **Success. No rows returned.** Vendor search should work after that.
 
 ---
 

@@ -1,19 +1,18 @@
--- VendorHub: Premium tiers + ONDC export readiness
--- Run AFTER part17. Adds premium_tier for monetization, search boost.
+-- Fix: column reference "vendor_id" is ambiguous in get_vendor_search_results
+-- Run this in Supabase SQL Editor if you see error 42702 on vendor search.
+--
+-- How to run:
+-- 1. Open Supabase Dashboard → your project → SQL Editor.
+-- 2. New query → paste this entire file → Run.
+-- 3. You should see "Success. No rows returned."
+--
 
--- 1) Premium tier on profiles (free | basic | premium)
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS premium_tier TEXT NOT NULL DEFAULT 'free'
-  CHECK (premium_tier IN ('free', 'basic', 'premium'));
-
-COMMENT ON COLUMN public.profiles.premium_tier IS 'Vendor tier: free (default), basic, premium. Premium gets boosted search ranking.';
-
--- 2) RPC: Update get_vendor_search_results - add premium_tier, avg_rating, rating sort, premium boost
 DROP FUNCTION IF EXISTS public.get_vendor_search_results(TEXT, TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.get_vendor_search_results(
   p_keyword TEXT DEFAULT NULL,
   p_zone TEXT DEFAULT NULL,
   p_stall_type TEXT DEFAULT NULL,
-  p_sort TEXT DEFAULT 'popular'  -- 'popular' | 'name' | 'rating'
+  p_sort TEXT DEFAULT 'popular'
 )
 RETURNS TABLE (
   vendor_id UUID,
@@ -86,7 +85,6 @@ BEGIN
   LEFT JOIN order_counts oc ON oc.vendor_id = p.id
   LEFT JOIN vendor_ratings vr ON vr.vendor_id = p.id
   ORDER BY
-    -- Premium boost: premium > basic > free
     CASE COALESCE(p.premium_tier, 'free')
       WHEN 'premium' THEN 0
       WHEN 'basic' THEN 1
@@ -100,24 +98,3 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_vendor_search_results(TEXT, TEXT, TEXT, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_vendor_search_results(TEXT, TEXT, TEXT, TEXT) TO authenticated;
-
--- 3) RPC: Mock premium upgrade (stub — real payment via Razorpay later)
-CREATE OR REPLACE FUNCTION public.upgrade_to_premium_mock()
-RETURNS TABLE (ok BOOLEAN, error_msg TEXT)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF auth.uid() IS NULL THEN
-    RETURN QUERY SELECT false, 'Not logged in'::TEXT;
-    RETURN;
-  END IF;
-  UPDATE profiles
-  SET premium_tier = 'premium'
-  WHERE id = auth.uid();
-  RETURN QUERY SELECT true, NULL::TEXT;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.upgrade_to_premium_mock() TO authenticated;

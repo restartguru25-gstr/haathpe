@@ -22,37 +22,42 @@ function jsonResponse(obj: unknown, status = 200) {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: cors });
-  }
-
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
-  }
-
-  const appId = Deno.env.get("CASHFREE_APP_ID");
-  const secret = Deno.env.get("CASHFREE_SECRET_KEY");
-  const env = (Deno.env.get("CASHFREE_ENV") ?? "sandbox").toLowerCase();
-  const baseUrl = env === "production" ? CASHFREE_PROD : CASHFREE_SANDBOX;
-
-  if (!appId || !secret) {
-    return jsonResponse({ error: "Cashfree not configured" }, 503);
-  }
-
   try {
-    const body = (await req.json()) as {
-      order_id: string;
-      order_amount: number;
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
+
+    if (req.method !== "POST") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+
+    const appId = Deno.env.get("CASHFREE_APP_ID");
+    const secret = Deno.env.get("CASHFREE_SECRET_KEY");
+    const env = (Deno.env.get("CASHFREE_ENV") ?? "sandbox").toLowerCase();
+    const baseUrl = env === "production" ? CASHFREE_PROD : CASHFREE_SANDBOX;
+
+    if (!appId || !secret) {
+      return jsonResponse({ error: "Cashfree not configured" }, 503);
+    }
+
+    let body: {
+      order_id?: string;
+      order_amount?: number;
       customer_phone?: string;
       customer_id?: string;
       customer_email?: string;
-      return_url: string;
+      return_url?: string;
       order_note?: string;
     };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
 
-    const orderId = body.order_id?.trim();
+    const orderId = typeof body.order_id === "string" ? body.order_id.trim() : "";
     const orderAmount = Number(body.order_amount);
-    const returnUrl = body.return_url?.trim();
+    const returnUrl = typeof body.return_url === "string" ? body.return_url.trim() : "";
 
     if (!orderId || orderAmount < 1 || !returnUrl) {
       return jsonResponse(
@@ -66,17 +71,16 @@ serve(async (req) => {
       order_amount: orderAmount,
       order_currency: "INR",
       customer_details: {
-        customer_id: body.customer_id?.trim() || orderId,
-        customer_phone: body.customer_phone?.replace(/\D/g, "").slice(-10) || "9999999999",
-        customer_email: body.customer_email?.trim() || undefined,
+        customer_id: (typeof body.customer_id === "string" ? body.customer_id.trim() : null) || orderId,
+        customer_phone: (typeof body.customer_phone === "string" ? body.customer_phone.replace(/\D/g, "").slice(-10) : "") || "9999999999",
+        customer_email: typeof body.customer_email === "string" ? body.customer_email.trim() || undefined : undefined,
       },
-      order_meta: {
-        return_url: returnUrl,
-      },
-      order_note: body.order_note?.slice(0, 500) || undefined,
+      order_meta: { return_url: returnUrl },
+      order_note: typeof body.order_note === "string" ? body.order_note.slice(0, 500) || undefined : undefined,
     };
 
-    const res = await fetch(`${baseUrl}/orders`, {
+    const ordersUrl = baseUrl + "/orders";
+    const res = await fetch(ordersUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
