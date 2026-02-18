@@ -11,6 +11,15 @@ import { createNotification } from "@/lib/notifications";
 import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const INDIAN_DATE = () => new Date().toISOString().slice(0, 10);
 
@@ -171,10 +180,7 @@ export default function Cart() {
       const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
       const msg = e && typeof e === "object" && "message" in e ? String((e as { message?: string }).message) : "";
       const isAbort = name === "AbortError" || /aborted/i.test(msg);
-      if (isAbort) {
-        if (typeof window !== "undefined") console.warn("[Cart] Place order request was cancelled.");
-        return;
-      }
+      if (isAbort) return;
       const errMsg = msg || (e instanceof Error ? e.message : null);
       if (errMsg && typeof window !== "undefined") console.error("[Cart] Place order failed:", errMsg);
       toast.error(errMsg && errMsg.length < 80 ? errMsg : "Could not place order. Try again.");
@@ -294,6 +300,22 @@ export default function Cart() {
                   ? "Placing…"
                   : `${t("placeOrder")} · ₹${finalTotal}`}
             </Button>
+
+            <AlertDialog open={redirectingToPayment}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Redirecting to payment</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You are being redirected to Cashfree to complete payment. If the page does not open, check the link in your Orders.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogAction disabled className="pointer-events-none">
+                    Please wait…
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </>
       )}

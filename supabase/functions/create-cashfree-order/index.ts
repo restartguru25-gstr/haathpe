@@ -3,7 +3,8 @@
  * API: https://www.cashfree.com/docs/api-reference/payments/previous/v2023-08-01/orders/create
  * Sandbox: https://sandbox.cashfree.com/pg/orders | Production: https://api.cashfree.com/pg/orders
  * Deploy: supabase functions deploy create-cashfree-order
- * Set secrets: CASHFREE_APP_ID, CASHFREE_SECRET_KEY (Supabase Dashboard → Edge Functions → Secrets)
+ * Set secrets: CASHFREE_APP_ID, CASHFREE_SECRET_KEY (Supabase Dashboard → Edge Functions → Secrets).
+ * Default: production (https://api.cashfree.com/pg/orders). For sandbox set CASHFREE_ENV=sandbox.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -35,8 +36,8 @@ serve(async (req) => {
 
     const appId = Deno.env.get("CASHFREE_APP_ID");
     const secret = Deno.env.get("CASHFREE_SECRET_KEY");
-    const env = (Deno.env.get("CASHFREE_ENV") ?? "sandbox").toLowerCase();
-    const baseUrl = env === "production" ? CASHFREE_PROD : CASHFREE_SANDBOX;
+    const env = (Deno.env.get("CASHFREE_ENV") ?? "production").toLowerCase();
+    const baseUrl = env === "sandbox" ? CASHFREE_SANDBOX : CASHFREE_PROD;
 
     if (!appId || !secret) {
       return jsonResponse({ error: "Cashfree not configured" }, 503);

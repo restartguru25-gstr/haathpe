@@ -6,7 +6,7 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 const CASHFREE_APP_ID = import.meta.env.VITE_CASHFREE_APP_ID ?? "";
-const CASHFREE_MODE = (import.meta.env.VITE_CASHFREE_MODE ?? "sandbox").toLowerCase();
+const CASHFREE_MODE = (import.meta.env.VITE_CASHFREE_MODE ?? "production").toLowerCase();
 /** Edge Function slug for creating Cashfree orders (default create-cashfree-order; use clever-worker if you created the function with that slug) */
 const CASHFREE_ORDER_FUNCTION = import.meta.env.VITE_CASHFREE_ORDER_FUNCTION ?? "create-cashfree-order";
 
