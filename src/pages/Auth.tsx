@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, Mail, ArrowLeft, Lock } from "lucide-react";
@@ -35,10 +35,11 @@ export default function Auth() {
   const state = location.state as { next?: string; from?: { pathname?: string } } | null;
   const nextPath = state?.next ?? state?.from?.pathname ?? "/";
 
-  if (isAuthenticated) {
-    navigate(nextPath, { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (isAuthenticated) navigate(nextPath, { replace: true });
+  }, [isAuthenticated, nextPath, navigate]);
+
+  if (isAuthenticated) return null;
 
   const formatPhone = (v: string) => {
     const digits = v.replace(/\D/g, "").slice(0, 10);
