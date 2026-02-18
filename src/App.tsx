@@ -36,6 +36,7 @@ import OrderTracking from "./pages/OrderTracking";
 import Search from "./pages/Search";
 import OndcExport from "./pages/OndcExport";
 import MenuLanding from "./pages/MenuLanding";
+import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -86,6 +87,7 @@ const App = () => (
               <Route path="/customer/wallet" element={<CustomerWallet />} />
               <Route path="/customer/transactions" element={<CustomerTransactions />} />
               <Route path="/customer/redemption" element={<CustomerRedemption />} />
+              <Route path="/contact" element={<Contact />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

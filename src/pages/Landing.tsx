@@ -576,6 +576,7 @@ export default function Landing() {
               <Link to="/catalog" className="text-sm text-muted-foreground hover:text-foreground">Catalog</Link>
               <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">Dashboard</Link>
               <Link to="/sales" className="text-sm text-muted-foreground hover:text-foreground">{t("myShop")}</Link>
+              <Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground">Contact</Link>
               <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">Features</a>
               <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground">How it works</a>
               <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground">{t("signInSignUp")}</Link>

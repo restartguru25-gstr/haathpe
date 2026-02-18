@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { MessageCircle, ArrowLeft, Send, Package } from "lucide-react";
+import { MessageCircle, ArrowLeft, Send, Package, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProfile } from "@/hooks/useProfile";
 import { useSession } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 interface ForumTopic {
   id: string;
@@ -40,7 +41,10 @@ export default function Forum() {
       .from("forum_topics")
       .select("id, author_name, title, created_at")
       .order("created_at", { ascending: false });
-    if (error) return;
+    if (error) {
+      setTopics([]);
+      return;
+    }
     const withCount = await Promise.all(
       (data ?? []).map(async (t) => {
         const { count } = await supabase
@@ -94,35 +98,69 @@ export default function Forum() {
 
   const handlePostTopic = async () => {
     const trimmed = newTitle.trim();
-    if (!trimmed || !user?.id || posting) return;
+    if (!trimmed || posting) return;
+    if (!user?.id) {
+      toast.error("Sign in to start a discussion");
+      return;
+    }
     setPosting(true);
-    const { error } = await supabase.from("forum_topics").insert({
-      user_id: user.id,
-      author_name: profile.name,
-      title: trimmed,
-    });
-    setPosting(false);
-    if (!error) {
+    try {
+      const { error } = await supabase.from("forum_topics").insert({
+        user_id: user.id,
+        author_name: profile.name || "Vendor",
+        title: trimmed,
+      });
+      if (error) {
+        toast.error(error.message || "Could not post. Check that forum tables exist in Supabase.");
+        return;
+      }
       setNewTitle("");
       loadTopics();
+      toast.success("Discussion started!");
+    } catch (e) {
+      const err = e as Error;
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
+        toast.error("Request was cancelled. Please try again.");
+      } else {
+        toast.error(err?.message || "Could not post. Please try again.");
+      }
+    } finally {
+      setPosting(false);
     }
   };
 
   const handlePostReply = async () => {
     const trimmed = replyBody.trim();
-    if (!trimmed || !user?.id || !selectedTopic || postingReply) return;
+    if (!trimmed || !selectedTopic || postingReply) return;
+    if (!user?.id) {
+      toast.error("Sign in to reply");
+      return;
+    }
     setPostingReply(true);
-    const { error } = await supabase.from("forum_replies").insert({
-      topic_id: selectedTopic.id,
-      user_id: user.id,
-      author_name: profile.name,
-      body: trimmed,
-    });
-    setPostingReply(false);
-    if (!error) {
+    try {
+      const { error } = await supabase.from("forum_replies").insert({
+        topic_id: selectedTopic.id,
+        user_id: user.id,
+        author_name: profile.name || "Vendor",
+        body: trimmed,
+      });
+      if (error) {
+        toast.error(error.message || "Could not post reply.");
+        return;
+      }
       setReplyBody("");
       loadReplies(selectedTopic.id);
       loadTopics();
+      toast.success("Reply posted!");
+    } catch (e) {
+      const err = e as Error;
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
+        toast.error("Request was cancelled. Please try again.");
+      } else {
+        toast.error(err?.message || "Could not post reply. Please try again.");
+      }
+    } finally {
+      setPostingReply(false);
     }
   };
 
@@ -160,7 +198,12 @@ export default function Forum() {
               placeholder="Write a reply..."
               value={replyBody}
               onChange={(e) => setReplyBody(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handlePostReply()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handlePostReply();
+                }
+              }}
               className="flex-1"
             />
             <Button onClick={handlePostReply} disabled={!replyBody.trim() || postingReply} size="icon">
@@ -192,17 +235,28 @@ export default function Forum() {
           </Link>
         </div>
 
-        <div className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <label className="mb-2 block text-sm font-medium">Start a discussion</label>
+        <div className="mb-6 rounded-xl border-2 border-primary/20 bg-card p-4 shadow-sm">
+          <label className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <PlusCircle size={18} className="text-primary" />
+            Start a discussion
+          </label>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Type a question or topic below and press Send. You need to be signed in to post.
+          </p>
           <div className="flex gap-2">
             <Input
-              placeholder="What do you want to ask?"
+              placeholder="e.g. How to get more orders? Best practices for QR menu?"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handlePostTopic()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handlePostTopic();
+                }
+              }}
               className="flex-1"
             />
-            <Button onClick={handlePostTopic} disabled={!newTitle.trim() || posting} size="icon">
+            <Button onClick={handlePostTopic} disabled={!newTitle.trim() || posting} size="icon" title="Post topic">
               <Send size={18} />
             </Button>
           </div>
@@ -213,6 +267,19 @@ export default function Forum() {
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
             ))}
+          </div>
+        ) : topics.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
+            <MessageCircle size={48} className="mx-auto mb-3 text-muted-foreground" />
+            <p className="font-medium text-foreground">No discussions yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Be the first to start one. Use the box above to post a question or topic.
+            </p>
+            <Link to="/auth">
+              <Button variant="outline" size="sm" className="mt-4">
+                Sign in to post
+              </Button>
+            </Link>
           </div>
         ) : (
           <div className="space-y-2">

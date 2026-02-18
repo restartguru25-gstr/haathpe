@@ -368,9 +368,15 @@ export default function Orders() {
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold tracking-tight">{t("orders")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{t("ordersPageSubtitle")}</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {filtered.length} {filtered.length === 1 ? "order" : "orders"}
-          </p>
+          {filtered.length > 0 ? (
+            <p className="text-sm text-muted-foreground mt-1">
+              {filtered.length} {filtered.length === 1 ? "order" : "orders"}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">
+              Orders you place from the catalog will appear here. Reorder anytime.
+            </p>
+          )}
         </div>
 
         {/* Filters */}
@@ -484,16 +490,18 @@ export default function Orders() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card py-16 px-6"
+              className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-card py-16 px-6"
             >
-              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-                <Package size={40} className="text-muted-foreground" />
+              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                <Package size={40} className="text-primary" />
               </div>
-              <h2 className="mb-1 text-lg font-semibold">No orders found</h2>
+              <h2 className="mb-1 text-lg font-semibold">
+                {filter === "All" ? "No orders yet" : `No ${filter.toLowerCase()} orders`}
+              </h2>
               <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
                 {filter === "All"
-                  ? "You haven't placed any orders yet. Browse the catalog and place your first order."
-                  : `No ${filter.toLowerCase()} orders.`}
+                  ? "Buying Spot is where your supply orders show up. Browse the catalog, add items to cart, and place an order — it will appear here with reorder and invoice options."
+                  : `You don't have any ${filter.toLowerCase()} orders.`}
               </p>
               {filter !== "All" ? (
                 <Button variant="outline" onClick={() => setFilter("All")}>
@@ -503,7 +511,7 @@ export default function Orders() {
                 <Link to="/catalog">
                   <Button className="gap-2">
                     <ChevronRight size={16} className="-ml-1" />
-                    Browse catalog
+                    Browse catalog to order supplies
                   </Button>
                 </Link>
               )}

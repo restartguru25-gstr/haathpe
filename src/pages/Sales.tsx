@@ -286,6 +286,29 @@ export default function Sales() {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-muted/20 pb-28 md:pb-4">
+        <div className="container max-w-2xl px-4 py-6">
+          <div className="mb-6">
+            <h1 className="text-2xl font-extrabold tracking-tight">{t("mySalesMenu")}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{t("salesPageSubtitle")}</p>
+          </div>
+          <div className="rounded-2xl border-2 border-dashed border-border bg-card py-16 px-6 text-center">
+            <Store size={48} className="mx-auto mb-4 text-primary opacity-80" />
+            <h2 className="mb-2 text-lg font-semibold">My Shop</h2>
+            <p className="mb-6 max-w-sm mx-auto text-sm text-muted-foreground">
+              Sign in to manage your shop menu, view orders, set timings, and share your QR menu with customers.
+            </p>
+            <Link to="/auth">
+              <Button className="gap-2">Sign in to open my shop</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted/20 pb-28 md:pb-4">
       <div className="container max-w-2xl px-4 py-6">
@@ -552,6 +575,18 @@ export default function Sales() {
             >
               <Plus size={16} /> Add missing items from default
             </Button>
+          </div>
+        )}
+
+        {vendorItems.length === 0 && sectorId && defaultItems.length === 0 && (
+          <div className="mb-6 rounded-xl border-2 border-dashed border-border bg-card py-10 px-6 text-center">
+            <p className="text-sm text-muted-foreground mb-2">Your shop menu is empty.</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Set your dukaan type in Profile to get a default menu, or add a custom item below.
+            </p>
+            <Link to="/profile">
+              <Button variant="outline" size="sm" className="gap-2">Open Profile → Set dukaan type</Button>
+            </Link>
           </div>
         )}
 
