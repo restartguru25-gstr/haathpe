@@ -101,26 +101,52 @@ export default function Swap() {
   }, [selectedSwap]);
 
   const handlePost = async () => {
-    if (!user?.id || !postForm.title.trim() || !postForm.price_notes.trim()) {
+    if (!user?.id) {
+      toast.error("Sign in to post a listing");
+      return;
+    }
+    if (!postForm.title.trim() || !postForm.price_notes.trim()) {
       toast.error("Title and price are required");
       return;
     }
     setPosting(true);
-    const result = await createSwap({
-      vendor_id: user.id,
-      title: postForm.title.trim(),
-      description: postForm.description.trim() || null,
-      price_notes: postForm.price_notes.trim(),
-      location: postForm.location.trim() || null,
-    });
-    setPosting(false);
-    if (result.ok) {
-      toast.success("Listed! It will appear after admin approval.");
-      setPostForm({ title: "", description: "", price_notes: "", location: "" });
-      setPostOpen(false);
-      loadSwaps();
-    } else {
-      toast.error(result.error ?? "Failed to post");
+    const timeoutMs = 15000;
+    try {
+      const result = await Promise.race([
+        createSwap({
+          vendor_id: user.id,
+          title: postForm.title.trim(),
+          description: postForm.description.trim() || null,
+          price_notes: postForm.price_notes.trim(),
+          location: postForm.location.trim() || null,
+        }),
+        new Promise<{ ok: false; error: string }>((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out")), timeoutMs)
+        ),
+      ]);
+      if (result.ok) {
+        toast.success("Listed! It will appear in Vendor Swap after admin approval.");
+        setPostForm({ title: "", description: "", price_notes: "", location: "" });
+        setPostOpen(false);
+        loadSwaps();
+      } else {
+        const hint = result.error?.includes("does not exist")
+          ? " Run vendor_swaps SQL in Supabase (e.g. part7 community)."
+          : result.error?.includes("row-level security") || result.error?.includes("policy")
+            ? " Make sure you're signed in."
+            : "";
+        toast.error((result.error ?? "Failed to post") + hint);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      const isTimeout = msg.includes("timed out");
+      toast.error(
+        isTimeout
+          ? "Request took too long. Check your connection and try again."
+          : msg + " Check your connection or try again."
+      );
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -273,6 +299,9 @@ export default function Swap() {
         {postOpen && (
           <div className="mb-6 rounded-xl border-2 border-primary/20 bg-card p-5">
             <h2 className="mb-4 font-semibold">Post excess stock</h2>
+            <p className="mb-4 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              Your listing will appear here after admin approval. You’ll see it in the list once approved.
+            </p>
             <div className="space-y-3">
               <div>
                 <Label htmlFor="swap-title">Title</Label>

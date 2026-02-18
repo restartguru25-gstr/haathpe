@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { MessageCircle, ArrowLeft, Send, Package, PlusCircle } from "lucide-react";
+import { MessageCircle, ArrowLeft, Send, Package, PlusCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProfile } from "@/hooks/useProfile";
@@ -100,7 +100,7 @@ export default function Forum() {
     const trimmed = newTitle.trim();
     if (!trimmed || posting) return;
     if (!user?.id) {
-      toast.error("Sign in to start a discussion");
+      toast.error("Sign in to start a discussion", { description: "Use the menu to sign in, then try again." });
       return;
     }
     setPosting(true);
@@ -111,11 +111,17 @@ export default function Forum() {
         title: trimmed,
       });
       if (error) {
-        toast.error(error.message || "Could not post. Check that forum tables exist in Supabase.");
+        const msg = error.message || "Could not post.";
+        const hint = msg.includes("row-level security") || msg.includes("policy")
+          ? " You must be signed in."
+          : msg.includes("does not exist")
+            ? " Run forum SQL in Supabase (part2 or migrations)."
+            : "";
+        toast.error(msg + hint);
         return;
       }
       setNewTitle("");
-      loadTopics();
+      await loadTopics();
       toast.success("Discussion started!");
     } catch (e) {
       const err = e as Error;
@@ -206,8 +212,8 @@ export default function Forum() {
               }}
               className="flex-1"
             />
-            <Button onClick={handlePostReply} disabled={!replyBody.trim() || postingReply} size="icon">
-              <Send size={18} />
+            <Button onClick={handlePostReply} disabled={!replyBody.trim() || postingReply} size="icon" aria-busy={postingReply}>
+              {postingReply ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </Button>
           </div>
         </div>
@@ -240,8 +246,17 @@ export default function Forum() {
             <PlusCircle size={18} className="text-primary" />
             Start a discussion
           </label>
+          {!user?.id ? (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-3">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Sign in to post</p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">You must be signed in to start a discussion.</p>
+              <Link to="/auth" className="inline-block mt-2">
+                <Button size="sm" variant="outline" className="border-amber-500/50 text-amber-800 dark:text-amber-200">Sign in</Button>
+              </Link>
+            </div>
+          ) : null}
           <p className="mb-3 text-xs text-muted-foreground">
-            Type a question or topic below and press Send. You need to be signed in to post.
+            Type a question or topic below and press Send.
           </p>
           <div className="flex gap-2">
             <Input
@@ -255,9 +270,17 @@ export default function Forum() {
                 }
               }}
               className="flex-1"
+              disabled={!user?.id}
+              aria-label="Topic title"
             />
-            <Button onClick={handlePostTopic} disabled={!newTitle.trim() || posting} size="icon" title="Post topic">
-              <Send size={18} />
+            <Button
+              onClick={handlePostTopic}
+              disabled={!user?.id || !newTitle.trim() || posting}
+              size="icon"
+              title="Post topic"
+              aria-busy={posting}
+            >
+              {posting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </Button>
           </div>
         </div>

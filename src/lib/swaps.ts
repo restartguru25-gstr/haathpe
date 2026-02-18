@@ -84,20 +84,25 @@ export async function createSwap(payload: {
   price_notes: string;
   location?: string | null;
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const { data, error } = await supabase
-    .from("vendor_swaps")
-    .insert({
-      vendor_id: payload.vendor_id,
-      title: payload.title,
-      description: payload.description ?? null,
-      price_notes: payload.price_notes,
-      location: payload.location ?? null,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, id: data?.id };
+  try {
+    const { data, error } = await supabase
+      .from("vendor_swaps")
+      .insert({
+        vendor_id: payload.vendor_id,
+        title: payload.title,
+        description: payload.description ?? null,
+        price_notes: payload.price_notes,
+        location: payload.location ?? null,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, id: data?.id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Request failed";
+    return { ok: false, error: msg };
+  }
 }
 
 export async function getRatingsForSwap(swapId: string): Promise<SwapRating[]> {
