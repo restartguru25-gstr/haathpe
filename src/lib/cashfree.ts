@@ -37,6 +37,9 @@ export async function createCashfreeSession(
   params: CreateSessionParams
 ): Promise<{ ok: true; payment_session_id: string } | { ok: false; error: string }> {
   const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${CASHFREE_ORDER_FUNCTION}`;
+  if (typeof window !== "undefined") {
+    console.log("[Cashfree] Creating session:", url);
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -50,12 +53,15 @@ export async function createCashfreeSession(
   if (!res.ok) {
     const d = data as { error?: string; message?: string; code?: string };
     const err = d.error ?? d.message ?? "Failed to create payment session";
+    if (typeof window !== "undefined") console.error("[Cashfree] Session failed:", res.status, err, data);
     return { ok: false, error: err };
   }
   const payment_session_id = (data as { payment_session_id?: string }).payment_session_id;
   if (!payment_session_id) {
+    if (typeof window !== "undefined") console.error("[Cashfree] No payment_session_id in response", data);
     return { ok: false, error: "No payment session received" };
   }
+  if (typeof window !== "undefined") console.log("[Cashfree] Session OK, payment_session_id received");
   return { ok: true, payment_session_id };
 }
 
@@ -93,7 +99,9 @@ function loadCashfreeScript(): Promise<{ checkout: (opts: { paymentSessionId: st
 
 /** Open Cashfree checkout (redirect or modal). Redirect is default for simplicity. */
 export async function openCashfreeCheckout(paymentSessionId: string): Promise<void> {
+  if (typeof window !== "undefined") console.log("[Cashfree] Loading SDK and opening checkout...");
   const cashfree = await loadCashfreeScript();
+  if (typeof window !== "undefined") console.log("[Cashfree] SDK loaded, calling checkout()");
   cashfree.checkout({
     paymentSessionId,
     redirectTarget: "_self",

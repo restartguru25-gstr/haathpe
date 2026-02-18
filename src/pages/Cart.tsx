@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Minus, Plus, Trash2, ArrowLeft, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,23 @@ export default function Cart() {
   const pricing = useCartPricing(cart);
   const [placing, setPlacing] = useState(false);
   const [redirectingToPayment, setRedirectingToPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const finalTotal = pricing.finalTotal;
   const hasGst = pricing.gstTotal > 0;
   const hasEco = cart.some((item) => item.product.eco);
 
+  useEffect(() => {
+    const st = getCashfreeConfigStatus();
+    if (typeof window !== "undefined") {
+      console.log("[Cart] Cashfree on this build:", st.configured ? "configured" : `not configured (missing: ${st.missing ?? "?"})`);
+    }
+  }, []);
+
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
     setPlacing(true);
+    setPaymentError(null);
     try {
       const userId = user?.id;
       if (!userId) {
@@ -84,7 +93,9 @@ export default function Cart() {
       const { error: itemsError } = await supabase.from("order_items").insert(rows);
       if (itemsError) throw itemsError;
 
-      if (isCashfreeConfigured()) {
+      const cashfreeOn = isCashfreeConfigured();
+      if (typeof window !== "undefined") console.log("[Cart] Cashfree configured:", cashfreeOn);
+      if (cashfreeOn) {
         const returnUrl = `${window.location.origin}/payment/return?order_id=${order.id}`;
         const sessionRes = await createCashfreeSession({
           order_id: order.id,
@@ -99,14 +110,18 @@ export default function Cart() {
           setRedirectingToPayment(true);
           try {
             await openCashfreeCheckout(sessionRes.payment_session_id);
-          } catch {
+          } catch (err) {
             setRedirectingToPayment(false);
-            toast.error("Could not open payment page. Check the link in your orders.");
+            const errMsg = err instanceof Error ? err.message : "Could not open payment page";
+            if (typeof window !== "undefined") console.error("[Cart] openCashfreeCheckout failed:", err);
+            toast.error(`${errMsg}. Check the link in your orders or browser console.`);
+            setPaymentError(errMsg);
             navigate("/orders");
           }
           return;
         }
         const msg = sessionRes.error ?? "Payment gateway error.";
+        setPaymentError(msg);
         toast.error(`${msg} Order placed — view in Orders. Deploy Edge Function create-cashfree-order and set CASHFREE_APP_ID, CASHFREE_SECRET_KEY in Supabase.`);
         navigate("/orders");
         setPlacing(false);
@@ -250,6 +265,12 @@ export default function Cart() {
             {!isCashfreeConfigured() && (
               <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
                 <strong>Pay online (Cashfree) is off.</strong> To redirect to Cashfree at checkout: add <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">{getCashfreeConfigStatus().missing ?? "VITE_CASHFREE_APP_ID"}</code> and Supabase URL/Anon Key in <strong>Vercel → Project → Environment Variables</strong>, then <strong>redeploy</strong>. Also deploy the Edge Function <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">create-cashfree-order</code> in Supabase.
+              </div>
+            )}
+
+            {paymentError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-100">
+                <strong>Payment failed:</strong> {paymentError}. Order was placed — check Orders. Fix: Supabase Edge Function <code className="bg-red-100 dark:bg-red-900/50 px-1 rounded">create-cashfree-order</code> and secrets (CASHFREE_APP_ID, CASHFREE_SECRET_KEY).
               </div>
             )}
 
