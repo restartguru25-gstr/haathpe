@@ -11,6 +11,7 @@ import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { toggleFavorite, appendOrderToHistory } from "@/lib/customer";
 import { getWalletBalance, awardCoinsForOrder, debitWalletForOrder, getCoinsPerPayment } from "@/lib/wallet";
+import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
 import { toast } from "sonner";
 
 type CartLine = { item: VendorMenuItem; qty: number };
@@ -179,6 +180,29 @@ export default function PublicMenu() {
           return;
         }
       }
+
+      if (payAtDukaan > 0 && isCashfreeConfigured()) {
+        const returnUrl = `${window.location.origin}/payment/return?order_id=${result.id}`;
+        const sessionRes = await createCashfreeSession({
+          order_id: result.id,
+          order_amount: payAtDukaan,
+          customer_phone: customer?.phone ?? undefined,
+          customer_id: customer?.id ?? undefined,
+          return_url: returnUrl,
+          order_note: `Order ${result.id} – ${vendorName ?? "haathpe"}`,
+        });
+        if (sessionRes.ok) {
+          setCart([]);
+          setUseWalletAmount(0);
+          setPlacing(false);
+          await openCashfreeCheckout(sessionRes.payment_session_id);
+          return;
+        }
+        toast.error(sessionRes.error ?? "Payment gateway error");
+        setPlacing(false);
+        return;
+      }
+
       if (customer && result.id) {
         const awardRes = await awardCoinsForOrder(result.id, customer.id, coinsToAward);
         if (awardRes.ok && coinsToAward > 0) {

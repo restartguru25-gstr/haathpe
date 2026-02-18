@@ -37,6 +37,7 @@ const CustomerWallet = lazy(() => import("./pages/CustomerWallet"));
 const CustomerTransactions = lazy(() => import("./pages/CustomerTransactions"));
 const CustomerRedemption = lazy(() => import("./pages/CustomerRedemption"));
 const OrderTracking = lazy(() => import("./pages/OrderTracking"));
+const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
 const Search = lazy(() => import("./pages/Search"));
 const OndcExport = lazy(() => import("./pages/OndcExport"));
 const MenuLanding = lazy(() => import("./pages/MenuLanding"));
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="/menu/:vendorId/browse" element={<PublicMenu />} />
               <Route path="/menu/:vendorId/pay" element={<PayDirect />} />
               <Route path="/order/:orderId" element={<OrderTracking />} />
+              <Route path="/payment/return" element={<PaymentReturn />} />
               <Route path="/customer-login" element={<CustomerLogin />} />
               <Route path="/customer/orders" element={<CustomerOrders />} />
               <Route path="/customer/wallet" element={<CustomerWallet />} />
