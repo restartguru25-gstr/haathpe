@@ -33,8 +33,13 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const signOutCustomer = useCallback(async () => {
-    await supabase.auth.signOut();
-    setCustomer(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Customer sign out error:", e);
+    } finally {
+      setCustomer(null);
+    }
   }, []);
 
   useEffect(() => {

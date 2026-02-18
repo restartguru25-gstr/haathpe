@@ -24,6 +24,7 @@ import {
   Package,
   UserPlus,
   Clock,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +105,7 @@ export default function Profile() {
   const { isAdmin } = useAdmin();
   const [editOpen, setEditOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>(() => getNotificationSettings());
   const [editForm, setEditForm] = useState({
     name: "",
@@ -186,12 +188,16 @@ export default function Profile() {
   }, [notifOpen, user?.id]);
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
     try {
       await signOut();
       toast.success("Logged out");
-      window.location.href = "/";
     } catch {
       toast.error("Logout failed");
+    } finally {
+      setLoggingOut(false);
+      window.location.href = "/";
     }
   };
 
@@ -802,9 +808,10 @@ export default function Profile() {
             variant="outline"
             className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={handleLogout}
+            disabled={loggingOut}
           >
             <LogOut size={16} className="mr-2" />
-            {t("logout")}
+            {loggingOut ? "Logging out…" : t("logout")}
           </Button>
         </motion.div>
       </div>
