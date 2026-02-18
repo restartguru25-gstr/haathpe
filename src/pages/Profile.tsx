@@ -224,7 +224,8 @@ export default function Profile() {
     if (!user?.id) return;
     setSaving(true);
     try {
-      const coreUpdates = {
+      const corePayload = {
+        id: user.id,
         name: (editForm.name || "").trim() || null,
         stall_type: (editForm.stallType || "").trim() || null,
         stall_address: (editForm.stallAddress || "").trim() || null,
@@ -232,13 +233,12 @@ export default function Profile() {
       };
       const { error: coreError } = await supabase
         .from("profiles")
-        .update(coreUpdates)
-        .eq("id", user.id)
+        .upsert(corePayload, { onConflict: "id" })
         .select("id")
         .single();
       if (coreError) throw coreError;
 
-      const businessUpdates = {
+      const businessUpdates: Record<string, unknown> = {
         business_address: (editForm.businessAddress || "").trim() || null,
         shop_photo_urls: editForm.shopPhotoUrls.length ? editForm.shopPhotoUrls : null,
         gst_number: (editForm.gstNumber || "").trim() || null,
@@ -252,8 +252,11 @@ export default function Profile() {
         .from("profiles")
         .update(businessUpdates)
         .eq("id", user.id);
-      if (businessError && !businessError.message.includes("does not exist")) {
-        throw businessError;
+      if (businessError) {
+        const msg = businessError.message || "";
+        if (!msg.includes("does not exist") && !msg.includes("column") && !msg.includes("undefined")) {
+          throw businessError;
+        }
       }
       await refreshProfile();
       setEditOpen(false);
