@@ -8,7 +8,7 @@ import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
-import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
+import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -106,7 +106,8 @@ export default function Cart() {
           }
           return;
         }
-        toast.error(sessionRes.error ?? "Payment gateway error. Order placed — pay from Orders.");
+        const msg = sessionRes.error ?? "Payment gateway error.";
+        toast.error(`${msg} Order placed — view in Orders. Deploy Edge Function create-cashfree-order and set CASHFREE_APP_ID, CASHFREE_SECRET_KEY in Supabase.`);
         navigate("/orders");
         setPlacing(false);
         return;
@@ -243,6 +244,12 @@ export default function Cart() {
               <div className="mb-3 flex items-center gap-2 rounded-lg bg-accent/10 p-2.5 text-xs">
                 <PartyPopper size={16} className="text-accent shrink-0" />
                 <span className="font-medium">This order qualifies for today's daily draw!</span>
+              </div>
+            )}
+
+            {!isCashfreeConfigured() && (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+                <strong>Pay online (Cashfree) is off.</strong> To redirect to Cashfree at checkout: add <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">{getCashfreeConfigStatus().missing ?? "VITE_CASHFREE_APP_ID"}</code> and Supabase URL/Anon Key in <strong>Vercel → Project → Environment Variables</strong>, then <strong>redeploy</strong>. Also deploy the Edge Function <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">create-cashfree-order</code> in Supabase.
               </div>
             )}
 

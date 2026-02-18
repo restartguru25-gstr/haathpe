@@ -14,6 +14,14 @@ export function isCashfreeConfigured(): boolean {
   return !!(SUPABASE_URL && SUPABASE_ANON && CASHFREE_APP_ID);
 }
 
+/** Returns why Cashfree is not configured (for debugging / UI). */
+export function getCashfreeConfigStatus(): { configured: boolean; missing?: string } {
+  if (!SUPABASE_URL) return { configured: false, missing: "VITE_SUPABASE_URL" };
+  if (!SUPABASE_ANON) return { configured: false, missing: "VITE_SUPABASE_ANON_KEY" };
+  if (!CASHFREE_APP_ID) return { configured: false, missing: "VITE_CASHFREE_APP_ID" };
+  return { configured: true };
+}
+
 export interface CreateSessionParams {
   order_id: string;
   order_amount: number;

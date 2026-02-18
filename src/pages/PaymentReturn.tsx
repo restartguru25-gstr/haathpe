@@ -4,7 +4,7 @@ import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
 import { supabase } from "@/lib/supabase";
-import { createCashfreeSession, isCashfreeConfigured } from "@/lib/cashfree";
+import { createCashfreeSession, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 
@@ -96,6 +96,12 @@ export default function PaymentReturn() {
                 ? "We couldn't find this order or verify payment. If you paid, the dukaanwaala will still receive it."
                 : "No order ID in the link. Use the link you got after placing the order."}
             </p>
+            {!orderId && !isCashfreeConfigured() && (
+              <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Cashfree is not configured</p>
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">Missing: <strong>{getCashfreeConfigStatus().missing ?? "VITE_CASHFREE_APP_ID"}</strong>. Add it (and VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) in <strong>Vercel → Environment Variables</strong>, then <strong>redeploy</strong>. Without this, checkout will not redirect to Cashfree.</p>
+              </div>
+            )}
             {!orderId && isCashfreeConfigured() && (
               <div className="mb-6 p-4 rounded-lg border border-border bg-muted/30">
                 <p className="text-sm text-muted-foreground mb-2">Verify Cashfree gateway</p>
