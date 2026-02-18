@@ -1,5 +1,33 @@
 # Deploy Cashfree Edge Functions
 
+**Important:** This app is **Vite + React**, not Next.js. There is **no** `/api/create-cashfree-order` route. The backend is the **Supabase Edge Function** at:
+
+- `https://<your-project-ref>.supabase.co/functions/v1/create-cashfree-order`
+
+The frontend calls this URL (with `Authorization` and `apikey` headers) from `src/lib/cashfree.ts` → `createCashfreeSession()`. If you see "backend not found" or timeout, the Edge Function is missing or not deployed — see below.
+
+---
+
+## Troubleshooting: Payment not opening / silent fail
+
+| Cause | What to check |
+|-------|----------------|
+| **Backend route wrong** | We do **not** use `https://haathpe.com/api/create-cashfree-order`. We use the **Supabase Edge Function** URL. In the browser console, step 2/3 will show the real URL (e.g. `https://xxx.supabase.co/functions/v1/create-cashfree-order`). If that returns 404, deploy the function (Option A or B below). |
+| **Vercel env vars** | Only **client** vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_CASHFREE_APP_ID`, `VITE_CASHFREE_MODE=production`. Do **not** put `CASHFREE_SECRET_KEY` in Vercel (it must stay in Supabase secrets). |
+| **Supabase secrets** | Dashboard → Edge Functions → Secrets: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, and optionally `CASHFREE_ENV=production`. |
+| **Fetch aborted / CORS** | Console logs 1–9 show where it stops. If it stops at step 3 with no "4. Raw response body", the request was aborted or blocked (timeout, CORS, or network). |
+| **Backend 500** | Check Supabase Dashboard → Edge Functions → create-cashfree-order → Logs. Fix payload or missing env (e.g. Cashfree keys). |
+
+**Test the backend manually (Postman or curl):**
+
+- **URL:** `https://<project-ref>.supabase.co/functions/v1/create-cashfree-order`
+- **Method:** POST  
+- **Headers:** `Content-Type: application/json`, `Authorization: Bearer <VITE_SUPABASE_ANON_KEY>`, `apikey: <VITE_SUPABASE_ANON_KEY>`
+- **Body (JSON):** `{ "order_id": "test-1", "order_amount": 100, "return_url": "https://haathpe.com/payment/return?order_id=test-1" }`  
+- **Expected:** 200 OK with `{ "payment_session_id": "...", "order_id": "test-1" }`. If 404 → function not deployed. If 503 → secrets missing.
+
+---
+
 You can either use the **CLI** (terminal) or create the functions **in the Supabase Dashboard** (browser).
 
 ---

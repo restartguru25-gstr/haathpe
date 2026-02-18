@@ -32,7 +32,7 @@ export interface CreateSessionParams {
   order_note?: string;
 }
 
-const CASHFREE_SESSION_TIMEOUT_MS = 10000;
+const CASHFREE_SESSION_TIMEOUT_MS = 30000; // 30s to allow Supabase Edge cold start (5–15s after idle)
 
 /** Call Edge Function to create Cashfree order and get payment_session_id. Uses 10s timeout to avoid hanging. */
 export async function createCashfreeSession(
@@ -58,7 +58,8 @@ export async function createCashfreeSession(
     });
     clearTimeout(timeoutId);
 
-    if (typeof window !== "undefined") console.log("[CART] 3. Backend responded with status:", res.status);
+    if (typeof window !== "undefined") console.log("[CART] 3. Backend responded with status:", res.status, "ok:", res.ok);
+    if (typeof window !== "undefined") console.log("[CART] Fetch completed – status:", res.status, "ok:", res.ok);
 
     if (!res.ok) {
       const errText = await res.text();
