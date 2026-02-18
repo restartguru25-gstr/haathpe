@@ -21,15 +21,33 @@ const VOICE_MESSAGES: Record<VoiceLang, (amount: number) => string> = {
 
 const FALLBACK_MESSAGE = "Payment received. Thank you!";
 
-/** Try custom MP3 first; fallback to Web Audio two-tone. Volume 0–1. */
+/** Tiny WAV beep as fallback when MP3 fails (e.g. autoplay blocked). */
+const FALLBACK_BEEP_DATA =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+/** Play payment success sound: custom MP3 (volume adjustable), then base64 beep, then Web Audio. */
 export function playPaymentSound(volume: number = 1): void {
   const vol = Math.max(0, Math.min(1, volume));
   try {
     const audio = new Audio("/audio/payment-success.mp3");
     audio.volume = vol;
-    audio.play().catch(() => playPaymentSoundWebAudio(vol));
-  } catch {
-    playPaymentSoundWebAudio(vol);
+    audio.play().catch((err) => {
+      if (import.meta.env.DEV) console.log("Payment sound MP3 failed:", err);
+      try {
+        const fallback = new Audio(FALLBACK_BEEP_DATA);
+        fallback.volume = vol;
+        fallback.play().catch(() => playPaymentSoundWebAudio(vol));
+      } catch {
+        playPaymentSoundWebAudio(vol);
+      }
+    });
+  } catch (e) {
+    if (import.meta.env.DEV) console.log("Payment sound error:", e);
+    try {
+      new Audio(FALLBACK_BEEP_DATA).play().catch(() => playPaymentSoundWebAudio(vol));
+    } catch {
+      playPaymentSoundWebAudio(vol);
+    }
   }
 }
 
