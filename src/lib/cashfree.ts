@@ -65,23 +65,15 @@ export async function createCashfreeSession(
   return { ok: true, payment_session_id };
 }
 
-/** Base URL for Cashfree hosted checkout (redirect). Same as Edge Function. */
-const CASHFREE_CHECKOUT_BASE =
-  CASHFREE_MODE === "production"
-    ? "https://api.cashfree.com/pg"
-    : "https://sandbox.cashfree.com/pg";
-
-/**
- * Direct URL to Cashfree hosted checkout page. Use this for a guaranteed redirect
- * when the SDK doesn't redirect (e.g. CSP, script load issues).
- */
-export function getCashfreeCheckoutUrl(paymentSessionId: string): string {
-  return `${CASHFREE_CHECKOUT_BASE}/view/gateway/${encodeURIComponent(paymentSessionId)}`;
-}
-
-/** Open Cashfree checkout. Uses direct redirect URL so the user always lands on Cashfree. */
+/** Open Cashfree checkout via official SDK (redirect in same tab). Do not use direct URL — it returns 400. */
 export async function openCashfreeCheckout(paymentSessionId: string): Promise<void> {
   if (typeof window === "undefined") return;
-  const url = getCashfreeCheckoutUrl(paymentSessionId);
-  window.location.href = url;
+  const mode = CASHFREE_MODE === "production" ? "production" : "sandbox";
+  const { load } = await import("@cashfreepayments/cashfree-js");
+  const cashfree = await load({ mode });
+  if (!cashfree) throw new Error("Cashfree SDK failed to load");
+  cashfree.checkout({
+    paymentSessionId,
+    redirectTarget: "_self",
+  });
 }
