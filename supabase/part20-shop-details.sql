@@ -1,4 +1,4 @@
--- Haathpe: Vendor Shop Details – Opening/Closing Hours, Weekly Off, Holidays, Online Availability
+-- haathpe: Vendor Shop Details – Opening/Closing Hours, Weekly Off, Holidays, Online Availability
 -- Run after part19. Adds columns to profiles for dukaan timings and online status.
 
 -- 1) Add shop detail columns to profiles

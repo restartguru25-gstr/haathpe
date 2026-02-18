@@ -1,5 +1,5 @@
 /**
- * Haathpe ONDC Webhook — receives orders from ONDC buyer apps (PhonePe, Paytm, etc.)
+ * haathpe ONDC Webhook — receives orders from ONDC buyer apps (PhonePe, Paytm, etc.)
  * Deploy: supabase functions deploy ondc-webhook
  * URL: https://<project>.supabase.co/functions/v1/ondc-webhook
  *

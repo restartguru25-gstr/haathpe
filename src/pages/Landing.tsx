@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   Truck,
@@ -10,6 +11,8 @@ import {
   ShoppingBag,
   ShoppingCart,
   Store,
+  ChevronDown,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -55,6 +58,21 @@ const steps = [
   { step: 4, title: "Earn rewards", body: "Collect points, enter daily draws, and redeem for vouchers and prizes." },
 ];
 
+const howItWorksFaq = [
+  {
+    q: "Who can join haathpe?",
+    a: "Any small retailer or dukaanwaala in our service area (Hyderabad and expanding) can join. You need a phone number to sign up. No GST or paperwork required to start ordering supplies.",
+  },
+  {
+    q: "How fast is delivery?",
+    a: "We offer same-day delivery across Hyderabad for orders placed in the morning. You can track your order in the app. Delivery slots depend on your area — most dukaanwaale get supplies within a few hours.",
+  },
+  {
+    q: "What can I redeem my points for?",
+    a: "Points can be redeemed for family trips, cash prizes, daily draws, and supplies. You also get better credit limits and rewards as you maintain your ordering streak.",
+  },
+];
+
 const testimonials = [
   {
     name: "Raju",
@@ -95,6 +113,45 @@ const sellBullets = [
   "Online orders via QR code",
   "Track sales, profits & re-order suggestions",
 ];
+
+function FaqItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <motion.div
+      layout
+      className="overflow-hidden rounded-xl border border-border bg-card"
+      initial={false}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left font-medium transition-colors hover:bg-muted/50"
+      >
+        <span>{question}</span>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="shrink-0 text-muted-foreground"
+        >
+          <ChevronDown className="size-5" />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="border-t border-border"
+          >
+            <p className="px-4 py-3 text-sm text-muted-foreground">{answer}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
 
 export default function Landing() {
   const { t, lang, setLang } = useApp();
@@ -379,7 +436,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features — Why dukaanwaale love us (dynamic with animations) */}
       <section id="features" className="scroll-mt-20 border-b border-border bg-muted/30 px-4 py-16 md:py-24">
         <div className="mx-auto max-w-5xl">
           <motion.div
@@ -399,14 +456,27 @@ export default function Landing() {
             {features.map((f, i) => (
               <motion.div
                 key={f.title}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md md:p-8"
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ delay: i * 0.12, type: "spring", stiffness: 120, damping: 20 }}
+                whileHover={{ scale: 1.03, y: -6 }}
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8 transition-shadow hover:shadow-xl hover:border-primary/20"
               >
-                <div className="mb-4 text-4xl md:text-5xl">{f.emoji}</div>
-                <h3 className="mb-2 text-lg font-bold md:text-xl">{f.title}</h3>
+                <motion.div
+                  className="mb-4 text-4xl md:text-5xl"
+                  whileHover={{ scale: 1.2 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                >
+                  {f.emoji}
+                </motion.div>
+                <motion.h3
+                  className="mb-2 text-lg font-bold md:text-xl"
+                  whileHover={{ x: 4 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  {f.title}
+                </motion.h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
               </motion.div>
             ))}
@@ -446,6 +516,24 @@ export default function Landing() {
               </motion.div>
             ))}
           </div>
+
+          {/* Common questions (FAQ) — extends How it works scope */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-14"
+          >
+            <h3 className="mb-6 flex items-center gap-2 text-xl font-bold">
+              <HelpCircle className="size-5 text-primary" />
+              Common questions
+            </h3>
+            <div className="space-y-3">
+              {howItWorksFaq.map((faq, idx) => (
+                <FaqItem key={idx} question={faq.q} answer={faq.a} />
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -584,7 +672,7 @@ export default function Landing() {
           </div>
           <div className="mt-8 flex flex-col items-center gap-4 border-t border-border pt-8 text-center text-sm text-muted-foreground">
             <div className="flex flex-wrap items-center justify-center gap-6">
-              <p>© 2026 Haathpe. {t("footerTagline")}</p>
+              <p>© 2026 haathpe. {t("footerTagline")}</p>
               <p className="flex items-center gap-1">
                 <MapPin className="size-3.5" /> Hyderabad, India
               </p>

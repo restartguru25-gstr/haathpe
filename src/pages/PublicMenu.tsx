@@ -330,7 +330,7 @@ export default function PublicMenu() {
               <ArrowLeft size={20} className="text-muted-foreground" />
             </Link>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold font-brand tracking-widest">h</div>
-            <span className="brand-haathpe text-lg">Haathpe Menu</span>
+            <span className="brand-haathpe text-lg">haathpe Menu</span>
             {canOrder && (
               <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
                 Open Now {shopStatus.closesAt ? `• Closes ${formatTimeForDisplay(shopStatus.closesAt)}` : ""}

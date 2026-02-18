@@ -1,6 +1,6 @@
-# Haathpe – Full Feature Document (Pitch Deck)
+# haathpe – Full Feature Document (Pitch Deck)
 
-**Product:** Haathpe – Dukaanwaale Ka App | Sab Kuch Haath Pe  
+**Product:** haathpe – Dukaanwaale Ka App | Sab Kuch Haath Pe  
 **Audience:** Pitch deck / investor & partner documentation  
 **Last updated:** February 2026  
 
@@ -8,7 +8,7 @@
 
 ## 1. Product Overview
 
-Haathpe is a **B2B2C platform** for small retailers (dukaanwaale) and their customers in India. It serves two primary user types:
+haathpe is a **B2B2C platform** for small retailers (dukaanwaale) and their customers in India. It serves two primary user types:
 
 - **Vendors (Dukaanwaale):** Order wholesale supplies (B2B), run their dukaan (POS, online menu, sales), earn loyalty, credit lines, and rewards.
 - **Customers:** Discover vendors, order from public menus, track orders, and leave reviews.

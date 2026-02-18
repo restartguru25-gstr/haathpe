@@ -183,7 +183,7 @@ export async function sendWhatsAppPaymentAlert(
 ): Promise<void> {
   const apiKey = import.meta.env.VITE_WHATSAPP_API_KEY;
   if (!apiKey || !vendorPhone) return;
-  const message = `Haathpe: New payment ₹${amount} – Order #${orderId.slice(0, 8)}`;
+  const message = `haathpe: New payment ₹${amount} – Order #${orderId.slice(0, 8)}`;
   try {
     // Stub: replace with your WhatsApp Business API / Twilio / etc.
     await fetch("https://api.whatsapp.com/send", {

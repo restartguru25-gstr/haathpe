@@ -64,7 +64,7 @@ export function buildOndcCatalog(
     },
     catalog: {
       descriptor: {
-        name: "Haathpe Dukaan Catalog",
+        name: "haathpe Dukaan Catalog",
         long_desc: `Catalog export for ${profile.name || "Dukaanwaala"} - ${profile.stall_type || "Chhoti Dukaan"}`,
       },
       provider: {
