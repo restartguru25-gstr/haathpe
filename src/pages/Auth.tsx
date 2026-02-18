@@ -14,6 +14,7 @@ import { useApp } from "@/contexts/AppContext";
 import { setMyReferrer } from "@/lib/incentives";
 
 type AuthStep = "method" | "phone" | "otp" | "magic" | "sent" | "password";
+type EmailPasswordMode = "signin" | "signup";
 
 export default function Auth() {
   const { t } = useApp();
@@ -23,6 +24,7 @@ export default function Auth() {
   const refId = searchParams.get("ref");
   const { isAuthenticated } = useSession();
   const [step, setStep] = useState<AuthStep>("method");
+  const [emailPasswordMode, setEmailPasswordMode] = useState<EmailPasswordMode>("signin");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
@@ -174,42 +176,44 @@ export default function Auth() {
     }
     setLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
-      if (!signInError) {
-        if (refId) await setMyReferrer(refId);
-        toast.success("Signed in!");
-        navigate(nextPath, { replace: true });
-        return;
-      }
-      if (signInError.message.includes("Invalid login") || signInError.message.includes("invalid")) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      if (emailPasswordMode === "signin") {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email: trimmedEmail,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
         });
-        if (!signUpError) {
-          if (signUpData?.session) {
-            if (refId) await setMyReferrer(refId);
-            toast.success("Account created! Signed in.");
-            navigate(nextPath, { replace: true });
-            return;
-          }
-          toast.success("Account created! Check your email to confirm. Then sign in with your password.");
+        if (!signInError) {
+          if (refId) await setMyReferrer(refId);
+          toast.success("Signed in!");
+          navigate(nextPath, { replace: true });
           return;
         }
-        if (signUpError.message?.includes("already been registered")) {
-          toast.error("Email already registered. Use the correct password or try Magic Link.");
-          return;
-        }
-        toast.error(signUpError.message || "Sign up failed.");
+        toast.error("Wrong email or password. Try again or sign up if you don’t have an account.");
         return;
       }
-      toast.error(signInError.message);
-    } catch (e) {
-      toast.error("Sign in failed. Please try again.");
+
+      // Sign up only
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (!signUpError) {
+        if (signUpData?.session) {
+          if (refId) await setMyReferrer(refId);
+          toast.success("Account created! Signed in.");
+          navigate(nextPath, { replace: true });
+          return;
+        }
+        toast.success("Account created. Sign in with your email and password above.");
+        return;
+      }
+      if (signUpError.message?.includes("already been registered")) {
+        toast.error("Email already registered. Sign in with your password or use Magic Link.");
+        return;
+      }
+      toast.error(signUpError.message || "Sign up failed.");
+    } catch {
+      toast.error(emailPasswordMode === "signin" ? "Sign in failed. Please try again." : "Sign up failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -245,10 +249,18 @@ export default function Auth() {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mb-1">
-              Sign in / Sign up
+              {step === "password"
+                ? emailPasswordMode === "signup"
+                  ? "Sign up"
+                  : "Sign in"
+                : "Sign in / Sign up"}
             </h1>
             <p className="mb-6 text-muted-foreground text-sm">
-              Choose how you’d like to sign in. New users get an account automatically.
+              {step === "password"
+                ? emailPasswordMode === "signup"
+                  ? "Create an account with your email and password."
+                  : "Enter your email and password to sign in."
+                : "Choose how you’d like to sign in or create an account."}
             </p>
 
         <AnimatePresence mode="wait">
@@ -429,9 +441,22 @@ export default function Auth() {
               exit={{ opacity: 0, x: 10 }}
               className="space-y-4"
             >
-              <p className="text-xs text-muted-foreground">
-                New user? We’ll create an account. Already have one? Same form signs you in.
-              </p>
+              <div className="flex items-center justify-center gap-2 py-1">
+                <button
+                  type="button"
+                  onClick={() => setEmailPasswordMode("signin")}
+                  className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${emailPasswordMode === "signin" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmailPasswordMode("signup")}
+                  className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${emailPasswordMode === "signup" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Sign up
+                </button>
+              </div>
               <div>
                 <label className="text-sm font-semibold text-foreground">Email</label>
                 <Input
@@ -447,11 +472,11 @@ export default function Auth() {
                 <label className="text-sm font-semibold text-foreground">Password</label>
                 <Input
                   type="password"
-                  placeholder="••••••••"
+                  placeholder={emailPasswordMode === "signup" ? "Min 6 characters" : "••••••••"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
-                  autoComplete="current-password"
+                  autoComplete={emailPasswordMode === "signup" ? "new-password" : "current-password"}
                 />
               </div>
               <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50">
@@ -472,7 +497,7 @@ export default function Auth() {
                   Back
                 </Button>
                 <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handleEmailPasswordSubmit} disabled={loading || !termsAccepted}>
-                  {loading ? "Signing in…" : "Sign in / Sign up"}
+                  {loading ? (emailPasswordMode === "signup" ? "Creating…" : "Signing in…") : emailPasswordMode === "signup" ? "Sign up" : "Sign in"}
                 </Button>
               </div>
             </motion.div>

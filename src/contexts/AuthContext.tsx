@@ -96,7 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       try {
         const url = import.meta.env.VITE_SUPABASE_URL;
-        if (!url || url === "") {
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (!url || !key || url === "" || key === "") {
           setIsLoading(false);
           return;
         }
