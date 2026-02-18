@@ -32,47 +32,79 @@ export interface CreateSessionParams {
   order_note?: string;
 }
 
-/** Call Edge Function to create Cashfree order and get payment_session_id */
+const CASHFREE_SESSION_TIMEOUT_MS = 10000;
+
+/** Call Edge Function to create Cashfree order and get payment_session_id. Uses 10s timeout to avoid hanging. */
 export async function createCashfreeSession(
   params: CreateSessionParams
 ): Promise<{ ok: true; payment_session_id: string } | { ok: false; error: string }> {
   const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${CASHFREE_ORDER_FUNCTION}`;
-  if (typeof window !== "undefined") {
-    console.log("[Cashfree] Creating session:", url);
+  if (typeof window !== "undefined") console.log("[CART] Creating Cashfree order...", url);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CASHFREE_SESSION_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_ANON}`,
+        apikey: SUPABASE_ANON,
+      },
+      body: JSON.stringify(params),
+    });
+    clearTimeout(timeoutId);
+
+    if (typeof window !== "undefined") console.log("[CART] Order creation HTTP status:", res.status);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      if (typeof window !== "undefined") console.error("[CART] Order creation failed – status:", res.status, "body:", errText);
+      let errMsg: string;
+      try {
+        const d = JSON.parse(errText) as { error?: string; message?: string };
+        errMsg = d.error ?? d.message ?? (errText.slice(0, 200) || `HTTP ${res.status}`);
+      } catch {
+        errMsg = errText.slice(0, 200) || `HTTP ${res.status}`;
+      }
+      return { ok: false, error: errMsg };
+    }
+
+    const data = (await res.json().catch(() => ({}))) as { payment_session_id?: string };
+    if (typeof window !== "undefined") console.log("[CART] Order created successfully, has session_id:", !!data?.payment_session_id);
+
+    const payment_session_id = data?.payment_session_id;
+    if (!payment_session_id) {
+      if (typeof window !== "undefined") console.error("[CART] Invalid response – no payment_session_id", data);
+      return { ok: false, error: "No payment session received" };
+    }
+    return { ok: true, payment_session_id };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+    if (name === "AbortError") {
+      if (typeof window !== "undefined") console.error("[CART] Request timed out or aborted");
+      return { ok: false, error: "Request timed out – please try again" };
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    if (typeof window !== "undefined") console.error("[CART] createCashfreeSession error:", e);
+    return { ok: false, error: msg?.slice(0, 200) || "Failed to create payment session" };
   }
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Accept": "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_ANON}`,
-      apikey: SUPABASE_ANON,
-    },
-    body: JSON.stringify(params),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const d = data as { error?: string; message?: string; code?: string };
-    const err = d.error ?? d.message ?? "Failed to create payment session";
-    if (typeof window !== "undefined") console.error("[Cashfree] Session failed:", res.status, err, data);
-    return { ok: false, error: err };
-  }
-  const payment_session_id = (data as { payment_session_id?: string }).payment_session_id;
-  if (!payment_session_id) {
-    if (typeof window !== "undefined") console.error("[Cashfree] No payment_session_id in response", data);
-    return { ok: false, error: "No payment session received" };
-  }
-  if (typeof window !== "undefined") console.log("[Cashfree] Session OK, payment_session_id received");
-  return { ok: true, payment_session_id };
 }
 
 /** Open Cashfree checkout via official SDK (redirect in same tab). Do not use direct URL — it returns 400. */
 export async function openCashfreeCheckout(paymentSessionId: string): Promise<void> {
   if (typeof window === "undefined") return;
   const mode = CASHFREE_MODE === "production" ? "production" : "sandbox";
+  if (typeof window !== "undefined") console.log("[CART] Loading Cashfree SDK, mode:", mode);
   const { load } = await import("@cashfreepayments/cashfree-js");
   const cashfree = await load({ mode });
+  if (typeof window !== "undefined") console.log("[CART] Cashfree SDK loaded:", !!cashfree);
   if (!cashfree) throw new Error("Cashfree SDK failed to load");
+  if (typeof window !== "undefined") console.log("[CART] Calling checkout with redirectTarget _self");
   cashfree.checkout({
     paymentSessionId,
     redirectTarget: "_self",

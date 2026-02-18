@@ -10,12 +10,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const CASHFREE_SANDBOX = "https://sandbox.cashfree.com/pg";
-const CASHFREE_PROD = "https://api.cashfree.com/pg";
+const CASHFREE_PROD = "https://api.cashfree.com/pg"; // Production – NOT sandbox
 const API_VERSION = "2023-08-01";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, accept",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };

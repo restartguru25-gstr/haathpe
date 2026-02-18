@@ -49,12 +49,13 @@ export default function Cart() {
   useEffect(() => {
     const st = getCashfreeConfigStatus();
     if (typeof window !== "undefined") {
-      console.log("[Cart] Cashfree on this build:", st.configured ? "configured" : `not configured (missing: ${st.missing ?? "?"})`);
+      console.log("[CART] Cashfree on this build:", st.configured ? "configured" : `not configured (missing: ${st.missing ?? "?"})`);
     }
   }, []);
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
+    if (typeof window !== "undefined") console.log("[CART] Place Order button clicked – starting flow");
     setPlacing(true);
     setPaymentError(null);
     try {
@@ -64,6 +65,7 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
+      if (typeof window !== "undefined") console.log("[CART] Creating order in DB...");
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -81,6 +83,7 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
+      if (typeof window !== "undefined") console.log("[CART] Order created in DB, id:", order.id);
       const rows = cart.map((item) => {
         const unitPriceRupees = getLinePrice(item);
         const row: Record<string, unknown> = {
@@ -103,9 +106,10 @@ export default function Cart() {
       if (itemsError) throw itemsError;
 
       const cashfreeOn = isCashfreeConfigured();
-      if (typeof window !== "undefined") console.log("[Cart] Cashfree configured:", cashfreeOn);
+      if (typeof window !== "undefined") console.log("[CART] Cashfree configured:", cashfreeOn);
       if (cashfreeOn) {
         const returnUrl = `${window.location.origin}/payment/return?order_id=${order.id}`;
+        if (typeof window !== "undefined") console.log("[CART] Creating Cashfree session...");
         const sessionRes = await createCashfreeSession({
           order_id: order.id,
           order_amount: Math.round(finalTotal),
@@ -113,23 +117,25 @@ export default function Cart() {
           return_url: returnUrl,
           order_note: `Cart order ${order.id} – ₹${finalTotal.toFixed(0)}`,
         });
+        if (typeof window !== "undefined") console.log("[CART] Session response:", sessionRes.ok ? "ok, payment_session_id received" : "failed:", sessionRes.ok ? undefined : (sessionRes as { error: string }).error);
         if (sessionRes.ok) {
           clearCart();
           setPlacing(false);
           setRedirectingToPayment(true);
           try {
+            if (typeof window !== "undefined") console.log("[CART] Launching Cashfree checkout with session_id:", sessionRes.payment_session_id?.slice(0, 20) + "...");
             await openCashfreeCheckout(sessionRes.payment_session_id);
           } catch (err) {
             setRedirectingToPayment(false);
             const errMsg = err instanceof Error ? err.message : "Could not open payment page";
-            if (typeof window !== "undefined") console.error("[Cart] openCashfreeCheckout failed:", err);
+            if (typeof window !== "undefined") console.error("[CART] openCashfreeCheckout failed:", err);
             toast.error(`${errMsg}. Check the link in your orders or browser console.`);
             setPaymentError(errMsg);
             navigate("/orders");
           }
           return;
         }
-        const msg = sessionRes.error ?? "Payment gateway error.";
+        const msg = (sessionRes as { error?: string }).error ?? "Payment gateway error.";
         setPaymentError(msg);
         toast.error(`${msg} Order placed — view in Orders. Deploy Edge Function create-cashfree-order and set CASHFREE_APP_ID, CASHFREE_SECRET_KEY in Supabase.`);
         navigate("/orders");
@@ -180,9 +186,14 @@ export default function Cart() {
       const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
       const msg = e && typeof e === "object" && "message" in e ? String((e as { message?: string }).message) : "";
       const isAbort = name === "AbortError" || /aborted/i.test(msg);
-      if (isAbort) return;
+      if (isAbort) {
+        if (typeof window !== "undefined") console.log("[CART] Request timed out or aborted");
+        toast.error("Request timed out – please try again.");
+        return;
+      }
       const errMsg = msg || (e instanceof Error ? e.message : null);
-      if (errMsg && typeof window !== "undefined") console.error("[Cart] Place order failed:", errMsg);
+      if (typeof window !== "undefined") console.error("[CART] Place order error:", e);
+      if (errMsg && typeof window !== "undefined") console.error("[CART] Place order failed:", errMsg);
       toast.error(errMsg && errMsg.length < 80 ? errMsg : "Could not place order. Try again.");
     } finally {
       setPlacing(false);
@@ -304,14 +315,14 @@ export default function Cart() {
             <AlertDialog open={redirectingToPayment}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Redirecting to payment</AlertDialogTitle>
+                  <AlertDialogTitle>Complete Your Order</AlertDialogTitle>
                   <AlertDialogDescription>
-                    You are being redirected to Cashfree to complete payment. If the page does not open, check the link in your Orders.
+                    Securely complete payment to place your order. Cash or UPI options available.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogAction disabled className="pointer-events-none">
-                    Please wait…
+                    Redirecting to payment…
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
