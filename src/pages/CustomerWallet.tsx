@@ -83,7 +83,11 @@ export default function CustomerWallet() {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
     };
   }, [customer?.id, load]);
 

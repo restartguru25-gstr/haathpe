@@ -45,7 +45,13 @@ export default function OrderTracking() {
         () => loadOrder()
       )
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
+    };
   }, [orderId]);
 
   const trackingUrl = typeof window !== "undefined" ? `${window.location.origin}/order/${orderId}` : "";

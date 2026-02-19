@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { CartItem, Product, Language, translations } from "@/lib/data";
-
-export interface CartVariant {
-  variantId: string;
-  variantLabel: string;
-  pricePaise: number;
-  gstRate: number;
-  mrpPaise?: number;
-}
+import type { Product, Language } from "@/lib/data";
+import { translations } from "@/lib/data";
+import { useCartStore, selectTotal, selectCartCount, type CartVariant } from "@/store/cartStore";
 
 interface AppState {
   cart: CartItem[];
@@ -22,6 +16,8 @@ interface AppState {
   cartCount: number;
 }
 
+export type { CartVariant };
+
 const AppContext = createContext<AppState | null>(null);
 
 export const useApp = () => {
@@ -31,68 +27,35 @@ export const useApp = () => {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [lang, setLang] = useState<Language>("en");
+  const cart = useCartStore((s) => s.items);
+  const addItem = useCartStore((s) => s.addItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const cartTotal = useCartStore(selectTotal);
+  const cartCount = useCartStore(selectCartCount);
 
   const t = useCallback(
     (key: keyof typeof translations.en) => translations[lang][key] || key,
     [lang]
   );
 
-  const cartKey = (i: CartItem) => `${i.product.id}:${i.variantId ?? ""}`;
-
-  const addToCart = useCallback((product: Product, qty = 1, variant?: CartVariant) => {
-    setCart((prev) => {
-      const key = `${product.id}:${variant?.variantId ?? ""}`;
-      const existing = prev.find((i) => cartKey(i) === key);
-      if (existing) {
-        return prev.map((i) =>
-          cartKey(i) === key ? { ...i, qty: i.qty + qty } : i
-        );
-      }
-      return [
-        ...prev,
-        {
-          product: variant
-            ? { ...product, price: variant.pricePaise / 100 }
-            : product,
-          qty,
-          variantId: variant?.variantId,
-          variantLabel: variant?.variantLabel,
-          pricePaise: variant?.pricePaise,
-          gstRate: variant?.gstRate,
-          mrpPaise: variant?.mrpPaise,
-        },
-      ];
-    });
-  }, []);
-
-  const removeFromCart = useCallback((productId: string, variantId?: string) => {
-    setCart((prev) =>
-      prev.filter(
-        (i) => !(i.product.id === productId && (i.variantId ?? "") === (variantId ?? ""))
-      )
-    );
-  }, []);
-
-  const updateQty = useCallback((productId: string, qty: number, variantId?: string) => {
-    const key = `${productId}:${variantId ?? ""}`;
-    if (qty <= 0) {
-      setCart((prev) => prev.filter((i) => cartKey(i) !== key));
-    } else {
-      setCart((prev) =>
-        prev.map((i) => (cartKey(i) === key ? { ...i, qty } : i))
-      );
-    }
-  }, []);
-
-  const clearCart = useCallback(() => setCart([]), []);
-
-  const cartTotal = cart.reduce(
-    (sum, i) => sum + (i.pricePaise != null ? (i.pricePaise * i.qty) / 100 : i.product.price * i.qty),
-    0
+  const addToCart = useCallback(
+    (product: Product, qty = 1, variant?: CartVariant) => addItem(product, qty, variant),
+    [addItem]
   );
-  const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
+
+  const removeFromCart = useCallback(
+    (productId: string, variantId?: string) => removeItem(productId, variantId),
+    [removeItem]
+  );
+
+  const updateQty = useCallback(
+    (productId: string, qty: number, variantId?: string) =>
+      updateQuantity(productId, qty, variantId),
+    [updateQuantity]
+  );
 
   return (
     <AppContext.Provider

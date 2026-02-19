@@ -123,7 +123,11 @@ export function usePaidOrderNotification(options: UsePaidOrderNotificationOption
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
     };
   }, [vendorId, voiceLang, vendorPhone, sendWhatsApp, alertsEnabled, alertVolume, triggerPaymentReceived]);
 }

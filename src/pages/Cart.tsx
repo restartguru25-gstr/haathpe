@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Minus, Plus, Trash2, ArrowLeft, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/contexts/AppContext";
+import { useCartStore, selectTotal } from "@/store/cartStore";
 import { useSession } from "@/contexts/AuthContext";
 import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
@@ -35,7 +36,12 @@ function getLinePrice(item: { product: Product; pricePaise?: number }): number {
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { cart, updateQty, removeFromCart, clearCart, cartTotal, t, lang } = useApp();
+  const cart = useCartStore((s) => s.items);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const cartTotal = useCartStore(selectTotal);
+  const { t, lang } = useApp();
   const { user, refreshProfile } = useSession();
   const pricing = useCartPricing(cart);
   const [placing, setPlacing] = useState(false);
@@ -274,15 +280,15 @@ export default function Cart() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.product.id, item.qty - 1, item.variantId)}>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, item.qty - 1, item.variantId)}>
                     <Minus size={14} />
                   </Button>
                   <span className="w-6 text-center text-sm font-bold">{item.qty}</span>
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.product.id, item.qty + 1, item.variantId)}>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, item.qty + 1, item.variantId)}>
                     <Plus size={14} />
                   </Button>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id, item.variantId)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.product.id, item.variantId)}>
                   <Trash2 size={14} />
                 </Button>
               </motion.div>

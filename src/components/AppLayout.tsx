@@ -62,7 +62,11 @@ export default function AppLayout() {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
     };
   }, [user?.id]);
 
@@ -87,7 +91,11 @@ export default function AppLayout() {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
     };
   }, [user?.id]);
 

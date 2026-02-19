@@ -3,12 +3,26 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// Suppress uncaught AbortError from Supabase auth (navigator lock, etc.) so console stays clean
+// Suppress AbortError from Supabase (auth, realtime subscriptions, etc.) so console stays clean.
+// Happens when: adding menu items (realtime channel), navigating away, React Strict Mode unmount.
+function isAbortError(r: unknown): boolean {
+  if (!r) return false;
+  if (typeof r === "string") return /aborted|signal is aborted/i.test(r);
+  const msg = typeof r === "object" && r !== null && "message" in r ? String((r as { message?: unknown }).message) : "";
+  return (r as { name?: string }).name === "AbortError" || /aborted|signal is aborted/i.test(msg);
+}
 if (typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (event) => {
-    const r = event.reason;
-    if (r?.name === "AbortError" || (r?.message && String(r.message).includes("aborted"))) {
+    if (isAbortError(event.reason)) {
       event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+  window.addEventListener("error", (event) => {
+    if (isAbortError(event.error) || isAbortError(event.message)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
     }
   });
 }

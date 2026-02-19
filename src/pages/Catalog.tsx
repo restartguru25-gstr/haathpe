@@ -20,6 +20,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useApp } from "@/contexts/AppContext";
+import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { products, type Product, getProductDescription } from "@/lib/data";
 import {
   getSectors,
@@ -68,7 +69,9 @@ function catalogProductToProduct(p: CatalogProduct, variant?: ProductVariant): P
 }
 
 export default function Catalog() {
-  const { t, addToCart, cartCount, lang } = useApp();
+  const { t, lang } = useApp();
+  const addItem = useCartStore((s) => s.addItem);
+  const cartCount = useCartStore(selectCartCount);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("All");
   const [ecoOnly, setEcoOnly] = useState(false);
@@ -147,7 +150,7 @@ export default function Catalog() {
   }, [search, category, ecoOnly, sort, lang]);
 
   const handleAdd = (product: Product, qty = 1) => {
-    addToCart(product, qty);
+    addItem(product, qty);
     toast.success(`${getProductName(product, lang)} ${t("addedToCart")}`);
     setDetailProduct(null);
   };
@@ -155,7 +158,7 @@ export default function Catalog() {
   const handleAddCatalog = (p: CatalogProduct, qty: number, variant?: ProductVariant | null) => {
     const product = catalogProductToProduct(p, variant ?? undefined);
     if (variant) {
-      addToCart(product, qty, {
+      addItem(product, qty, {
         variantId: variant.id,
         variantLabel: variant.variant_label,
         pricePaise: variant.variant_price,
@@ -163,7 +166,7 @@ export default function Catalog() {
         mrpPaise: p.mrp,
       });
     } else {
-      addToCart(product, qty, {
+      addItem(product, qty, {
         variantId: "",
         variantLabel: "",
         pricePaise: p.selling_price,

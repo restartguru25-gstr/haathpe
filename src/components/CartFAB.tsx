@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { ShoppingCart } from "lucide-react";
-import { useApp } from "@/contexts/AppContext";
+import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { motion } from "framer-motion";
 
 export default function CartFAB() {
-  const { cartCount } = useApp();
+  const cartCount = useCartStore(selectCartCount);
 
   return (
     <Link

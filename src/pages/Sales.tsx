@@ -176,7 +176,13 @@ export default function Sales() {
         () => getOndcOrdersForVendor(vendorId).then(setOndcOrders)
       )
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
+    };
   }, [vendorId]);
 
   const handleActivateDefault = async () => {

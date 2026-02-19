@@ -1,6 +1,7 @@
 import { useLocation, Link } from "react-router-dom";
 import { Home, ShoppingBag, Store, Receipt, Star, User, Shield } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion } from "framer-motion";
 
@@ -15,7 +16,8 @@ const baseTabs = [
 
 export default function BottomNav() {
   const { pathname } = useLocation();
-  const { t, cartCount } = useApp();
+  const { t } = useApp();
+  const cartCount = useCartStore(selectCartCount);
   const { isAdmin } = useAdmin();
 
   const tabs = isAdmin

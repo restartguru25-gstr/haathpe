@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
 import { Bell, ShoppingCart } from "lucide-react";
-import { useApp } from "@/contexts/AppContext";
+import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { Button } from "@/components/ui/button";
 
 export default function MobileHeader() {
-  const { cartCount } = useApp();
+  const cartCount = useCartStore(selectCartCount);
   const { unreadCount } = useUnreadNotifications();
 
   return (

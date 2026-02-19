@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Home, ShoppingBag, Store, Receipt, Star, User, ShoppingCart, Bell, Shield } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,8 @@ const langOptions: { value: Language; label: string }[] = [
 
 export default function TopNav() {
   const { pathname } = useLocation();
-  const { t, lang, setLang, cartCount } = useApp();
+  const { t, lang, setLang } = useApp();
+  const cartCount = useCartStore(selectCartCount);
   const { unreadCount } = useUnreadNotifications();
   const { isAdmin } = useAdmin();
 

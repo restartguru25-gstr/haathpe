@@ -83,13 +83,21 @@ export default function PublicMenu() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${vendorId}` },
         (payload) => {
-          const newRow = payload.new as { opening_hours?: Record<string, string>; weekly_off?: string; holidays?: string[]; is_online?: boolean };
-          setShopDetails({ opening_hours: newRow.opening_hours, weekly_off: newRow.weekly_off, holidays: newRow.holidays, is_online: newRow.is_online });
+          try {
+            const newRow = payload.new as { opening_hours?: Record<string, string>; weekly_off?: string; holidays?: string[]; is_online?: boolean };
+            setShopDetails({ opening_hours: newRow.opening_hours, weekly_off: newRow.weekly_off, holidays: newRow.holidays, is_online: newRow.is_online });
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") throw e;
+          }
         }
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
     };
   }, [vendorId]);
 

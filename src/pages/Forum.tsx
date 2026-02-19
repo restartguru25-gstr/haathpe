@@ -88,7 +88,11 @@ export default function Forum() {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") throw e;
+      }
     };
   }, [loadTopics, loadReplies, selectedTopic]);
 
