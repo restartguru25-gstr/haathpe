@@ -1,5 +1,5 @@
 /* haathpe: service worker – push notifications + offline caching */
-const CACHE_NAME = "haathpe-v1";
+const CACHE_NAME = "haathpe-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -21,6 +21,11 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   if (url.pathname.startsWith("/src/") || url.pathname.endsWith(".tsx") || url.pathname.endsWith(".ts"))
     return;
+  // Never cache /assets/ – avoids serving stale HTML as JS when chunk 404s after deploy
+  if (url.pathname.startsWith("/assets/")) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   event.respondWith(
     caches.open(CACHE_NAME).then((cache) =>

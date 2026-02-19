@@ -10,9 +10,9 @@ import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 import { PaymentNotificationProvider } from "@/contexts/PaymentNotificationContext";
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Landing from "@/pages/Landing";
 
-// Lazy-load pages so initial bundle is small and each route loads on demand (faster first load, better UX)
-const Landing = lazy(() => import("./pages/Landing"));
+// Lazy-load other pages; Landing is eager so first visit never hits "Failed to fetch dynamically imported module"
 const Auth = lazy(() => import("./pages/Auth"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Catalog = lazy(() => import("./pages/Catalog"));

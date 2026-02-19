@@ -3,8 +3,15 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
+  ],
   "rewrites": [
-    { "source": "/assets/:path*", "destination": "/assets/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|_next/|favicon|icons|manifest|sw\\.js).*)", "destination": "/index.html" }
   ]
 }
