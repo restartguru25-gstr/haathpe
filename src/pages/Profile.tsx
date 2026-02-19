@@ -96,7 +96,9 @@ const STALL_TYPES = [
   "Pan Shop",
   "Fast Food",
   "Hardware Shop",
+  "Hardware",
   "Saloon/Spa",
+  "Salon/Spa",
 ];
 
 export default function Profile() {
@@ -242,16 +244,36 @@ export default function Profile() {
         other_business_details: (editForm.otherBusinessDetails || "").trim() || null,
         upi_id: (editForm.upiId || "").trim() || null,
       };
-      const { error } = await supabase
-        .from("profiles")
-        .update(payload)
-        .eq("id", user.id)
-        .select("id")
-        .single();
-      if (error) throw error;
-      await refreshProfile();
-      setEditOpen(false);
-      toast.success(t("profileUpdated"));
+      
+      // Try Edge Function first, fallback to direct Supabase update
+      let success = false;
+      try {
+        const { data, error } = await supabase.functions.invoke("update-profile", { body: payload });
+        if (error) {
+          console.warn("[Profile] Edge Function failed, using direct update:", error);
+          throw error; // Will trigger fallback
+        }
+        success = true;
+      } catch (edgeError: unknown) {
+        // Fallback: Direct Supabase update (works if Edge Function not deployed or fails)
+        console.log("[Profile] Using direct Supabase update as fallback");
+        const { error: directError } = await supabase
+          .from("profiles")
+          .update(payload)
+          .eq("id", user.id)
+          .select("id")
+          .single();
+        if (directError) {
+          throw directError;
+        }
+        success = true;
+      }
+      
+      if (success) {
+        await refreshProfile();
+        setEditOpen(false);
+        toast.success(t("profileUpdated"));
+      }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
       const err = e as { message?: string; code?: string; details?: string };
@@ -539,16 +561,26 @@ export default function Profile() {
                       onCheckedChange={async (checked) => {
                         if (!user?.id) return;
                         try {
-                          const { error } = await supabase
-                            .from("profiles")
-                            .update({ is_online: checked })
-                            .eq("id", user.id);
-                          if (error) {
-                            toast.error("Could not update");
-                            return;
+                          let success = false;
+                          try {
+                            const { error } = await supabase.functions.invoke("update-profile", {
+                              body: { is_online: checked },
+                            });
+                            if (error) throw error;
+                            success = true;
+                          } catch {
+                            // Fallback to direct update
+                            const { error: directError } = await supabase
+                              .from("profiles")
+                              .update({ is_online: checked })
+                              .eq("id", user.id);
+                            if (directError) throw directError;
+                            success = true;
                           }
-                          await refreshProfile();
-                          toast.success(checked ? "Online orders enabled" : "Online orders disabled");
+                          if (success) {
+                            await refreshProfile();
+                            toast.success(checked ? "Online orders enabled" : "Online orders disabled");
+                          }
                         } catch (e) {
                           if (e instanceof Error && e.name === "AbortError") return;
                           toast.error("Could not update");
@@ -1075,16 +1107,27 @@ export default function Profile() {
                     .map((s) => s.trim())
                     .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
                   const openingHours = buildOpeningHours(open, close, shopForm.weeklyOff || null);
-                  const { error } = await supabase
-                    .from("profiles")
-                    .update({
-                      opening_hours: openingHours,
-                      weekly_off: shopForm.weeklyOff || null,
-                      holidays,
-                      is_online: shopForm.isOnline,
-                    })
-                    .eq("id", user.id);
-                  if (error) throw error;
+                  const updatePayload = {
+                    opening_hours: openingHours,
+                    weekly_off: shopForm.weeklyOff || null,
+                    holidays,
+                    is_online: shopForm.isOnline,
+                  };
+                  let success = false;
+                  try {
+                    const { error } = await supabase.functions.invoke("update-profile", { body: updatePayload });
+                    if (error) throw error;
+                    success = true;
+                  } catch {
+                    // Fallback to direct update
+                    const { error: directError } = await supabase
+                      .from("profiles")
+                      .update(updatePayload)
+                      .eq("id", user.id);
+                    if (directError) throw directError;
+                    success = true;
+                  }
+                  if (!success) throw new Error("Update failed");
                   await refreshProfile();
                   setShopTimingsOpen(false);
                   toast.success(t("profileUpdated"));
@@ -1150,16 +1193,26 @@ export default function Profile() {
                     onClick={async () => {
                       if (!user?.id) return;
                       try {
-                        const { error } = await supabase
-                          .from("profiles")
-                          .update({ alert_volume: level })
-                          .eq("id", user.id);
-                        if (error) {
-                          toast.error("Could not update");
-                          return;
+                        let success = false;
+                        try {
+                          const { error } = await supabase.functions.invoke("update-profile", {
+                            body: { alert_volume: level },
+                          });
+                          if (error) throw error;
+                          success = true;
+                        } catch {
+                          // Fallback to direct update
+                          const { error: directError } = await supabase
+                            .from("profiles")
+                            .update({ alert_volume: level })
+                            .eq("id", user.id);
+                          if (directError) throw directError;
+                          success = true;
                         }
-                        await refreshProfile();
-                        toast.success("Saved");
+                        if (success) {
+                          await refreshProfile();
+                          toast.success("Saved");
+                        }
                       } catch (e) {
                         if (e instanceof Error && e.name === "AbortError") return;
                         toast.error("Could not update");

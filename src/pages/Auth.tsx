@@ -52,34 +52,25 @@ export default function Auth() {
     if (v.startsWith("0")) v = v.slice(1);
     setPhone(v.slice(0, 10));
   };
-  const formatPhone = (v: string) => {
-    let digits = v.replace(/\D/g, "");
-    if (digits.startsWith("91")) digits = digits.slice(2);
-    digits = digits.slice(0, 10);
-    if (digits.length === 0) return "";
-    if (digits.length <= 5) return `+91 ${digits}`;
-    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
-  };
+  const phoneDigits = phone.replace(/\D/g, "").slice(0, 10);
+  const fullPhone = phoneDigits.length === 10 ? `+91${phoneDigits}` : "";
 
   const handlePhoneSubmit = async () => {
     if (!termsAccepted) {
       toast.error("Please accept the Terms & Conditions and Privacy Policy to continue.");
       return;
     }
-    let digits = phone.replace(/\D/g, "");
-    if (digits.startsWith("91")) digits = digits.slice(2);
-    digits = digits.slice(0, 10);
-    if (digits.length !== 10) {
+    if (phoneDigits.length !== 10) {
       toast.error("Enter a valid 10-digit Indian phone number");
       return;
     }
-    const fullPhone = `+91${digits}`;
     if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
       toast.error("Supabase not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env");
       return;
     }
     setLoading(true);
     try {
+      if (import.meta.env.DEV) console.log("[Auth] Sending OTP to:", fullPhone);
       const { error } = await supabase.auth.signInWithOtp({
         phone: fullPhone,
         options: { channel: "sms" },
@@ -95,7 +86,6 @@ export default function Auth() {
         }
         return;
       }
-      setPhone(fullPhone);
       setStep("otp");
       toast.success("OTP sent! Check your phone.");
     } catch (e) {
@@ -112,10 +102,14 @@ export default function Auth() {
       toast.error("Enter the 6-digit OTP");
       return;
     }
+    if (phoneDigits.length !== 10) {
+      toast.error("Enter a valid 10-digit phone number");
+      return;
+    }
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        phone,
+        phone: fullPhone,
         token: otp,
         type: "sms",
       });
@@ -165,9 +159,7 @@ export default function Auth() {
   };
 
   const handleMpinSignIn = async () => {
-    let digits = phone.replace(/\D/g, "");
-    if (digits.startsWith("91")) digits = digits.slice(2);
-    digits = digits.slice(0, 10);
+    const digits = phoneDigits;
     if (digits.length !== 10) {
       toast.error("Enter a valid 10-digit phone number");
       return;
@@ -177,10 +169,10 @@ export default function Auth() {
       toast.error("Enter your 4-digit MPIN");
       return;
     }
-    const fullPhone = `+91${digits}`;
+    const full = fullPhone || `+91${phoneDigits}`;
     setLoading(true);
     try {
-      const result = await signInWithMpin(fullPhone, mpinDigits);
+      const result = await signInWithMpin(full, mpinDigits);
       if (result.ok) {
         if (refId) await setMyReferrer(refId);
         toast.success("Signed in!");
@@ -428,14 +420,21 @@ export default function Auth() {
               <div>
                 <label className="text-sm font-semibold text-foreground">Phone number</label>
                 <p className="text-xs text-muted-foreground mb-2">We’ll send a 6-digit code to this number (+91)</p>
-                <Input
-                  placeholder="98765 43210"
-                  value={formatPhone(phone)}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
-                  maxLength={16}
-                  autoFocus
-                />
+                <div className="flex rounded-lg border-2 border-input bg-background overflow-hidden">
+                  <span className="flex items-center px-3 text-sm text-muted-foreground bg-muted/50 border-r border-input">
+                    +91
+                  </span>
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="9876543210"
+                    maxLength={10}
+                    value={phone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    className="h-11 border-0 rounded-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    autoFocus
+                  />
+                </div>
               </div>
               <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50">
                 <Checkbox
@@ -454,7 +453,7 @@ export default function Auth() {
                 <Button variant="outline" onClick={() => { setStep("method"); setPhone(""); }} className="rounded-lg">
                   Back
                 </Button>
-                <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handlePhoneSubmit} disabled={loading || !termsAccepted}>
+                <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handlePhoneSubmit} disabled={loading || !termsAccepted || phoneDigits.length !== 10}>
                   {loading ? "Sending…" : "Send OTP"}
                 </Button>
               </div>
@@ -470,7 +469,7 @@ export default function Auth() {
               className="space-y-5"
             >
               <p className="text-sm text-muted-foreground">
-                Code sent to <span className="font-medium text-foreground">{phone}</span>
+                Code sent to <span className="font-medium text-foreground">{fullPhone || `+91${phone}`}</span>
               </p>
               <div className="flex justify-center py-2">
                 <InputOTP maxLength={6} value={otp} onChange={setOtp}>
@@ -482,7 +481,7 @@ export default function Auth() {
                 </InputOTP>
               </div>
               <div className="flex gap-3 pt-1">
-                <Button variant="outline" onClick={() => setStep("phone")} className="rounded-lg">
+                <Button variant="outline" onClick={() => { setStep("phone"); }} className="rounded-lg">
                   Change number
                 </Button>
                 <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handleOtpVerify} disabled={loading || otp.length !== 6}>
@@ -659,13 +658,20 @@ export default function Auth() {
               <p className="text-sm text-muted-foreground">{t("mpinSignInSubtitle")}</p>
               <div>
                 <label className="text-sm font-semibold text-foreground">Phone number</label>
-                <Input
-                  placeholder="98765 43210"
-                  value={formatPhone(phone)}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
-                  maxLength={16}
-                />
+                <div className="flex mt-1.5 rounded-lg border-2 border-input bg-background overflow-hidden">
+                  <span className="flex items-center px-3 text-sm text-muted-foreground bg-muted/50 border-r border-input">
+                    +91
+                  </span>
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="9876543210"
+                    maxLength={10}
+                    value={phone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    className="h-11 border-0 rounded-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-sm font-semibold text-foreground">{t("mpinEnter")}</label>
@@ -683,7 +689,7 @@ export default function Auth() {
                 <Button
                   className="flex-1 rounded-lg h-11 font-semibold"
                   onClick={handleMpinSignIn}
-                  disabled={loading || phone.replace(/\D/g, "").length !== 10 || mpin.replace(/\D/g, "").length !== 4}
+                  disabled={loading || phoneDigits.length !== 10 || mpin.replace(/\D/g, "").length !== 4}
                 >
                   {loading ? "Signing in…" : t("mpinSignIn")}
                 </Button>

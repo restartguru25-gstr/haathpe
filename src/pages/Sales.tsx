@@ -16,10 +16,10 @@ import { useProfile } from "@/hooks/useProfile";
 import { useSession } from "@/contexts/AuthContext";
 import {
   getDefaultMenuBySector,
+  getDefaultMenuByStallType,
   getVendorMenuItems,
   activateDefaultMenu,
   updateVendorMenuItem,
-  addCustomVendorMenuItem,
   getSectorIdFromStallType,
   getVendorReviews,
   getCustomerOrders,
@@ -29,6 +29,7 @@ import {
   type VendorReview,
   type CustomerOrder,
 } from "@/lib/sales";
+import { addCustomProduct } from "@/actions/add-custom-product";
 import { getOndcOrdersForVendor, type OndcOrder } from "@/lib/ondcOrders";
 import {
   getVendorIncentives,
@@ -90,7 +91,7 @@ export default function Sales() {
     const load = async () => {
       try {
         const [defaults, vendor] = await Promise.all([
-          sectorId ? getDefaultMenuBySector(sectorId) : Promise.resolve([]),
+          profile?.stallType ? getDefaultMenuByStallType(profile.stallType) : Promise.resolve([]),
           getVendorMenuItems(vendorId),
         ]);
         setDefaultItems(defaults ?? []);
@@ -104,7 +105,7 @@ export default function Sales() {
       }
     };
     load();
-  }, [vendorId, sectorId]);
+  }, [vendorId, profile?.stallType]);
 
   useEffect(() => {
     if (!vendorId) return;
@@ -217,7 +218,8 @@ export default function Sales() {
     }
   };
 
-  const handleAddCustomItem = async () => {
+  const handleAddCustomItem = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!vendorId) return;
     const price = parseFloat(customPrice);
     if (!customName.trim()) {
@@ -230,21 +232,25 @@ export default function Sales() {
     }
     setAddingCustom(true);
     try {
-      const result = await addCustomVendorMenuItem(vendorId, {
+      const result = await addCustomProduct({
+        vendorId,
         item_name: customName.trim(),
         custom_selling_price: price,
         sort_order: vendorItems.length,
       });
       if (result.ok) {
+        if (import.meta.env.DEV) console.log("[Sales] Custom item added:", result.id);
         toast.success("Item added");
         setCustomName("");
         setCustomPrice("");
         const list = await getVendorMenuItems(vendorId);
         setVendorItems(list);
       } else {
+        if (import.meta.env.DEV) console.error("[Sales] Add custom item error:", result.error);
         toast.error(result.error ?? "Failed to add item");
       }
-    } catch {
+    } catch (err) {
+      if (import.meta.env.DEV) console.error("[Sales] Add custom item exception:", err);
       toast.error("Failed to add item");
     } finally {
       setAddingCustom(false);
@@ -697,7 +703,7 @@ export default function Sales() {
             <p className="mb-4 text-sm text-muted-foreground">
               You can add menu items one by one (e.g. if you haven&apos;t set a dukaan type or want custom items).
             </p>
-            <div className="flex flex-wrap items-end gap-3">
+            <form onSubmit={handleAddCustomItem} className="flex flex-wrap items-end gap-3">
               <div className="min-w-[140px] flex-1">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Item name</label>
                 <Input
@@ -719,10 +725,10 @@ export default function Sales() {
                   className="bg-background"
                 />
               </div>
-              <Button onClick={handleAddCustomItem} disabled={addingCustom} className="gap-2">
+              <Button type="submit" disabled={addingCustom} className="gap-2">
                 <Plus size={16} /> Add item
               </Button>
-            </div>
+            </form>
           </div>
         )}
 

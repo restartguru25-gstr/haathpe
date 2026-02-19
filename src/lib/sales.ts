@@ -54,9 +54,9 @@ export interface CustomerOrder {
 }
 
 const STALL_TO_SECTOR: Record<string, string> = {
-  "Kirana Store": "a0000002-0002-4000-8000-000000000002",
+  "Kirana Store": "a0000006-0006-4000-8000-000000000006", // New sector for Kirana
   "General Store": "a0000002-0002-4000-8000-000000000002",
-  "Kirana/General Store": "a0000002-0002-4000-8000-000000000002",
+  "Kirana/General Store": "a0000006-0006-4000-8000-000000000006", // Use Kirana sector
   "Tea Stall": "a0000004-0004-4000-8000-000000000004",
   "Tea Stalls": "a0000004-0004-4000-8000-000000000004",
   "Beverage Stalls": "a0000004-0004-4000-8000-000000000004",
@@ -72,8 +72,10 @@ const STALL_TO_SECTOR: Record<string, string> = {
   "Pan Shop": "a0000003-0003-4000-8000-000000000003",
   "Fast Food Carts": "a0000005-0005-4000-8000-000000000005",
   "Fast Food": "a0000005-0005-4000-8000-000000000005",
-  "Hardware Shop": "a0000002-0002-4000-8000-000000000002",
-  "Saloon/Spa": "a0000002-0002-4000-8000-000000000002",
+  "Hardware Shop": "a0000007-0007-4000-8000-000000000007", // New sector for Hardware
+  "Hardware": "a0000007-0007-4000-8000-000000000007",
+  "Saloon/Spa": "a0000008-0008-4000-8000-000000000008", // New sector for Saloon/Spa
+  "Salon/Spa": "a0000008-0008-4000-8000-000000000008",
 };
 
 export function getSectorIdFromStallType(stallType: string | null): string | null {
@@ -99,6 +101,14 @@ export async function getDefaultMenuBySector(sectorId: string): Promise<DefaultM
     .order("sort_order");
   if (error) return [];
   return (data ?? []) as DefaultMenuItem[];
+}
+
+/** Get default menu items filtered by vendor's stall_type (shop-specific defaults). */
+export async function getDefaultMenuByStallType(stallType: string | null): Promise<DefaultMenuItem[]> {
+  if (!stallType) return [];
+  const sectorId = getSectorIdFromStallType(stallType);
+  if (!sectorId) return [];
+  return getDefaultMenuBySector(sectorId);
 }
 
 export async function getVendorMenuItems(vendorId: string): Promise<VendorMenuItem[]> {
