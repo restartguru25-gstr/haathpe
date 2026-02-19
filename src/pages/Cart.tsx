@@ -8,7 +8,7 @@ import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
 import { supabase, createFreshSupabaseClient } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
-import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
+import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus, savePendingOrder } from "@/lib/cashfree";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -65,7 +65,79 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
-      if (typeof window !== "undefined") console.log("[CART] 2. Inserting order into DB (fresh client to avoid auth lock)...");
+
+      const cashfreeOn = isCashfreeConfigured();
+      if (typeof window !== "undefined") console.log("[CART] 2. Cashfree configured:", cashfreeOn);
+
+      if (cashfreeOn) {
+        // Post-payment flow: no DB insert before checkout. Order is inserted on payment success (PaymentReturn).
+        const orderId = crypto.randomUUID();
+        if (typeof window !== "undefined") console.log("[CART] 3. Generated orderId (no DB insert yet):", orderId);
+
+        const items = cart.map((item) => {
+          const unitPriceRupees = getLinePrice(item);
+          return {
+            productId: item.product.id,
+            productName: item.variantLabel
+              ? `${getProductName(item.product, lang)} — ${item.variantLabel}`
+              : getProductName(item.product, lang),
+            qty: item.qty,
+            unitPrice: Math.round(unitPriceRupees),
+            variantId: item.variantId || null,
+            variantLabel: item.variantLabel || null,
+            mrp: item.mrpPaise != null ? Math.round(item.mrpPaise / 100) : null,
+            gstRate: item.gstRate ?? null,
+          };
+        });
+
+        savePendingOrder({
+          orderId,
+          userId,
+          total: Math.round(finalTotal),
+          gstTotal: hasGst ? Math.round(pricing.gstTotal) : null,
+          subtotalBeforeTax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
+          ecoFlag: hasEco,
+          items,
+        });
+        if (typeof window !== "undefined") console.log("[CART] 4. Pending order saved to sessionStorage");
+
+        const returnUrl = `${window.location.origin}/payment/return?order_id=${orderId}`;
+        const sessionRes = await createCashfreeSession({
+          order_id: orderId,
+          order_amount: Math.round(finalTotal),
+          customer_id: userId,
+          return_url: returnUrl,
+          order_note: `Cart order ${orderId} – ₹${finalTotal.toFixed(0)}`,
+        });
+
+        if (!sessionRes.ok) {
+          if (typeof window !== "undefined") console.error("[CART] Backend error or no session_id");
+          const msg = (sessionRes as { error?: string }).error ?? "Payment gateway error.";
+          setPaymentError(msg);
+          toast.error(`${msg} Deploy Edge Function create-cashfree-order and set CASHFREE_APP_ID, CASHFREE_SECRET_KEY in Supabase.`);
+          setPlacing(false);
+          return;
+        }
+
+        if (typeof window !== "undefined") console.log("[CART] 6. Session ID received, launching Cashfree checkout");
+        clearCart();
+        setPlacing(false);
+        setRedirectingToPayment(true);
+        try {
+          await openCashfreeCheckout(sessionRes.payment_session_id);
+        } catch (err) {
+          setRedirectingToPayment(false);
+          const errMsg = err instanceof Error ? err.message : "Could not open payment page";
+          if (typeof window !== "undefined") console.error("[CART] openCashfreeCheckout failed:", err);
+          toast.error(`${errMsg}. Check the link in your orders or browser console.`);
+          setPaymentError(errMsg);
+          navigate("/orders");
+        }
+        return;
+      }
+
+      // Non-Cashfree path: insert order + order_items before notifications/loyalty
+      if (typeof window !== "undefined") console.log("[CART] Non-Cashfree: inserting order into DB...");
       const db = createFreshSupabaseClient();
       const orderPayload = {
         user_id: userId,
@@ -75,35 +147,18 @@ export default function Cart() {
         subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
         eco_flag: hasEco,
       };
-      let order: { id: string } | null = null;
-      let orderError: { message: string; code?: string } | null = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const res = await db.from("orders").insert(orderPayload).select("id").single();
-        orderError = res.error as { message: string; code?: string } | null;
-        order = res.data as { id: string } | null;
-        const isAbort = orderError && (/aborted|AbortError/i.test(orderError.message || ""));
-        if (!orderError || !isAbort) break;
-        if (typeof window !== "undefined") console.warn("[CART] Order insert aborted, retry", attempt, "of 3");
-        await new Promise((r) => setTimeout(r, 500));
+      const orderRes = await db.from("orders").insert(orderPayload).select("id").single();
+      const order = orderRes.data as { id: string } | null;
+      if (orderRes.error || !order?.id) {
+        if (typeof window !== "undefined") console.error("[CART] Order insert failed:", orderRes.error);
+        throw orderRes.error ?? new Error("Order insert failed");
       }
-      if (orderError) {
-        if (typeof window !== "undefined") console.error("[CART] Order insert failed:", orderError.message, orderError.code, orderError);
-        throw orderError;
-      }
-      if (!order?.id) {
-        if (typeof window !== "undefined") console.error("[CART] Order insert returned no id");
-        setPlacing(false);
-        return;
-      }
-      if (typeof window !== "undefined") console.log("[CART] 2b. Order created in DB, id:", order.id);
       const rows = cart.map((item) => {
         const unitPriceRupees = getLinePrice(item);
-        const row: Record<string, unknown> = {
+        return {
           order_id: order.id,
           product_id: item.product.id,
-          product_name: item.variantLabel
-            ? `${getProductName(item.product, lang)} — ${item.variantLabel}`
-            : getProductName(item.product, lang),
+          product_name: item.variantLabel ? `${getProductName(item.product, lang)} — ${item.variantLabel}` : getProductName(item.product, lang),
           qty: item.qty,
           unit_price: Math.round(unitPriceRupees),
           variant_id: item.variantId || null,
@@ -112,58 +167,11 @@ export default function Cart() {
           gst_rate: item.gstRate ?? null,
           discount_amount: null,
         };
-        return row;
       });
-      if (typeof window !== "undefined") console.log("[CART] 2c. Inserting order_items...");
-      let itemsError: { message: string; code?: string } | null = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const res = await db.from("order_items").insert(rows);
-        itemsError = res.error as { message: string; code?: string } | null;
-        const isAbort = itemsError && (/aborted|AbortError/i.test(itemsError.message || ""));
-        if (!itemsError || !isAbort) break;
-        if (typeof window !== "undefined") console.warn("[CART] Order items insert aborted, retry", attempt, "of 3");
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (itemsError) {
-        if (typeof window !== "undefined") console.error("[CART] Order items insert failed:", itemsError.message, itemsError.code);
-        throw itemsError;
-      }
-
-      const cashfreeOn = isCashfreeConfigured();
-      if (typeof window !== "undefined") console.log("[CART] 2d. Cashfree configured:", cashfreeOn);
-      if (cashfreeOn) {
-        const returnUrl = `${window.location.origin}/payment/return?order_id=${order.id}`;
-        const sessionRes = await createCashfreeSession({
-          order_id: order.id,
-          order_amount: Math.round(finalTotal),
-          customer_id: userId,
-          return_url: returnUrl,
-          order_note: `Cart order ${order.id} – ₹${finalTotal.toFixed(0)}`,
-        });
-        if (!sessionRes.ok && typeof window !== "undefined") console.error("[CART] Backend error or no session_id – see step 4 raw body above");
-        if (sessionRes.ok) {
-          if (typeof window !== "undefined") console.log("[CART] 6. Session ID received, length:", sessionRes.payment_session_id?.length);
-          clearCart();
-          setPlacing(false);
-          setRedirectingToPayment(true);
-          try {
-            await openCashfreeCheckout(sessionRes.payment_session_id);
-          } catch (err) {
-            setRedirectingToPayment(false);
-            const errMsg = err instanceof Error ? err.message : "Could not open payment page";
-            if (typeof window !== "undefined") console.error("[CART] openCashfreeCheckout failed:", err);
-            toast.error(`${errMsg}. Check the link in your orders or browser console.`);
-            setPaymentError(errMsg);
-            navigate("/orders");
-          }
-          return;
-        }
-        const msg = (sessionRes as { error?: string }).error ?? "Payment gateway error.";
-        setPaymentError(msg);
-        toast.error(`${msg} Order placed — view in Orders. Deploy Edge Function create-cashfree-order and set CASHFREE_APP_ID, CASHFREE_SECRET_KEY in Supabase.`);
-        navigate("/orders");
-        setPlacing(false);
-        return;
+      const itemsRes = await db.from("order_items").insert(rows);
+      if (itemsRes.error) {
+        if (typeof window !== "undefined") console.error("[CART] Order items insert failed:", itemsRes.error);
+        throw itemsRes.error;
       }
 
       await createNotification(

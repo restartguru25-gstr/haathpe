@@ -33,6 +33,55 @@ export interface CreateSessionParams {
 }
 
 const CASHFREE_SESSION_TIMEOUT_MS = 30000; // 30s to allow Supabase Edge cold start (5–15s after idle)
+const CASHFREE_VERIFY_FUNCTION = import.meta.env.VITE_CASHFREE_VERIFY_FUNCTION ?? "verify-cashfree-payment";
+
+/** Pending order data stored in sessionStorage before redirect; inserted after payment success. */
+export interface PendingOrderData {
+  orderId: string;
+  userId: string;
+  total: number;
+  gstTotal: number | null;
+  subtotalBeforeTax: number | null;
+  ecoFlag: boolean;
+  items: Array<{
+    productId: string;
+    productName: string;
+    qty: number;
+    unitPrice: number;
+    variantId: string | null;
+    variantLabel: string | null;
+    mrp: number | null;
+    gstRate: number | null;
+  }>;
+}
+
+const PENDING_ORDER_KEY = "cf_pending_order";
+
+export function savePendingOrder(data: PendingOrderData): void {
+  try {
+    sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(data));
+  } catch (e) {
+    if (typeof window !== "undefined") console.error("[CASHFREE] savePendingOrder:", e);
+  }
+}
+
+export function getPendingOrder(): PendingOrderData | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_ORDER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PendingOrderData;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingOrder(): void {
+  try {
+    sessionStorage.removeItem(PENDING_ORDER_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Call Edge Function to create Cashfree order and get payment_session_id. Uses 10s timeout to avoid hanging. */
 export async function createCashfreeSession(
@@ -96,6 +145,58 @@ export async function createCashfreeSession(
     const msg = e instanceof Error ? e.message : String(e);
     if (typeof window !== "undefined") console.error("[CART] createCashfreeSession error:", e);
     return { ok: false, error: msg?.slice(0, 200) || "Failed to create payment session" };
+  }
+}
+
+/** Verify payment status via Edge Function (Get Order API). Call when returning from Cashfree. */
+export async function verifyCashfreePayment(orderId: string): Promise<{
+  ok: boolean;
+  paid?: boolean;
+  order_status?: string;
+  error?: string;
+}> {
+  const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${CASHFREE_VERIFY_FUNCTION}?order_id=${encodeURIComponent(orderId)}`;
+  if (typeof window !== "undefined") console.log("[CASHFREE] Verifying payment for order:", orderId);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json, */*;q=0.9",
+        Authorization: `Bearer ${SUPABASE_ANON}`,
+        apikey: SUPABASE_ANON,
+      },
+    });
+    clearTimeout(timeoutId);
+
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      paid?: boolean;
+      order_status?: string;
+      error?: string;
+    };
+
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    }
+    return {
+      ok: true,
+      paid: data.paid ?? data.order_status === "PAID",
+      order_status: data.order_status,
+    };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+    if (name === "AbortError") {
+      return { ok: false, error: "Verification timed out" };
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    if (typeof window !== "undefined") console.error("[CASHFREE] verifyCashfreePayment:", e);
+    return { ok: false, error: msg?.slice(0, 200) ?? "Verification failed" };
   }
 }
 

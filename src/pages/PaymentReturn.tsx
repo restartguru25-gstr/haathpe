@@ -3,8 +3,15 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
-import { supabase } from "@/lib/supabase";
-import { createCashfreeSession, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
+import { supabase, createFreshSupabaseClient } from "@/lib/supabase";
+import {
+  createCashfreeSession,
+  isCashfreeConfigured,
+  getCashfreeConfigStatus,
+  verifyCashfreePayment,
+  getPendingOrder,
+  clearPendingOrder,
+} from "@/lib/cashfree";
 import { awardCoinsForPaidOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
@@ -24,21 +31,87 @@ export default function PaymentReturn() {
       setStatus("error");
       return;
     }
-    getOrderForTracking(orderId)
-      .then((order) => {
-        if (order) {
-          setStatus(order.status === "paid" ? "paid" : "pending");
-          return undefined;
+
+    const run = async () => {
+      // 1) Check if order already exists in DB (e.g. from webhook or legacy flow)
+      const tracked = await getOrderForTracking(orderId);
+      if (tracked) {
+        setStatus(tracked.status === "paid" ? "paid" : "pending");
+        return;
+      }
+      const { data: dbOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).single();
+      if (dbOrder?.status) {
+        setStatus(dbOrder.status === "paid" ? "paid" : "pending");
+        return;
+      }
+
+      // 2) Order not in DB — post-payment flow: verify Cashfree, then insert
+      const verify = await verifyCashfreePayment(orderId);
+      if (!verify.ok) {
+        console.error("[PaymentReturn] Verify failed:", verify.error);
+        setStatus("error");
+        return;
+      }
+      if (!verify.paid) {
+        setStatus("pending");
+        return;
+      }
+
+      // 3) Payment verified: insert order + order_items from pending data
+      const pending = getPendingOrder();
+      if (!pending || pending.orderId !== orderId) {
+        console.error("[PaymentReturn] No pending order for", orderId, "- session may have been lost");
+        setStatus("error");
+        return;
+      }
+
+      const db = createFreshSupabaseClient();
+      const orderPayload = {
+        id: orderId,
+        user_id: pending.userId,
+        total: pending.total,
+        status: "paid",
+        gst_total: pending.gstTotal,
+        subtotal_before_tax: pending.subtotalBeforeTax,
+        eco_flag: pending.ecoFlag,
+      };
+      const { error: orderErr } = await db.from("orders").insert(orderPayload);
+      if (orderErr) {
+        if (orderErr.code === "23505") {
+          // Already inserted (race with webhook?) — treat as paid
+          setStatus("paid");
+          clearPendingOrder();
+          return;
         }
-        return supabase.from("orders").select("id, status").eq("id", orderId).single();
-      })
-      .then((res) => {
-        if (res === undefined) return;
-        const data = (res as { data?: { status?: string } | null }).data;
-        if (data?.status) setStatus(data.status === "paid" ? "paid" : "pending");
-        else setStatus("error");
-      })
-      .catch(() => setStatus("error"));
+        console.error("[PaymentReturn] Order insert failed:", orderErr);
+        setStatus("error");
+        return;
+      }
+
+      const itemRows = pending.items.map((item) => ({
+        order_id: orderId,
+        product_id: item.productId,
+        product_name: item.productName,
+        qty: item.qty,
+        unit_price: item.unitPrice,
+        variant_id: item.variantId,
+        variant_label: item.variantLabel,
+        mrp: item.mrp,
+        gst_rate: item.gstRate,
+        discount_amount: null,
+      }));
+      const { error: itemsErr } = await db.from("order_items").insert(itemRows);
+      if (itemsErr) {
+        console.error("[PaymentReturn] Order items insert failed:", itemsErr);
+        setStatus("error");
+        return;
+      }
+
+      clearPendingOrder();
+      setStatus("paid");
+    };
+
+    run().catch(() => setStatus("error"));
   }, [orderId]);
 
   useEffect(() => {
