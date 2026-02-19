@@ -253,6 +253,7 @@ export default function Profile() {
       setEditOpen(false);
       toast.success(t("profileUpdated"));
     } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") return;
       const err = e as { message?: string; code?: string; details?: string };
       const msg = err?.message ?? "Could not update profile. Try again.";
       if (typeof window !== "undefined") {
@@ -537,16 +538,21 @@ export default function Profile() {
                       checked={rawProfile?.is_online !== false}
                       onCheckedChange={async (checked) => {
                         if (!user?.id) return;
-                        const { error } = await supabase
-                          .from("profiles")
-                          .update({ is_online: checked })
-                          .eq("id", user.id);
-                        if (error) {
+                        try {
+                          const { error } = await supabase
+                            .from("profiles")
+                            .update({ is_online: checked })
+                            .eq("id", user.id);
+                          if (error) {
+                            toast.error("Could not update");
+                            return;
+                          }
+                          await refreshProfile();
+                          toast.success(checked ? "Online orders enabled" : "Online orders disabled");
+                        } catch (e) {
+                          if (e instanceof Error && e.name === "AbortError") return;
                           toast.error("Could not update");
-                          return;
                         }
-                        await refreshProfile();
-                        toast.success(checked ? "Online orders enabled" : "Online orders disabled");
                       }}
                     />
                   </div>
@@ -1083,6 +1089,7 @@ export default function Profile() {
                   setShopTimingsOpen(false);
                   toast.success(t("profileUpdated"));
                 } catch (e) {
+                  if (e instanceof Error && e.name === "AbortError") return;
                   toast.error("Could not save. Try again.");
                 } finally {
                   setSavingShop(false);
@@ -1142,16 +1149,21 @@ export default function Profile() {
                     type="button"
                     onClick={async () => {
                       if (!user?.id) return;
-                      const { error } = await supabase
-                        .from("profiles")
-                        .update({ alert_volume: level })
-                        .eq("id", user.id);
-                      if (error) {
+                      try {
+                        const { error } = await supabase
+                          .from("profiles")
+                          .update({ alert_volume: level })
+                          .eq("id", user.id);
+                        if (error) {
+                          toast.error("Could not update");
+                          return;
+                        }
+                        await refreshProfile();
+                        toast.success("Saved");
+                      } catch (e) {
+                        if (e instanceof Error && e.name === "AbortError") return;
                         toast.error("Could not update");
-                        return;
                       }
-                      await refreshProfile();
-                      toast.success("Saved");
                     }}
                     className={`rounded-lg px-3 py-2 text-sm font-medium capitalize ${
                       (rawProfile as { alert_volume?: string } | null)?.alert_volume === level
