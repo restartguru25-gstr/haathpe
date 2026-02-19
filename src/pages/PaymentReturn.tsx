@@ -142,10 +142,14 @@ export default function PaymentReturn() {
                   onClick={async () => {
                     setTestingGateway(true);
                     try {
+                      const origin = window.location.origin;
+                      const returnUrl = origin.startsWith("https://")
+                        ? `${origin}/payment/return`
+                        : "https://example.com/payment/return";
                       const res = await createCashfreeSession({
                         order_id: `test-${Date.now()}`,
                         order_amount: 1,
-                        return_url: `${window.location.origin}/payment/return`,
+                        return_url: returnUrl,
                       });
                       if (res.ok) {
                         toast.success("Cashfree is working. You received a payment session ID.");

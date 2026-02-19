@@ -65,7 +65,7 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
-      if (typeof window !== "undefined") console.log("[CART] 2. Sending request: create order in DB, then Cashfree session");
+      if (typeof window !== "undefined") console.log("[CART] 2. Inserting order into DB...");
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -78,8 +78,12 @@ export default function Cart() {
         })
         .select("id")
         .single();
-      if (orderError) throw orderError;
+      if (orderError) {
+        if (typeof window !== "undefined") console.error("[CART] Order insert failed:", orderError.message, orderError.code, orderError);
+        throw orderError;
+      }
       if (!order?.id) {
+        if (typeof window !== "undefined") console.error("[CART] Order insert returned no id");
         setPlacing(false);
         return;
       }
@@ -102,11 +106,15 @@ export default function Cart() {
         };
         return row;
       });
+      if (typeof window !== "undefined") console.log("[CART] 2c. Inserting order_items...");
       const { error: itemsError } = await supabase.from("order_items").insert(rows);
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        if (typeof window !== "undefined") console.error("[CART] Order items insert failed:", itemsError.message, itemsError.code);
+        throw itemsError;
+      }
 
       const cashfreeOn = isCashfreeConfigured();
-      if (typeof window !== "undefined") console.log("[CART] 2c. Cashfree configured:", cashfreeOn);
+      if (typeof window !== "undefined") console.log("[CART] 2d. Cashfree configured:", cashfreeOn);
       if (cashfreeOn) {
         const returnUrl = `${window.location.origin}/payment/return?order_id=${order.id}`;
         const sessionRes = await createCashfreeSession({
