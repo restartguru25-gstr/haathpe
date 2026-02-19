@@ -222,11 +222,13 @@ export default function Profile() {
   };
 
   const handleSaveProfile = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      toast.error("Not signed in. Please log in again.");
+      return;
+    }
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = {
-        id: user.id,
+      const payload = {
         name: (editForm.name || "").trim() || null,
         stall_type: (editForm.stallType || "").trim() || null,
         stall_address: (editForm.stallAddress || "").trim() || null,
@@ -242,7 +244,8 @@ export default function Profile() {
       };
       const { error } = await supabase
         .from("profiles")
-        .upsert(payload, { onConflict: "id" })
+        .update(payload)
+        .eq("id", user.id)
         .select("id")
         .single();
       if (error) throw error;
@@ -250,9 +253,11 @@ export default function Profile() {
       setEditOpen(false);
       toast.success(t("profileUpdated"));
     } catch (e: unknown) {
-      const err = e as { message?: string; code?: string };
+      const err = e as { message?: string; code?: string; details?: string };
       const msg = err?.message ?? "Could not update profile. Try again.";
-      if (typeof window !== "undefined") console.error("[Profile] Save failed:", err);
+      if (typeof window !== "undefined") {
+        console.error("[Profile] Save failed:", { message: err?.message, code: err?.code, details: err?.details });
+      }
       toast.error(msg);
     } finally {
       setSaving(false);

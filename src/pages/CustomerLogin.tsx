@@ -26,11 +26,12 @@ export default function CustomerLogin() {
   const [step, setStep] = useState<"choice" | "phone" | "otp" | "mpin-create" | "mpin-signin">("choice");
   const [loading, setLoading] = useState(false);
 
-  const fullPhone = phone.trim() ? `${PHONE_PREFIX}${phone.trim().replace(/^\d+/, "").replace(/\D/g, "")}` : "";
-  const isValidPhone = /^\d{10}$/.test(phone.replace(/\D/g, ""));
+  const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+  const fullPhone = phoneDigits.length === 10 ? `${PHONE_PREFIX}${phoneDigits}` : "";
+  const isValidPhone = phoneDigits.length === 10;
 
   const handleSendOtp = async () => {
-    const digits = phone.replace(/\D/g, "");
+    const digits = phone.replace(/\D/g, "").slice(-10);
     if (digits.length !== 10) {
       toast.error(t("customerLoginInvalidPhone"));
       return;
@@ -98,7 +99,7 @@ export default function CustomerLogin() {
   };
 
   const handleMpinSignIn = async () => {
-    const digits = phone.replace(/\D/g, "");
+    const digits = phone.replace(/\D/g, "").slice(-10);
     if (digits.length !== 10) {
       toast.error(t("customerLoginInvalidPhone"));
       return;
@@ -172,7 +173,7 @@ export default function CustomerLogin() {
                   placeholder="9876543210"
                   maxLength={10}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(-10))}
                   className="border-0 rounded-none focus-visible:ring-0"
                 />
               </div>
@@ -288,7 +289,7 @@ export default function CustomerLogin() {
                   placeholder="9876543210"
                   maxLength={10}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(-10))}
                   className="border-0 rounded-none focus-visible:ring-0"
                 />
               </div>

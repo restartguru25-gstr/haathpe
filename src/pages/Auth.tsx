@@ -47,7 +47,7 @@ export default function Auth() {
   if (isAuthenticated) return null;
 
   const formatPhone = (v: string) => {
-    const digits = v.replace(/\D/g, "").slice(0, 10);
+    const digits = v.replace(/\D/g, "").slice(-10);
     if (digits.length === 0) return "";
     if (digits.length <= 5) return `+91 ${digits}`;
     return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
@@ -58,7 +58,7 @@ export default function Auth() {
       toast.error("Please accept the Terms & Conditions and Privacy Policy to continue.");
       return;
     }
-    const digits = phone.replace(/\D/g, "");
+    const digits = phone.replace(/\D/g, "").slice(-10);
     if (digits.length !== 10) {
       toast.error("Enter a valid 10-digit Indian phone number");
       return;
@@ -155,7 +155,7 @@ export default function Auth() {
   };
 
   const handleMpinSignIn = async () => {
-    const digits = phone.replace(/\D/g, "");
+    const digits = phone.replace(/\D/g, "").slice(-10);
     if (digits.length !== 10) {
       toast.error("Enter a valid 10-digit phone number");
       return;
@@ -419,7 +419,7 @@ export default function Auth() {
                 <Input
                   placeholder="98765 43210"
                   value={formatPhone(phone)}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(-10))}
                   className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
                   maxLength={16}
                   autoFocus
@@ -650,7 +650,7 @@ export default function Auth() {
                 <Input
                   placeholder="98765 43210"
                   value={formatPhone(phone)}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(-10))}
                   className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
                   maxLength={16}
                 />
