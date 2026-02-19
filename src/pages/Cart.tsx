@@ -6,7 +6,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
 import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
-import { supabase } from "@/lib/supabase";
+import { supabase, createFreshSupabaseClient } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
 import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus } from "@/lib/cashfree";
 import { Link, useNavigate } from "react-router-dom";
@@ -65,19 +65,27 @@ export default function Cart() {
         setPlacing(false);
         return;
       }
-      if (typeof window !== "undefined") console.log("[CART] 2. Inserting order into DB...");
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          total: Math.round(finalTotal),
-          status: "pending",
-          gst_total: hasGst ? Math.round(pricing.gstTotal) : null,
-          subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
-          eco_flag: hasEco,
-        })
-        .select("id")
-        .single();
+      if (typeof window !== "undefined") console.log("[CART] 2. Inserting order into DB (fresh client to avoid auth lock)...");
+      const db = createFreshSupabaseClient();
+      const orderPayload = {
+        user_id: userId,
+        total: Math.round(finalTotal),
+        status: "pending",
+        gst_total: hasGst ? Math.round(pricing.gstTotal) : null,
+        subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
+        eco_flag: hasEco,
+      };
+      let order: { id: string } | null = null;
+      let orderError: { message: string; code?: string } | null = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const res = await db.from("orders").insert(orderPayload).select("id").single();
+        orderError = res.error as { message: string; code?: string } | null;
+        order = res.data as { id: string } | null;
+        const isAbort = orderError && (/aborted|AbortError/i.test(orderError.message || ""));
+        if (!orderError || !isAbort) break;
+        if (typeof window !== "undefined") console.warn("[CART] Order insert aborted, retry", attempt, "of 3");
+        await new Promise((r) => setTimeout(r, 500));
+      }
       if (orderError) {
         if (typeof window !== "undefined") console.error("[CART] Order insert failed:", orderError.message, orderError.code, orderError);
         throw orderError;
@@ -107,7 +115,15 @@ export default function Cart() {
         return row;
       });
       if (typeof window !== "undefined") console.log("[CART] 2c. Inserting order_items...");
-      const { error: itemsError } = await supabase.from("order_items").insert(rows);
+      let itemsError: { message: string; code?: string } | null = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const res = await db.from("order_items").insert(rows);
+        itemsError = res.error as { message: string; code?: string } | null;
+        const isAbort = itemsError && (/aborted|AbortError/i.test(itemsError.message || ""));
+        if (!itemsError || !isAbort) break;
+        if (typeof window !== "undefined") console.warn("[CART] Order items insert aborted, retry", attempt, "of 3");
+        await new Promise((r) => setTimeout(r, 500));
+      }
       if (itemsError) {
         if (typeof window !== "undefined") console.error("[CART] Order items insert failed:", itemsError.message, itemsError.code);
         throw itemsError;
