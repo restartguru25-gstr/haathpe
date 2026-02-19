@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -61,6 +62,7 @@ export default function ReviewModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("reviewModalTitle")}</DialogTitle>
+          <DialogDescription>Rate your order and optionally leave a review.</DialogDescription>
         </DialogHeader>
         {vendorName && (
           <p className="text-sm text-muted-foreground">{vendorName}</p>

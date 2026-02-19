@@ -1,16 +1,11 @@
-/**
- * Creates a Cashfree PG order and returns payment_session_id for client-side checkout.
- * API: https://www.cashfree.com/docs/api-reference/payments/previous/v2023-08-01/orders/create
- * Sandbox: https://sandbox.cashfree.com/pg/orders | Production: https://api.cashfree.com/pg/orders
- * Deploy: supabase functions deploy create-cashfree-order
- * Set secrets: CASHFREE_APP_ID, CASHFREE_SECRET_KEY (Supabase Dashboard → Edge Functions → Secrets).
- * Default: production (https://api.cashfree.com/pg/orders). For sandbox set CASHFREE_ENV=sandbox.
- */
+// Creates Cashfree PG order and returns payment_session_id for client-side checkout.
+// Deploy: supabase functions deploy create-cashfree-order
+// Secrets: CASHFREE_APP_ID, CASHFREE_SECRET_KEY. For sandbox set CASHFREE_ENV=sandbox.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const CASHFREE_SANDBOX = "https://sandbox.cashfree.com/pg";
-const CASHFREE_PROD = "https://api.cashfree.com/pg"; // Production – NOT sandbox
+const CASHFREE_PROD = "https://api.cashfree.com/pg";
 const API_VERSION = "2023-08-01";
 
 const cors = {
@@ -86,6 +81,7 @@ serve(async (req) => {
     const res = await fetch(ordersUrl, {
       method: "POST",
       headers: {
+        "Accept": "application/json",
         "Content-Type": "application/json",
         "x-api-version": API_VERSION,
         "x-client-id": appId,

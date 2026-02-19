@@ -49,7 +49,7 @@ export async function createCashfreeSession(
       method: "POST",
       signal: controller.signal,
       headers: {
-        "Accept": "application/json",
+        "Accept": "application/json, */*;q=0.9",
         "Content-Type": "application/json",
         Authorization: `Bearer ${SUPABASE_ANON}`,
         apikey: SUPABASE_ANON,
@@ -65,6 +65,7 @@ export async function createCashfreeSession(
       const errText = await res.text();
       if (typeof window !== "undefined") console.log("[CART] 4. Raw response body:", errText);
       if (typeof window !== "undefined") console.error("[CART] Order creation failed – status:", res.status, "body:", errText);
+      if (res.status === 406 && typeof window !== "undefined") console.error("[CART] 406 Not Acceptable – check Edge Function is deployed and URL is correct. Redeploy: supabase functions deploy create-cashfree-order");
       let errMsg: string;
       try {
         const d = JSON.parse(errText) as { error?: string; message?: string };

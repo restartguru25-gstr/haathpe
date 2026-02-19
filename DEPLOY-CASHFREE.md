@@ -15,7 +15,7 @@ The frontend calls this URL (with `Authorization` and `apikey` headers) from `sr
 | **Backend route wrong** | We do **not** use `https://haathpe.com/api/create-cashfree-order`. We use the **Supabase Edge Function** URL. In the browser console, step 2/3 will show the real URL (e.g. `https://xxx.supabase.co/functions/v1/create-cashfree-order`). If that returns 404, deploy the function (Option A or B below). |
 | **Vercel env vars** | Only **client** vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_CASHFREE_APP_ID`, `VITE_CASHFREE_MODE=production`. Do **not** put `CASHFREE_SECRET_KEY` in Vercel (it must stay in Supabase secrets). |
 | **Supabase secrets** | Dashboard → Edge Functions → Secrets: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, and optionally `CASHFREE_ENV=production`. |
-| **Fetch aborted / CORS** | Console logs 1–9 show where it stops. If it stops at step 3 with no "4. Raw response body", the request was aborted or blocked (timeout, CORS, or network). |
+| **Fetch aborted / CORS** | Console logs 1–9 show where it stops. If it stops at step 3 with no "4. Raw response body", the request was aborted or blocked (timeout, CORS, or network). Ensure **Verify JWT** is **OFF** for `create-cashfree-order` (Supabase → Edge Functions → create-cashfree-order → Function config). |
 | **Backend 500** | Check Supabase Dashboard → Edge Functions → create-cashfree-order → Logs. Fix payload or missing env (e.g. Cashfree keys). |
 
 **Test the backend manually (Postman or curl):**
