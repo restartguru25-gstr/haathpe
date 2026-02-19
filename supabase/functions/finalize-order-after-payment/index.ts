@@ -14,10 +14,10 @@ const CASHFREE_PROD = "https://api.cashfree.com/pg";
 const API_VERSION = "2023-08-01";
 
 const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://www.haathpe.com", // or "*" for testing
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Max-Age": "86400",
+  "Access-Control-Max-Age": "86400", // Cache preflight 24 hours
 };
 
 function jsonResponse(obj: unknown, status = 200) {
@@ -29,7 +29,7 @@ function jsonResponse(obj: unknown, status = 200) {
 
 /** CORS preflight — must return 200 for browser to allow actual request. JWT must be disabled on this function. */
 function corsPreflight() {
-  return new Response("ok", { status: 200, headers: corsHeaders });
+  return new Response(null, { status: 200, headers: corsHeaders });
 }
 
 async function verifyCashfreePaid(orderId: string): Promise<boolean> {
