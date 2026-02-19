@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
-import { supabase, createFreshSupabaseClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import {
   createCashfreeSession,
   isCashfreeConfigured,
@@ -11,6 +11,7 @@ import {
   verifyCashfreePayment,
   getPendingOrder,
   clearPendingOrder,
+  finalizeOrderAfterPayment,
 } from "@/lib/cashfree";
 import { awardCoinsForPaidOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ export default function PaymentReturn() {
   const [congrats, setCongrats] = useState<{ coins: number; cashback: number } | null>(null);
   const [showCongratsOverlay, setShowCongratsOverlay] = useState(false);
   const awardCalled = useRef(false);
+  const finalizedByServer = useRef(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -57,7 +59,7 @@ export default function PaymentReturn() {
         return;
       }
 
-      // 3) Payment verified: insert order + order_items from pending data
+      // 3) Payment verified: finalize server-side (avoids client AbortError)
       const pending = getPendingOrder();
       if (!pending || pending.orderId !== orderId) {
         console.error("[PaymentReturn] No pending order for", orderId, "- session may have been lost");
@@ -65,57 +67,27 @@ export default function PaymentReturn() {
         return;
       }
 
-      const db = createFreshSupabaseClient();
-      const orderPayload = {
-        id: orderId,
-        user_id: pending.userId,
-        total: pending.total,
-        status: "paid",
-        gst_total: pending.gstTotal,
-        subtotal_before_tax: pending.subtotalBeforeTax,
-        eco_flag: pending.ecoFlag,
-      };
-      const { error: orderErr } = await db.from("orders").insert(orderPayload);
-      if (orderErr) {
-        if (orderErr.code === "23505") {
-          // Already inserted (race with webhook?) — treat as paid
-          setStatus("paid");
-          clearPendingOrder();
-          return;
-        }
-        console.error("[PaymentReturn] Order insert failed:", orderErr);
-        setStatus("error");
-        return;
-      }
-
-      const itemRows = pending.items.map((item) => ({
-        order_id: orderId,
-        product_id: item.productId,
-        product_name: item.productName,
-        qty: item.qty,
-        unit_price: item.unitPrice,
-        variant_id: item.variantId,
-        variant_label: item.variantLabel,
-        mrp: item.mrp,
-        gst_rate: item.gstRate,
-        discount_amount: null,
-      }));
-      const { error: itemsErr } = await db.from("order_items").insert(itemRows);
-      if (itemsErr) {
-        console.error("[PaymentReturn] Order items insert failed:", itemsErr);
+      const finalize = await finalizeOrderAfterPayment(pending);
+      if (!finalize.ok) {
+        console.error("[PaymentReturn] Finalize failed:", finalize.error);
         setStatus("error");
         return;
       }
 
       clearPendingOrder();
+      finalizedByServer.current = true;
       setStatus("paid");
+      if (finalize.coins != null || finalize.cashback != null) {
+        setCongrats({ coins: finalize.coins ?? 2, cashback: finalize.cashback ?? 2 });
+        setShowCongratsOverlay(true);
+      }
     };
 
     run().catch(() => setStatus("error"));
   }, [orderId]);
 
   useEffect(() => {
-    if (status !== "paid" || !orderId || awardCalled.current) return;
+    if (status !== "paid" || !orderId || awardCalled.current || finalizedByServer.current) return;
     awardCalled.current = true;
     awardCoinsForPaidOrder(orderId)
       .then((res) => {

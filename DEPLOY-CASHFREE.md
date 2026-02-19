@@ -58,6 +58,7 @@ Enter the database password if prompted (from Supabase Dashboard → Project Set
 ```bash
 npx supabase functions deploy create-cashfree-order --no-verify-jwt
 npx supabase functions deploy verify-cashfree-payment --no-verify-jwt
+npx supabase functions deploy finalize-order-after-payment --no-verify-jwt
 npx supabase functions deploy cashfree-webhook --no-verify-jwt
 ```
 
@@ -65,7 +66,8 @@ npx supabase functions deploy cashfree-webhook --no-verify-jwt
 
 - In **Supabase Dashboard** → your project → **Edge Functions**, you should see:
   - `create-cashfree-order`
-  - `verify-cashfree-payment` (used by PaymentReturn to confirm payment before DB insert)
+  - `verify-cashfree-payment` (confirms payment via Cashfree API)
+  - `finalize-order-after-payment` (server-side order insert + coins — avoids client AbortError)
   - `cashfree-webhook`
 - In your app, open **http://localhost:8080/payment/return** and click **Test Cashfree connection**. You should get a success or a clear error message.
 

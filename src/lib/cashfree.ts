@@ -34,6 +34,7 @@ export interface CreateSessionParams {
 
 const CASHFREE_SESSION_TIMEOUT_MS = 30000; // 30s to allow Supabase Edge cold start (5–15s after idle)
 const CASHFREE_VERIFY_FUNCTION = import.meta.env.VITE_CASHFREE_VERIFY_FUNCTION ?? "verify-cashfree-payment";
+const CASHFREE_FINALIZE_FUNCTION = import.meta.env.VITE_CASHFREE_FINALIZE_FUNCTION ?? "finalize-order-after-payment";
 
 /** Pending order data stored in sessionStorage before redirect; inserted after payment success. */
 export interface PendingOrderData {
@@ -145,6 +146,56 @@ export async function createCashfreeSession(
     const msg = e instanceof Error ? e.message : String(e);
     if (typeof window !== "undefined") console.error("[CART] createCashfreeSession error:", e);
     return { ok: false, error: msg?.slice(0, 200) || "Failed to create payment session" };
+  }
+}
+
+/** Finalize order via Edge Function (server-side insert + award coins). Avoids client AbortError. */
+export async function finalizeOrderAfterPayment(
+  pending: PendingOrderData
+): Promise<{ ok: boolean; coins?: number; cashback?: number; error?: string }> {
+  const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${CASHFREE_FINALIZE_FUNCTION}`;
+  if (typeof window !== "undefined") console.log("[CASHFREE] Finalizing order server-side:", pending.orderId);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_ANON}`,
+        apikey: SUPABASE_ANON,
+      },
+      body: JSON.stringify(pending),
+    });
+    clearTimeout(timeoutId);
+
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      coins?: number;
+      cashback?: number;
+      error?: string;
+    };
+
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    }
+    return {
+      ok: data.ok ?? false,
+      coins: data.coins,
+      cashback: data.cashback,
+      error: data.error,
+    };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+    if (name === "AbortError") return { ok: false, error: "Finalize timed out" };
+    const msg = e instanceof Error ? e.message : String(e);
+    if (typeof window !== "undefined") console.error("[CASHFREE] finalizeOrderAfterPayment:", e);
+    return { ok: false, error: msg?.slice(0, 200) ?? "Finalize failed" };
   }
 }
 
