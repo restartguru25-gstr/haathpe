@@ -1,19 +1,22 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Phone, Mail, ArrowLeft, Lock } from "lucide-react";
+import { Phone, Mail, ArrowLeft, Lock, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PasswordInput } from "@/components/ui/password-input";
+import { MPINInput } from "@/components/ui/mpin-input";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/AuthContext";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { setMyReferrer } from "@/lib/incentives";
+import { setMpinAfterOtp, signInWithMpin } from "@/lib/mpin";
 
-type AuthStep = "method" | "phone" | "otp" | "magic" | "sent" | "password";
+type AuthStep = "method" | "phone" | "otp" | "magic" | "sent" | "password" | "mpin-create" | "mpin-signin";
 type EmailPasswordMode = "signin" | "signup";
 
 export default function Auth() {
@@ -29,6 +32,8 @@ export default function Auth() {
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mpin, setMpin] = useState("");
+  const [mpinConfirm, setMpinConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -108,11 +113,71 @@ export default function Auth() {
         toast.error(error.message);
         return;
       }
-      toast.success("Signed in!");
-      navigate(nextPath, { replace: true });
+      toast.success("Signed in! Create MPIN for next time.");
+      setStep("mpin-create");
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
       toast.error("Invalid OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMpinCreate = async () => {
+    const digits = mpin.replace(/\D/g, "").slice(0, 4);
+    const confirmDigits = mpinConfirm.replace(/\D/g, "").slice(0, 4);
+    if (digits.length !== 4) {
+      toast.error("Enter a 4-digit MPIN");
+      return;
+    }
+    if (digits !== confirmDigits) {
+      toast.error(t("mpinMismatch"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await setMpinAfterOtp(digits);
+      if (result.ok) {
+        toast.success(t("mpinSetSuccess"));
+        navigate(nextPath, { replace: true });
+      } else {
+        toast.error(result.error ?? "Failed to set MPIN");
+      }
+    } catch (e) {
+      toast.error("Failed to set MPIN. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMpinSkip = () => {
+    navigate(nextPath, { replace: true });
+  };
+
+  const handleMpinSignIn = async () => {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length !== 10) {
+      toast.error("Enter a valid 10-digit phone number");
+      return;
+    }
+    const mpinDigits = mpin.replace(/\D/g, "").slice(0, 4);
+    if (mpinDigits.length !== 4) {
+      toast.error("Enter your 4-digit MPIN");
+      return;
+    }
+    const fullPhone = `+91${digits}`;
+    setLoading(true);
+    try {
+      const result = await signInWithMpin(fullPhone, mpinDigits);
+      if (result.ok) {
+        if (refId) await setMyReferrer(refId);
+        toast.success("Signed in!");
+        navigate(nextPath, { replace: true });
+      } else {
+        toast.error(t("mpinInvalid"));
+      }
+    } catch (e) {
+      toast.error(t("mpinInvalid"));
     } finally {
       setLoading(false);
     }
@@ -254,14 +319,22 @@ export default function Auth() {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mb-1">
-              {step === "password"
-                ? emailPasswordMode === "signup"
-                  ? "Sign up"
-                  : "Sign in"
-                : "Sign in / Sign up"}
+              {step === "mpin-create"
+                ? t("mpinCreateTitle")
+                : step === "mpin-signin"
+                  ? t("mpinSignInTitle")
+                  : step === "password"
+                    ? emailPasswordMode === "signup"
+                      ? "Sign up"
+                      : "Sign in"
+                    : "Sign in / Sign up"}
             </h1>
             <p className="mb-6 text-muted-foreground text-sm">
-              {step === "password"
+              {step === "mpin-create"
+                ? t("mpinCreateSubtitle")
+                : step === "mpin-signin"
+                  ? t("mpinSignInSubtitle")
+                  : step === "password"
                 ? emailPasswordMode === "signup"
                   ? "Create an account with your email and password."
                   : "Enter your email and password to sign in."
@@ -301,6 +374,19 @@ export default function Auth() {
                 <div>
                   <span className="font-semibold text-foreground block">Magic Link</span>
                   <span className="text-xs text-muted-foreground">We’ll email you a one-click sign-in link</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep("mpin-signin")}
+                className="w-full flex items-center gap-4 rounded-xl border-2 border-border bg-card p-4 text-left transition-all hover:border-primary/30 hover:shadow-md hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <KeyRound size={22} className="text-primary" />
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground block">{t("mpinSignIn")}</span>
+                  <span className="text-xs text-muted-foreground">{t("mpinSignInSubtitle")}</span>
                 </div>
               </button>
               <button
@@ -475,8 +561,7 @@ export default function Auth() {
               </div>
               <div>
                 <label className="text-sm font-semibold text-foreground">Password</label>
-                <Input
-                  type="password"
+                <PasswordInput
                   placeholder={emailPasswordMode === "signup" ? "Min 6 characters" : "••••••••"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -503,6 +588,92 @@ export default function Auth() {
                 </Button>
                 <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handleEmailPasswordSubmit} disabled={loading || !termsAccepted}>
                   {loading ? (emailPasswordMode === "signup" ? "Creating…" : "Signing in…") : emailPasswordMode === "signup" ? "Sign up" : "Sign in"}
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === "mpin-create" && (
+            <motion.div
+              key="mpin-create"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="space-y-4"
+            >
+              <p className="text-sm text-muted-foreground">{t("mpinCreateTitle")}</p>
+              <p className="text-xs text-muted-foreground mb-2">{t("mpinCreateSubtitle")}</p>
+              <div>
+                <label className="text-sm font-semibold text-foreground">{t("mpinPlaceholder")}</label>
+                <MPINInput
+                  value={mpin}
+                  onChange={setMpin}
+                  placeholder={t("mpinPlaceholder")}
+                  className="mt-1.5 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground">{t("mpinConfirmPlaceholder")}</label>
+                <MPINInput
+                  value={mpinConfirm}
+                  onChange={setMpinConfirm}
+                  placeholder={t("mpinConfirmPlaceholder")}
+                  className="mt-1.5 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={handleMpinSkip} className="rounded-lg">
+                  Skip for now
+                </Button>
+                <Button
+                  className="flex-1 rounded-lg h-11 font-semibold"
+                  onClick={handleMpinCreate}
+                  disabled={loading || mpin.replace(/\D/g, "").length !== 4 || mpinConfirm.replace(/\D/g, "").length !== 4}
+                >
+                  {loading ? "Setting…" : "Set MPIN"}
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === "mpin-signin" && (
+            <motion.div
+              key="mpin-signin"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="space-y-4"
+            >
+              <p className="text-sm text-muted-foreground">{t("mpinSignInSubtitle")}</p>
+              <div>
+                <label className="text-sm font-semibold text-foreground">Phone number</label>
+                <Input
+                  placeholder="98765 43210"
+                  value={formatPhone(phone)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30 mt-1"
+                  maxLength={16}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground">{t("mpinEnter")}</label>
+                <MPINInput
+                  value={mpin}
+                  onChange={setMpin}
+                  placeholder={t("mpinPlaceholder")}
+                  className="mt-1.5 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => { setStep("method"); setMpin(""); }} className="rounded-lg">
+                  Back
+                </Button>
+                <Button
+                  className="flex-1 rounded-lg h-11 font-semibold"
+                  onClick={handleMpinSignIn}
+                  disabled={loading || phone.replace(/\D/g, "").length !== 10 || mpin.replace(/\D/g, "").length !== 4}
+                >
+                  {loading ? "Signing in…" : t("mpinSignIn")}
                 </Button>
               </div>
             </motion.div>
