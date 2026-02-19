@@ -56,17 +56,17 @@ export default function AppLayout() {
           filter: `vendor_id=eq.${user.id}`,
         },
         (payload) => {
-          const row = payload.new as { status?: string };
-          if (row?.status !== "paid") toast.success("New order!");
+          try {
+            const row = payload.new as { status?: string };
+            if (row?.status !== "paid") toast.success("New order!");
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
         }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [user?.id]);
 
@@ -83,19 +83,19 @@ export default function AppLayout() {
           filter: `vendor_id=eq.${user.id}`,
         },
         (payload) => {
-          const row = payload.new as { earned_amount?: number; slab_type?: string };
-          const amount = Number(row?.earned_amount ?? 0);
-          const type = row?.slab_type ?? "incentive";
-          toast.success(`New incentive earned! ₹${amount} (${type})`);
+          try {
+            const row = payload.new as { earned_amount?: number; slab_type?: string };
+            const amount = Number(row?.earned_amount ?? 0);
+            const type = row?.slab_type ?? "incentive";
+            toast.success(`New incentive earned! ₹${amount} (${type})`);
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
         }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [user?.id]);
 

@@ -87,17 +87,13 @@ export default function PublicMenu() {
             const newRow = payload.new as { opening_hours?: Record<string, string>; weekly_off?: string; holidays?: string[]; is_online?: boolean };
             setShopDetails({ opening_hours: newRow.opening_hours, weekly_off: newRow.weekly_off, holidays: newRow.holidays, is_online: newRow.is_online });
           } catch (e) {
-            if ((e as Error)?.name !== "AbortError") throw e;
+            if ((e as Error)?.name !== "AbortError") console.error(e);
           }
         }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [vendorId]);
 

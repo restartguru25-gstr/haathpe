@@ -42,15 +42,17 @@ export default function OrderTracking() {
           table: "customer_orders",
           filter: `id=eq.${orderId}`,
         },
-        () => loadOrder()
+        () => {
+          try {
+            loadOrder();
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
+        }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [orderId]);
 

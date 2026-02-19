@@ -44,15 +44,17 @@ export default function CustomerOrders() {
           table: "customer_orders",
           filter: `customer_phone=eq.${encodeURIComponent(customer.phone)}`,
         },
-        () => loadOrders()
+        () => {
+          try {
+            loadOrders();
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
+        }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [customer?.phone, loadOrders]);
 

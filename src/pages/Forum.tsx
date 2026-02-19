@@ -76,23 +76,29 @@ export default function Forum() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "forum_topics" },
-        () => loadTopics()
+        () => {
+          try {
+            loadTopics();
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
+        }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "forum_replies" },
         () => {
-          loadTopics();
-          if (selectedTopic) loadReplies(selectedTopic.id);
+          try {
+            loadTopics();
+            if (selectedTopic) loadReplies(selectedTopic.id);
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
         }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [loadTopics, loadReplies, selectedTopic]);
 

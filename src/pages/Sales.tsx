@@ -146,8 +146,12 @@ export default function Sales() {
           filter: `vendor_id=eq.${vendorId}`,
         },
         () => {
-          getCustomerOrders(vendorId, { limit: 20 }).then(setCustomerOrders);
-          getVendorReviews(vendorId).then(setReviews);
+          try {
+            getCustomerOrders(vendorId, { limit: 20 }).then(setCustomerOrders);
+            getVendorReviews(vendorId).then(setReviews);
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
         }
       )
       .on(
@@ -159,10 +163,14 @@ export default function Sales() {
           filter: `vendor_id=eq.${vendorId}`,
         },
         (payload) => {
-          const row = payload.new as { total?: number };
-          const amount = Number(row?.total ?? 0).toFixed(0);
-          toast.success(t("newOnlineOrderToast").replace("{amount}", amount));
-          getOndcOrdersForVendor(vendorId).then(setOndcOrders);
+          try {
+            const row = payload.new as { total?: number };
+            const amount = Number(row?.total ?? 0).toFixed(0);
+            toast.success(t("newOnlineOrderToast").replace("{amount}", amount));
+            getOndcOrdersForVendor(vendorId).then(setOndcOrders);
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
         }
       )
       .on(
@@ -173,15 +181,17 @@ export default function Sales() {
           table: "ondc_orders",
           filter: `vendor_id=eq.${vendorId}`,
         },
-        () => getOndcOrdersForVendor(vendorId).then(setOndcOrders)
+        () => {
+          try {
+            getOndcOrdersForVendor(vendorId).then(setOndcOrders);
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
+        }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [vendorId]);
 

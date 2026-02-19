@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,10 +16,15 @@ const PHONE_PREFIX = "+91";
 export default function CustomerLogin() {
   const { t } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo") || "/";
 
   const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    setPhone("");
+  }, [location.pathname, location.key]);
   const [otp, setOtp] = useState("");
   const [mpin, setMpin] = useState("");
   const [mpinConfirm, setMpinConfirm] = useState("");
@@ -188,7 +193,7 @@ export default function CustomerLogin() {
             </Button>
             <button
               type="button"
-              onClick={() => setStep("choice")}
+              onClick={() => { setStep("choice"); setPhone(""); }}
               className="w-full text-sm text-muted-foreground hover:text-foreground"
             >
               Back
@@ -313,7 +318,7 @@ export default function CustomerLogin() {
             </Button>
             <button
               type="button"
-              onClick={() => { setStep("choice"); setMpin(""); }}
+              onClick={() => { setStep("choice"); setMpin(""); setPhone(""); }}
               className="w-full text-sm text-muted-foreground hover:text-foreground"
             >
               Back

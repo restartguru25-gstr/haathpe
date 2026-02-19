@@ -439,7 +439,7 @@ export default function Auth() {
                 </span>
               </label>
               <div className="flex gap-3 pt-1">
-                <Button variant="outline" onClick={() => setStep("method")} className="rounded-lg">
+                <Button variant="outline" onClick={() => { setStep("method"); setPhone(""); }} className="rounded-lg">
                   Back
                 </Button>
                 <Button className="flex-1 rounded-lg h-11 font-semibold" onClick={handlePhoneSubmit} disabled={loading || !termsAccepted}>
@@ -665,7 +665,7 @@ export default function Auth() {
                 />
               </div>
               <div className="flex gap-3 pt-1">
-                <Button variant="outline" onClick={() => { setStep("method"); setMpin(""); }} className="rounded-lg">
+                <Button variant="outline" onClick={() => { setStep("method"); setMpin(""); setPhone(""); }} className="rounded-lg">
                   Back
                 </Button>
                 <Button

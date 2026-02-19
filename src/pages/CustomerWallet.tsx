@@ -74,20 +74,28 @@ export default function CustomerWallet() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "customer_wallets", filter: `customer_id=eq.${customer.id}` },
-        () => load()
+        () => {
+          try {
+            load();
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
+        }
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "wallet_transactions", filter: `customer_id=eq.${customer.id}` },
-        () => load()
+        () => {
+          try {
+            load();
+          } catch (e) {
+            if ((e as Error)?.name !== "AbortError") console.error(e);
+          }
+        }
       )
       .subscribe();
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") throw e;
-      }
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, [customer?.id, load]);
 
