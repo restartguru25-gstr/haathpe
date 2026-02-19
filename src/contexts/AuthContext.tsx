@@ -76,13 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let newProfile: Profile | null = null;
       let profileError: unknown = null;
       try {
+        const derivedName = u.user_metadata?.name ?? (u.email ? u.email.split("@")[0] : null);
         const res = await supabase
           .from("profiles")
           .upsert(
             {
               id: u.id,
-              phone,
-              name: u.user_metadata?.name ?? null,
+              phone: phone ?? u.phone ?? null,
+              name: derivedName,
               stall_type: u.user_metadata?.stall_type ?? null,
               stall_address: u.user_metadata?.stall_address ?? null,
               preferred_language: (u.user_metadata?.preferred_language as "en" | "hi" | "te") ?? "en",

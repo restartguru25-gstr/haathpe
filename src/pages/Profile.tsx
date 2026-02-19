@@ -10,6 +10,7 @@ import {
   BookOpen,
   Globe,
   MapPin,
+  Mail,
   Phone,
   Star,
   Flame,
@@ -224,21 +225,12 @@ export default function Profile() {
     if (!user?.id) return;
     setSaving(true);
     try {
-      const corePayload = {
+      const payload: Record<string, unknown> = {
         id: user.id,
         name: (editForm.name || "").trim() || null,
         stall_type: (editForm.stallType || "").trim() || null,
         stall_address: (editForm.stallAddress || "").trim() || null,
         phone: (editForm.phone || "").trim() || null,
-      };
-      const { error: coreError } = await supabase
-        .from("profiles")
-        .upsert(corePayload, { onConflict: "id" })
-        .select("id")
-        .single();
-      if (coreError) throw coreError;
-
-      const businessUpdates: Record<string, unknown> = {
         business_address: (editForm.businessAddress || "").trim() || null,
         shop_photo_urls: editForm.shopPhotoUrls.length ? editForm.shopPhotoUrls : null,
         gst_number: (editForm.gstNumber || "").trim() || null,
@@ -248,22 +240,20 @@ export default function Profile() {
         other_business_details: (editForm.otherBusinessDetails || "").trim() || null,
         upi_id: (editForm.upiId || "").trim() || null,
       };
-      const { error: businessError } = await supabase
+      const { error } = await supabase
         .from("profiles")
-        .update(businessUpdates)
-        .eq("id", user.id);
-      if (businessError) {
-        const msg = businessError.message || "";
-        if (!msg.includes("does not exist") && !msg.includes("column") && !msg.includes("undefined")) {
-          throw businessError;
-        }
-      }
+        .upsert(payload, { onConflict: "id" })
+        .select("id")
+        .single();
+      if (error) throw error;
       await refreshProfile();
       setEditOpen(false);
       toast.success(t("profileUpdated"));
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      toast.error(err?.message ?? "Could not update profile. Try again.");
+      const err = e as { message?: string; code?: string };
+      const msg = err?.message ?? "Could not update profile. Try again.";
+      if (typeof window !== "undefined") console.error("[Profile] Save failed:", err);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -386,8 +376,13 @@ export default function Profile() {
                   <ShieldCheck size={12} /> {t("ondcEnabled")} · {t("ondcMenuLive")}
                 </p>
               )}
-              {phone && (
+              {user?.email && (
                 <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Mail size={12} /> {user.email}
+                </p>
+              )}
+              {phone && (
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Phone size={12} /> {phone}
                 </p>
               )}

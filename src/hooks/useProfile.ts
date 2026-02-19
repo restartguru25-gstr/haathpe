@@ -47,7 +47,7 @@ const stallIcons: Record<string, string> = {
   "Default": "🛒",
 };
 
-function profileToDisplay(p: Profile | null): DisplayProfile {
+function profileToDisplay(p: Profile | null, user?: { email?: string | null; phone?: string | null } | null): DisplayProfile {
   if (!p) return vendorProfileToDisplay();
   const stallType = p.stall_type || "Default";
   const raw = p as Profile & {
@@ -65,11 +65,13 @@ function profileToDisplay(p: Profile | null): DisplayProfile {
     alert_volume?: "low" | "medium" | "high" | null;
   };
   const shopUrls = raw.shop_photo_urls;
+  const displayName = p.name || (user?.email ? user.email.split("@")[0] : null) || (user?.phone || "") || "Dukaanwaala";
+  const displayPhone = p.phone || user?.phone || "";
   return {
-    name: p.name || "Dukaanwaala",
+    name: displayName,
     stallType,
     stallIcon: stallIcons[stallType] || stallIcons.Default,
-    phone: p.phone || vendorProfile.phone,
+    phone: displayPhone,
     address: p.stall_address || vendorProfile.address,
     points: p.points ?? vendorProfile.points,
     tier: p.tier || "Silver",
@@ -125,8 +127,8 @@ function vendorProfileToDisplay(): DisplayProfile {
 }
 
 export function useProfile(): { profile: DisplayProfile; isLoading: boolean; isFromSupabase: boolean } {
-  const { profile: supabaseProfile, isLoading } = useSession();
-  const profile = profileToDisplay(supabaseProfile);
+  const { profile: supabaseProfile, user, isLoading } = useSession();
+  const profile = profileToDisplay(supabaseProfile, user);
   const isFromSupabase = !!supabaseProfile;
   return { profile, isLoading, isFromSupabase };
 }

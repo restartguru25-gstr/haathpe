@@ -53,7 +53,7 @@ export const sampleOrders: Order[] = [
 ];
 
 export const vendorProfile = {
-  name: "Raju",
+  name: "Vendor",
   stallType: "Kirana/General Store",
   stallIcon: "☕",
   phone: "+91 98765 43210",

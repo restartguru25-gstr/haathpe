@@ -333,7 +333,7 @@ export default function Auth() {
                 <Input
                   placeholder="98765 43210"
                   value={formatPhone(phone)}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   className="h-11 rounded-lg border-2 focus-visible:ring-2 focus-visible:ring-primary/30"
                   maxLength={16}
                   autoFocus
