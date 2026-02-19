@@ -15,6 +15,7 @@ import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { setMyReferrer } from "@/lib/incentives";
 import { setMpinAfterOtp, signInWithMpin } from "@/lib/mpin";
+import { normalizePhoneDigits, toE164Indian } from "@/lib/phoneUtils";
 
 type AuthStep = "method" | "phone" | "otp" | "magic" | "sent" | "password" | "mpin-create" | "mpin-signin";
 type EmailPasswordMode = "signin" | "signup";
@@ -46,14 +47,9 @@ export default function Auth() {
 
   if (isAuthenticated) return null;
 
-  const handlePhoneChange = (value: string) => {
-    let v = value.replace(/\D/g, "");
-    if (v.startsWith("91")) v = v.slice(2);
-    if (v.startsWith("0")) v = v.slice(1);
-    setPhone(v.slice(0, 10));
-  };
+  const handlePhoneChange = (value: string) => setPhone(normalizePhoneDigits(value));
   const phoneDigits = phone.replace(/\D/g, "").slice(0, 10);
-  const fullPhone = phoneDigits.length === 10 ? `+91${phoneDigits}` : "";
+  const fullPhone = toE164Indian(phoneDigits);
 
   const handlePhoneSubmit = async () => {
     if (!termsAccepted) {
