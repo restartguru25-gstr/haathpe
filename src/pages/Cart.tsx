@@ -6,7 +6,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
 import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
-import { supabase, createFreshSupabaseClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
 import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus, savePendingOrder } from "@/lib/cashfree";
 import { Link, useNavigate } from "react-router-dom";
@@ -138,7 +138,7 @@ export default function Cart() {
 
       // Non-Cashfree path: insert order + order_items before notifications/loyalty
       if (typeof window !== "undefined") console.log("[CART] Non-Cashfree: inserting order into DB...");
-      const db = createFreshSupabaseClient();
+      const db = supabase;
       const orderPayload = {
         user_id: userId,
         total: Math.round(finalTotal),

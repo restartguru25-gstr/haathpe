@@ -10,9 +10,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient<Database>(supabaseUrl || "", supabaseAnonKey || "");
+let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
 
-/** Creates a fresh Supabase client to avoid shared auth lock state (navigator.locks) that can cause AbortError during inserts. */
-export function createFreshSupabaseClient() {
-  return createClient<Database>(supabaseUrl || "", supabaseAnonKey || "");
+/** Single Supabase client instance — avoids "Multiple GoTrueClient instances" warning. */
+export function getSupabase() {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient<Database>(supabaseUrl || "", supabaseAnonKey || "");
+  }
+  return supabaseInstance;
 }
+
+/** Shared Supabase client — use this everywhere instead of creating new clients. */
+export const supabase = getSupabase();

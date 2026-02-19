@@ -15,7 +15,7 @@ The frontend calls this URL (with `Authorization` and `apikey` headers) from `sr
 | **Backend route wrong** | We do **not** use `https://haathpe.com/api/create-cashfree-order`. We use the **Supabase Edge Function** URL. In the browser console, step 2/3 will show the real URL (e.g. `https://xxx.supabase.co/functions/v1/create-cashfree-order`). If that returns 404, deploy the function (Option A or B below). |
 | **Vercel env vars** | Only **client** vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_CASHFREE_APP_ID`, `VITE_CASHFREE_MODE=production`. Do **not** put `CASHFREE_SECRET_KEY` in Vercel (it must stay in Supabase secrets). |
 | **Supabase secrets** | Dashboard → Edge Functions → Secrets: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, and optionally `CASHFREE_ENV=production`. |
-| **Fetch aborted / CORS** | Console logs 1–9 show where it stops. If it stops at step 3 with no "4. Raw response body", the request was aborted or blocked (timeout, CORS, or network). Ensure **Verify JWT** is **OFF** for `create-cashfree-order` (Supabase → Edge Functions → create-cashfree-order → Function config). |
+| **Fetch aborted / CORS** | Console logs 1–9 show where it stops. If it stops at step 3 with no "4. Raw response body", the request was aborted or blocked (timeout, CORS, or network). Ensure **Verify JWT** is **OFF** for all Cashfree functions: `create-cashfree-order`, `verify-cashfree-payment`, `finalize-order-after-payment` (Supabase → Edge Functions → each function → Settings → Verify JWT = OFF). If JWT is ON, the preflight OPTIONS request is rejected before your code runs, causing CORS errors. |
 | **Backend 500** | Check Supabase Dashboard → Edge Functions → create-cashfree-order → Logs. Fix payload or missing env (e.g. Cashfree keys). |
 
 **Test the backend manually (Postman or curl):**
@@ -25,6 +25,13 @@ The frontend calls this URL (with `Authorization` and `apikey` headers) from `sr
 - **Headers:** `Content-Type: application/json`, `Authorization: Bearer <VITE_SUPABASE_ANON_KEY>`, `apikey: <VITE_SUPABASE_ANON_KEY>`
 - **Body (JSON):** `{ "order_id": "test-1", "order_amount": 100, "return_url": "https://haathpe.com/payment/return?order_id=test-1" }`  
 - **Expected:** 200 OK with `{ "payment_session_id": "...", "order_id": "test-1" }`. If 404 → function not deployed. If 503 → secrets missing.
+
+**CORS / "blocked by CORS policy" / "Failed to fetch" on finalize-order-after-payment:**
+
+- Supabase rejects the preflight OPTIONS request **before** your function runs if **Verify JWT** is ON. The browser never gets CORS headers.
+- **Fix:** Supabase Dashboard → Edge Functions → `finalize-order-after-payment` → Settings (or Details) → turn **Verify JWT** OFF.
+- Or redeploy: `npx supabase functions deploy finalize-order-after-payment --no-verify-jwt`
+- Test OPTIONS: `curl -X OPTIONS -i "https://tobpayhdvdoduspxdrjz.supabase.co/functions/v1/finalize-order-after-payment"` → should return 200 with `Access-Control-Allow-Origin` header.
 
 ---
 

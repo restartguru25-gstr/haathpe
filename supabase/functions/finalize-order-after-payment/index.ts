@@ -13,15 +13,23 @@ const CASHFREE_SANDBOX = "https://sandbox.cashfree.com/pg";
 const CASHFREE_PROD = "https://api.cashfree.com/pg";
 const API_VERSION = "2023-08-01";
 
-const cors = {
+const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, accept",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Content-Type": "application/json",
+  "Access-Control-Max-Age": "86400",
 };
 
 function jsonResponse(obj: unknown, status = 200) {
-  return new Response(JSON.stringify(obj), { status, headers: { ...cors } });
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/** CORS preflight — must return 200 for browser to allow actual request. JWT must be disabled on this function. */
+function corsPreflight() {
+  return new Response("ok", { status: 200, headers: corsHeaders });
 }
 
 async function verifyCashfreePaid(orderId: string): Promise<boolean> {
@@ -46,7 +54,7 @@ async function verifyCashfreePaid(orderId: string): Promise<boolean> {
 
 serve(async (req) => {
   try {
-    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    if (req.method === "OPTIONS") return corsPreflight();
     if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
