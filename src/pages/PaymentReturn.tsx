@@ -47,10 +47,25 @@ export default function PaymentReturn() {
         return;
       }
 
-      // 2) Order not in DB — post-payment flow: verify Cashfree, then insert
-      const verify = await verifyCashfreePayment(orderId);
+      // 2) Order not in DB — post-payment flow: verify Cashfree (poll — can take 5–30s to update)
+      let verify = await verifyCashfreePayment(orderId);
+      const maxAttempts = 8;
+      const pollIntervalMs = 3500;
+      for (let attempt = 1; attempt <= maxAttempts && !verify.paid; attempt++) {
+        if (!verify.ok) {
+          console.error("[PaymentReturn] Verify failed:", verify.error);
+          setStatus("error");
+          return;
+        }
+        if (verify.paid) break;
+        if (attempt < maxAttempts) {
+          if (typeof window !== "undefined") console.log("[PaymentReturn] Cashfree not PAID yet, retry", attempt + 1, "of", maxAttempts);
+          setStatus("pending");
+          await new Promise((r) => setTimeout(r, pollIntervalMs));
+          verify = await verifyCashfreePayment(orderId);
+        }
+      }
       if (!verify.ok) {
-        console.error("[PaymentReturn] Verify failed:", verify.error);
         setStatus("error");
         return;
       }
