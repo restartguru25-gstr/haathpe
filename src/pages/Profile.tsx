@@ -38,10 +38,11 @@ import { useProfile } from "@/hooks/useProfile";
 import { useSession } from "@/contexts/AuthContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Language } from "@/lib/data";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
+import { retryOnAbort } from "@/lib/retryOnAbort";
 import {
   getNotificationSettings,
   setNotificationSettings,
@@ -103,9 +104,17 @@ const STALL_TYPES = [
 
 export default function Profile() {
   const { t, lang, setLang } = useApp();
+  const navigate = useNavigate();
   const { profile, isLoading } = useProfile();
-  const { signOut, user, refreshProfile, profile: rawProfile } = useSession();
+  const { signOut, user, refreshProfile, profile: rawProfile, isLoading: authLoading } = useSession();
   const { isAdmin } = useAdmin();
+
+  // Profile is only for signed-in users; if no user (e.g. session cleared), go to sign-in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth", { replace: true, state: { next: "/profile" } });
+    }
+  }, [user, authLoading, navigate]);
   const [editOpen, setEditOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -165,6 +174,11 @@ export default function Profile() {
     upiId,
   } = profile;
   const creditPercent = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0;
+
+  // Refetch profile from DB when opening Profile so we always show saved data (e.g. after sign-in)
+  useEffect(() => {
+    if (user?.id && typeof refreshProfile === "function") refreshProfile();
+  }, [user?.id]);
 
   useEffect(() => {
     setNotifSettings(getNotificationSettings());
@@ -245,37 +259,42 @@ export default function Profile() {
         upi_id: (editForm.upiId || "").trim() || null,
       };
       
-      // Try Edge Function first, fallback to direct Supabase update
-      let success = false;
-      try {
-        const { data, error } = await supabase.functions.invoke("update-profile", { body: payload });
-        if (error) {
-          console.warn("[Profile] Edge Function failed, using direct update:", error);
-          throw error; // Will trigger fallback
+      // Try Edge Function first (with auth token so server can identify user), fallback to direct Supabase
+      await retryOnAbort(async () => {
+        let success = false;
+        const { data: session } = await supabase.auth.getSession();
+        const token = session?.session?.access_token;
+        try {
+          const opts = token
+            ? { body: payload, headers: { Authorization: `Bearer ${token}` } as Record<string, string> }
+            : { body: payload };
+          const { data, error } = await supabase.functions.invoke("update-profile", opts);
+          if (error) {
+            console.warn("[Profile] Edge Function failed, using direct update:", error);
+            throw error;
+          }
+          success = true;
+        } catch {
+          const { error: directError } = await supabase
+            .from("profiles")
+            .update(payload)
+            .eq("id", user.id)
+            .select("id")
+            .single();
+          if (directError) throw directError;
+          success = true;
         }
-        success = true;
-      } catch (edgeError: unknown) {
-        // Fallback: Direct Supabase update (works if Edge Function not deployed or fails)
-        console.log("[Profile] Using direct Supabase update as fallback");
-        const { error: directError } = await supabase
-          .from("profiles")
-          .update(payload)
-          .eq("id", user.id)
-          .select("id")
-          .single();
-        if (directError) {
-          throw directError;
-        }
-        success = true;
-      }
-      
-      if (success) {
-        await refreshProfile();
-        setEditOpen(false);
-        toast.success(t("profileUpdated"));
-      }
+        if (!success) throw new Error("Update failed");
+      });
+
+      await refreshProfile();
+      setEditOpen(false);
+      toast.success(t("profileUpdated"));
     } catch (e: unknown) {
-      if (e instanceof Error && e.name === "AbortError") return;
+      if (e instanceof Error && (e.name === "AbortError" || /signal is aborted|aborted without reason/i.test(e.message))) {
+        toast.error("Request was interrupted. Please try saving again.");
+        return;
+      }
       const err = e as { message?: string; code?: string; details?: string };
       const msg = err?.message ?? "Could not update profile. Try again.";
       if (typeof window !== "undefined") {
@@ -358,6 +377,11 @@ export default function Profile() {
       setPushLoading(false);
     }
   };
+
+  // Do not show Profile at all if not signed in (redirect is in progress or session cleared)
+  if (!authLoading && !user) {
+    return null;
+  }
 
   if (isLoading) {
     return (
@@ -561,28 +585,27 @@ export default function Profile() {
                       onCheckedChange={async (checked) => {
                         if (!user?.id) return;
                         try {
-                          let success = false;
-                          try {
-                            const { error } = await supabase.functions.invoke("update-profile", {
-                              body: { is_online: checked },
-                            });
-                            if (error) throw error;
-                            success = true;
-                          } catch {
-                            // Fallback to direct update
-                            const { error: directError } = await supabase
-                              .from("profiles")
-                              .update({ is_online: checked })
-                              .eq("id", user.id);
-                            if (directError) throw directError;
-                            success = true;
-                          }
-                          if (success) {
-                            await refreshProfile();
-                            toast.success(checked ? "Online orders enabled" : "Online orders disabled");
-                          }
+                          await retryOnAbort(async () => {
+                            try {
+                              const { error } = await supabase.functions.invoke("update-profile", {
+                                body: { is_online: checked },
+                              });
+                              if (error) throw error;
+                            } catch {
+                              const { error: directError } = await supabase
+                                .from("profiles")
+                                .update({ is_online: checked })
+                                .eq("id", user.id);
+                              if (directError) throw directError;
+                            }
+                          });
+                          await refreshProfile();
+                          toast.success(checked ? "Online orders enabled" : "Online orders disabled");
                         } catch (e) {
-                          if (e instanceof Error && e.name === "AbortError") return;
+                          if (e instanceof Error && (e.name === "AbortError" || /aborted/i.test(e.message))) {
+                            toast.error("Request interrupted. Try again.");
+                            return;
+                          }
                           toast.error("Could not update");
                         }
                       }}
@@ -847,6 +870,7 @@ export default function Profile() {
         {/* Logout */}
         <motion.div {...fadeUp(6)}>
           <Button
+            type="button"
             variant="outline"
             className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={handleLogout}
@@ -1113,26 +1137,26 @@ export default function Profile() {
                     holidays,
                     is_online: shopForm.isOnline,
                   };
-                  let success = false;
-                  try {
-                    const { error } = await supabase.functions.invoke("update-profile", { body: updatePayload });
-                    if (error) throw error;
-                    success = true;
-                  } catch {
-                    // Fallback to direct update
-                    const { error: directError } = await supabase
-                      .from("profiles")
-                      .update(updatePayload)
-                      .eq("id", user.id);
-                    if (directError) throw directError;
-                    success = true;
-                  }
-                  if (!success) throw new Error("Update failed");
+                  await retryOnAbort(async () => {
+                    try {
+                      const { error } = await supabase.functions.invoke("update-profile", { body: updatePayload });
+                      if (error) throw error;
+                    } catch {
+                      const { error: directError } = await supabase
+                        .from("profiles")
+                        .update(updatePayload)
+                        .eq("id", user.id);
+                      if (directError) throw directError;
+                    }
+                  });
                   await refreshProfile();
                   setShopTimingsOpen(false);
                   toast.success(t("profileUpdated"));
                 } catch (e) {
-                  if (e instanceof Error && e.name === "AbortError") return;
+                  if (e instanceof Error && (e.name === "AbortError" || /aborted/i.test(e.message))) {
+                    toast.error("Request interrupted. Try again.");
+                    return;
+                  }
                   toast.error("Could not save. Try again.");
                 } finally {
                   setSavingShop(false);
@@ -1193,28 +1217,27 @@ export default function Profile() {
                     onClick={async () => {
                       if (!user?.id) return;
                       try {
-                        let success = false;
-                        try {
-                          const { error } = await supabase.functions.invoke("update-profile", {
-                            body: { alert_volume: level },
-                          });
-                          if (error) throw error;
-                          success = true;
-                        } catch {
-                          // Fallback to direct update
-                          const { error: directError } = await supabase
-                            .from("profiles")
-                            .update({ alert_volume: level })
-                            .eq("id", user.id);
-                          if (directError) throw directError;
-                          success = true;
-                        }
-                        if (success) {
-                          await refreshProfile();
-                          toast.success("Saved");
-                        }
+                        await retryOnAbort(async () => {
+                          try {
+                            const { error } = await supabase.functions.invoke("update-profile", {
+                              body: { alert_volume: level },
+                            });
+                            if (error) throw error;
+                          } catch {
+                            const { error: directError } = await supabase
+                              .from("profiles")
+                              .update({ alert_volume: level })
+                              .eq("id", user.id);
+                            if (directError) throw directError;
+                          }
+                        });
+                        await refreshProfile();
+                        toast.success("Saved");
                       } catch (e) {
-                        if (e instanceof Error && e.name === "AbortError") return;
+                        if (e instanceof Error && (e.name === "AbortError" || /aborted/i.test(e.message))) {
+                          toast.error("Request interrupted. Try again.");
+                          return;
+                        }
                         toast.error("Could not update");
                       }
                     }}

@@ -16,7 +16,7 @@ export default function MenuLanding() {
         </p>
         <Link to="/search">
           <Button className="gap-2">
-            <Search size={18} /> Find dukaanwaale near you
+            <Search size={18} /> Find dukaan near you
           </Button>
         </Link>
         <p className="mt-6 text-sm text-muted-foreground">

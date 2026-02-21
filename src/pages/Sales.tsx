@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Store, Plus, Pencil, QrCode, ChevronRight, Banknote, Gift, Star, Sparkles, FileJson } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,9 +49,31 @@ import { Clock } from "lucide-react";
 
 export default function Sales() {
   const { t } = useApp();
+  const navigate = useNavigate();
   const { profile } = useProfile();
   const { user, refreshProfile, profile: rawProfile, isLoading: authLoading } = useSession();
   const vendorId = user?.id ?? "";
+
+  // Sales is only for signed-in vendors; if no user, redirect to sign-in (don't show "Shop empty" etc.)
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth", { replace: true, state: { next: "/sales" } });
+    }
+  }, [user, authLoading, navigate]);
+
+  // When we have user but no profile yet (e.g. after session recovery), refresh so My Shop doesn't show "newly signed" state
+  const [profileWaitTimedOut, setProfileWaitTimedOut] = useState(false);
+  useEffect(() => {
+    if (user?.id && !rawProfile && typeof refreshProfile === "function") {
+      refreshProfile();
+    }
+  }, [user?.id, rawProfile, refreshProfile]);
+  useEffect(() => {
+    if (rawProfile) setProfileWaitTimedOut(false);
+    if (!user || rawProfile) return;
+    const t = window.setTimeout(() => setProfileWaitTimedOut(true), 4000);
+    return () => clearTimeout(t);
+  }, [user, rawProfile]);
 
   const [defaultItems, setDefaultItems] = useState<DefaultMenuItem[]>([]);
   const [vendorItems, setVendorItems] = useState<VendorMenuItem[]>([]);
@@ -251,7 +273,8 @@ export default function Sales() {
       }
     } catch (err) {
       if (import.meta.env.DEV) console.error("[Sales] Add custom item exception:", err);
-      toast.error("Failed to add item");
+      const isAbort = err instanceof Error && (err.name === "AbortError" || /aborted/i.test(err.message));
+      toast.error(isAbort ? "Request was interrupted. Try adding again." : "Failed to add item");
     } finally {
       setAddingCustom(false);
     }
@@ -306,7 +329,9 @@ export default function Sales() {
     }
   };
 
-  if (authLoading || loading) {
+  // Wait for profile when we have user (so we don't show "Set your dukaan type" before profile is loaded)
+  const waitingForProfile = !!user && !rawProfile && !authLoading && !profileWaitTimedOut;
+  if (authLoading || loading || waitingForProfile) {
     return (
       <div className="min-h-screen bg-muted/20">
         <div className="container max-w-2xl px-4 py-6">
@@ -317,27 +342,9 @@ export default function Sales() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-muted/20 pb-28 md:pb-4">
-        <div className="container max-w-2xl px-4 py-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-extrabold tracking-tight">{t("mySalesMenu")}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{t("salesPageSubtitle")}</p>
-          </div>
-          <div className="rounded-2xl border-2 border-dashed border-border bg-card py-16 px-6 text-center">
-            <Store size={48} className="mx-auto mb-4 text-primary opacity-80" />
-            <h2 className="mb-2 text-lg font-semibold">My Shop</h2>
-            <p className="mb-6 max-w-sm mx-auto text-sm text-muted-foreground">
-              Sign in to manage your shop menu, view orders, set timings, and share your QR menu with customers.
-            </p>
-            <Link to="/auth">
-              <Button className="gap-2">Sign in to open my shop</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
+  // Do not show Sales page at all if not signed in; redirect is handled in useEffect above
+  if (!authLoading && !user) {
+    return null;
   }
 
   return (
@@ -371,6 +378,9 @@ export default function Sales() {
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{t("mySalesMenu")}</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{t("salesPageSubtitle")}</p>
+            <p className="text-xs text-muted-foreground mt-1.5 max-w-xl">
+              <strong>QR Code Menu:</strong> Opens your public dukaan page. Share that link or its QR with customers — they can open it on their phone to see your shop, browse your menu and order, or pay a custom amount (like PhonePe/GPay).
+            </p>
           </div>
           <div className="flex gap-2">
             <Link to="/pos">
@@ -697,17 +707,21 @@ export default function Sales() {
           <p className="text-center text-muted-foreground py-4">No default menu for your sector yet. Add items manually below.</p>
         )}
 
-        {!loading && vendorItems.length === 0 && (
+        {!loading && vendorId && (
           <div className="mb-6 rounded-xl border-2 border-dashed border-border bg-muted/30 p-5">
-            <p className="mb-3 font-semibold text-foreground">Add an item manually</p>
+            <p className="mb-3 font-semibold text-foreground">
+              {vendorItems.length > 0 ? "Add your own item" : "Add an item manually"}
+            </p>
             <p className="mb-4 text-sm text-muted-foreground">
-              You can add menu items one by one (e.g. if you haven&apos;t set a dukaan type or want custom items).
+              {vendorItems.length > 0
+                ? "Add custom products anytime — they are saved to your menu and appear in POS and your public menu."
+                : "You can add menu items one by one (e.g. if you haven't set a dukaan type or want custom items)."}
             </p>
             <form onSubmit={handleAddCustomItem} className="flex flex-wrap items-end gap-3">
               <div className="min-w-[140px] flex-1">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Item name</label>
                 <Input
-                  placeholder="e.g. Chai, Pani Puri"
+                  placeholder="e.g. Chai, Pani Puri, Special Lassi"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
                   className="bg-background"
@@ -726,7 +740,7 @@ export default function Sales() {
                 />
               </div>
               <Button type="submit" disabled={addingCustom} className="gap-2">
-                <Plus size={16} /> Add item
+                <Plus size={16} /> {addingCustom ? "Saving…" : "Add item"}
               </Button>
             </form>
           </div>
@@ -736,7 +750,7 @@ export default function Sales() {
           <div className="mt-6 rounded-xl border border-border bg-card p-4">
             <p className="mb-2 text-sm font-semibold">{t("qrCodeMenu")}</p>
             <p className="mb-3 text-xs text-muted-foreground">
-              Share this link or QR so customers can view your dukaan menu and place orders.
+              Share the link or QR below so customers can open your dukaan on their phone. They’ll see your shop name and can <strong>Browse menu</strong> (order items from your list) or <strong>Pay directly</strong> (enter any amount and pay like UPI).
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <img

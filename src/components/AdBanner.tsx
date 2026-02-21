@@ -60,7 +60,7 @@ export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdB
         <p className="text-sm font-semibold truncate">{ad.title || ad.brand_name}</p>
         {ad.link_url && (
           <p className="text-xs text-primary truncate">
-            {ad.link_url.startsWith("/") ? "View in Catalog" : "Learn more →"}
+            {ad.link_url.startsWith("/") ? "View products" : "Learn more →"}
           </p>
         )}
       </div>

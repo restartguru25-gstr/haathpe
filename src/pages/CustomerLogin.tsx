@@ -95,7 +95,7 @@ export default function CustomerLogin() {
     }
     setLoading(true);
     try {
-      const result = await setMpinAfterOtp(digits);
+      const result = await setMpinAfterOtp(digits, phone);
       if (result.ok) {
         toast.success(t("mpinSetSuccess"));
         navigate(returnTo, { replace: true });

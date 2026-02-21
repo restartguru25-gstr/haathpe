@@ -55,6 +55,7 @@ export default function PublicMenu() {
   const [shopDetails, setShopDetails] = useState<ShopDetails | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [useWalletAmount, setUseWalletAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<"online" | "at_dukaan">("online");
 
   useEffect(() => {
     if (!vendorId) {
@@ -157,12 +158,13 @@ export default function PublicMenu() {
       const items = cartToOrderItems(cart);
       const { subtotal, gstAmount } = cartTotals(cart);
       const coinsToAward = customer ? await getCoinsPerPayment() : 0;
+      const payAtCounter = paymentMethod === "at_dukaan" || (payAtDukaan > 0 && !isCashfreeConfigured());
       const result = await createCustomerOrder(vendorId, {
         items,
         subtotal,
         gst_amount: gstAmount,
         total,
-        payment_method: "online",
+        payment_method: payAtCounter ? "cash" : "online",
         status: "pending",
         payment_id: null,
         customer_phone: customer?.phone ?? null,
@@ -185,7 +187,7 @@ export default function PublicMenu() {
         }
       }
 
-      if (payAtDukaan > 0 && isCashfreeConfigured()) {
+      if (payAtDukaan > 0 && isCashfreeConfigured() && paymentMethod === "online") {
         const returnUrl = `${window.location.origin}/payment/return?order_id=${result.id}`;
         const sessionRes = await createCashfreeSession({
           order_id: result.id,
@@ -488,6 +490,35 @@ export default function PublicMenu() {
                     <span className="text-sm font-semibold text-primary">₹{useWalletAmount}</span>
                   </div>
                 )}
+              </div>
+            )}
+            {payAtDukaan > 0 && isCashfreeConfigured() && (
+              <div className="mb-4 p-4 rounded-xl border border-border bg-card">
+                <p className="text-sm font-medium mb-3">How would you like to pay?</p>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      checked={paymentMethod === "online"}
+                      onChange={() => setPaymentMethod("online")}
+                      className="text-primary"
+                    />
+                    <span className="text-sm">{t("payOnlineNow")}</span>
+                    <span className="text-xs text-muted-foreground">— Card, UPI, etc.</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      checked={paymentMethod === "at_dukaan"}
+                      onChange={() => setPaymentMethod("at_dukaan")}
+                      className="text-primary"
+                    />
+                    <span className="text-sm">{t("payAtDukaanWhenCollect")}</span>
+                    <span className="text-xs text-muted-foreground">— Cash or UPI at counter</span>
+                  </label>
+                </div>
               </div>
             )}
             <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card p-4 safe-area-pb">

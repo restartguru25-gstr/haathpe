@@ -20,6 +20,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useApp } from "@/contexts/AppContext";
+import { useSession } from "@/contexts/AuthContext";
 import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { products, type Product, getProductDescription } from "@/lib/data";
 import {
@@ -70,6 +71,7 @@ function catalogProductToProduct(p: CatalogProduct, variant?: ProductVariant): P
 
 export default function Catalog() {
   const { t, lang } = useApp();
+  const { isAuthenticated } = useSession();
   const addItem = useCartStore((s) => s.addItem);
   const cartCount = useCartStore(selectCartCount);
   const [search, setSearch] = useState("");
@@ -198,6 +200,25 @@ export default function Catalog() {
 
   return (
     <div className="min-h-screen bg-muted/20 pb-6">
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-3 px-4">
+          <Link to="/" className="brand-haathpe shrink-0 text-lg font-medium">
+            haathpe
+          </Link>
+          <h1 className="text-sm font-medium text-muted-foreground truncate">
+            {t("catalog")}
+          </h1>
+          {isAuthenticated ? (
+            <Link to="/dashboard" className="text-sm font-medium text-primary hover:underline shrink-0">
+              Dashboard
+            </Link>
+          ) : (
+            <Link to="/auth" className="text-sm font-medium text-primary hover:underline shrink-0">
+              Sign in
+            </Link>
+          )}
+        </div>
+      </header>
       <div className="container max-w-4xl px-4 py-6">
         {/* Category chips - for dukaan types */}
         <div className="mb-6">

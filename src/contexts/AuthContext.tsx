@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/database.types";
@@ -61,55 +61,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id, fetchProfile]);
 
+
   const ensureProfile = useCallback(
     async (u: User) => {
-      const existing = await fetchProfile(u.id);
-      if (existing) {
-        setProfile(existing);
-        return;
+      for (const delayMs of [0, 400, 900, 1500]) {
+        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+        const existing = await fetchProfile(u.id);
+        if (existing) {
+          setProfile(existing);
+          return;
+        }
       }
       if ((u.user_metadata as { role?: string } | undefined)?.role === "customer") {
         setProfile(null);
         return;
       }
-      const phone = u.phone ?? null;
-      let newProfile: Profile | null = null;
-      let profileError: unknown = null;
+      // Only create a new row; never overwrite existing profile (would wipe saved address/photo).
       try {
         const derivedName = u.user_metadata?.name ?? (u.email ? u.email.split("@")[0] : null);
-        const res = await supabase
+        await supabase
           .from("profiles")
           .upsert(
             {
               id: u.id,
-              phone: phone ?? u.phone ?? null,
+              phone: u.phone ?? null,
               name: derivedName,
               stall_type: u.user_metadata?.stall_type ?? null,
               stall_address: u.user_metadata?.stall_address ?? null,
               preferred_language: (u.user_metadata?.preferred_language as "en" | "hi" | "te") ?? "en",
             },
-            { onConflict: "id" }
-          )
-          .select()
-          .single();
-        profileError = res.error;
-        if (!res.error) newProfile = res.data as Profile;
+            { onConflict: "id", ignoreDuplicates: true }
+          );
+        for (const delayMs of [0, 300, 800]) {
+          if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+          const afterInsert = await fetchProfile(u.id);
+          if (afterInsert) {
+            setProfile(afterInsert);
+            return;
+          }
+        }
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
         console.warn("Profile create error:", e);
-        return;
       }
-      if (profileError) {
-        const err = profileError as { message?: string; name?: string };
-        if (err?.name !== "AbortError" && err?.message !== "AbortError: signal is aborted without reason") {
-          console.warn("Profile create error:", err?.message);
-        }
-        return;
-      }
-      if (newProfile) setProfile(newProfile);
     },
     [fetchProfile]
   );
+
+  // Restore session from storage when we have none (e.g. after "Back to home" or tab focus)
+  const tryRecoverSession = useCallback(async () => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key || url === "" || key === "") return;
+    try {
+      const { data: { session: s }, error } = await supabase.auth.getSession();
+      if (error || !s) return;
+      setSession(s);
+      setUser(s.user);
+      await ensureProfile(s.user);
+    } catch {
+      /* ignore */
+    }
+  }, [ensureProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,16 +198,98 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ensureProfile]);
 
+  // Session recovery: when we appear logged out but storage may still have a session (e.g. after "Back to home")
+  const recoveryAttempted = useRef(false);
+  useEffect(() => {
+    if (session || isLoading) {
+      if (session) recoveryAttempted.current = false;
+      return;
+    }
+    if (recoveryAttempted.current) return;
+    recoveryAttempted.current = true;
+    const t = window.setTimeout(() => {
+      tryRecoverSession().finally(() => {
+        recoveryAttempted.current = false;
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [session, isLoading, tryRecoverSession]);
+
+  // Re-check session when user returns to tab (handles storage restored elsewhere or race)
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!session && !isLoading) {
+        tryRecoverSession();
+      } else if (user?.id && !profile) {
+        // User logged in but profile missing – refresh (handles delayed DB / race)
+        refreshProfile();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [session, isLoading, user?.id, profile, tryRecoverSession, refreshProfile]);
+
+  // Aggressive profile retry: when user exists but profile is null, keep retrying for ~12s
+  // Handles transient DB/RLS issues and race conditions that cause "new vendor" state
+  useEffect(() => {
+    const isCustomer = (user?.user_metadata as { role?: string } | undefined)?.role === "customer";
+    if (!user?.id || profile || isCustomer) return;
+    let cancelled = false;
+    const delays = [2000, 4000, 6000, 8000, 10000, 12000];
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    let attempt = 0;
+    for (const ms of delays) {
+      const t = window.setTimeout(async () => {
+        if (cancelled) return;
+        attempt += 1;
+        await refreshProfile();
+        if (import.meta.env.DEV && attempt === delays.length) {
+          console.warn(
+            "[Auth] Profile null after retries. Check Supabase profiles for id:",
+            user.id,
+            "| email:",
+            user.email ?? "(none)",
+            "| phone:",
+            user.phone ?? "(none)",
+            "| If you signed up with both email and phone, those are separate accounts."
+          );
+        }
+      }, ms);
+      timeouts.push(t);
+    }
+    return () => {
+      cancelled = true;
+      timeouts.forEach(clearTimeout);
+    };
+  }, [user?.id, user?.email, user?.phone, profile, refreshProfile]);
+
   const signOut = useCallback(async () => {
     // Clear app state immediately so UI shows logged-out
     setUser(null);
     setSession(null);
     setProfile(null);
     try {
-      // scope: 'local' clears this browser's session even if server call fails
-      await supabase.auth.signOut({ scope: "local" });
+      // Wait for signOut to complete so session is cleared from storage before redirect.
+      // Otherwise the next page load can restore the session and "log back in".
+      const signOutPromise = supabase.auth.signOut({ scope: "local" });
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Sign out timeout")), 5000)
+      );
+      await Promise.race([signOutPromise, timeout]);
     } catch (e) {
       console.warn("Sign out error:", e);
+      // Clear any Supabase auth keys from localStorage so reload doesn't restore session
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) keys.push(k);
+        }
+        keys.forEach((k) => localStorage.removeItem(k));
+      } catch {
+        /* ignore */
+      }
     }
   }, []);
 

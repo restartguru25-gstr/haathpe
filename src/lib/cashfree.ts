@@ -251,18 +251,21 @@ export async function verifyCashfreePayment(orderId: string): Promise<{
   }
 }
 
-/** Open Cashfree checkout via official SDK (redirect in same tab). Do not use direct URL — it returns 400. */
-export async function openCashfreeCheckout(paymentSessionId: string): Promise<void> {
+/** Open Cashfree checkout via official SDK. Use redirectTarget "_blank" for POS (new tab) so vendor stays on POS. */
+export async function openCashfreeCheckout(
+  paymentSessionId: string,
+  options?: { redirectTarget?: "_self" | "_blank" }
+): Promise<void> {
   if (typeof window === "undefined") return;
   const mode = CASHFREE_MODE === "production" ? "production" : "sandbox";
-  if (typeof window !== "undefined") console.log("[CART] 7. Loading Cashfree SDK, mode:", mode);
+  if (typeof window !== "undefined") console.log("[CASHFREE] Loading SDK, mode:", mode);
   const { load } = await import("@cashfreepayments/cashfree-js");
   const cashfree = await load({ mode });
-  if (typeof window !== "undefined") console.log("[CART] 8. Cashfree SDK loaded:", !!cashfree);
   if (!cashfree) throw new Error("Cashfree SDK failed to load");
-  if (typeof window !== "undefined") console.log("[CART] 9. Launching Cashfree checkout with redirectTarget _self");
+  const target = options?.redirectTarget ?? "_self";
+  if (typeof window !== "undefined") console.log("[CASHFREE] Launching checkout, redirectTarget:", target);
   cashfree.checkout({
     paymentSessionId,
-    redirectTarget: "_self",
+    redirectTarget: target,
   });
 }

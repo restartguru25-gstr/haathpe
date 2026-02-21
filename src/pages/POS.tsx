@@ -7,6 +7,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useProfile } from "@/hooks/useProfile";
 import { usePaymentNotification } from "@/contexts/PaymentNotificationContext";
 import { getVendorMenuItems, createCustomerOrder, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
+import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -127,12 +128,50 @@ export default function POS() {
     }
   };
 
-  const handleUpiQr = () => {
+  const handleUpiQr = async () => {
     if (cart.length === 0) {
       toast.error("Add items first");
       return;
     }
-    toast.info("UPI QR integration: Add Razorpay/GPay stub. For now use Cash.");
+    if (!isCashfreeConfigured()) {
+      toast.error("Cashfree is not configured. Add VITE_CASHFREE_APP_ID and deploy create-cashfree-order. Use Cash for now.");
+      return;
+    }
+    setPlacing(true);
+    try {
+      const items = cartToOrderItems(cart);
+      const result = await createCustomerOrder(vendorId, {
+        items,
+        subtotal,
+        gst_amount: gstAmount,
+        total,
+        payment_method: "online",
+        status: "pending",
+        delivery_option: "pickup",
+      });
+      if (!result.ok || !result.id) {
+        toast.error(result.error ?? "Failed to create order");
+        return;
+      }
+      const returnUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/payment/return?order_id=${result.id}`;
+      const sessionRes = await createCashfreeSession({
+        order_id: result.id,
+        order_amount: Math.round(total),
+        return_url: returnUrl,
+        order_note: `POS sale ₹${total.toFixed(0)} – ${profile.name ?? "Dukaan"}`,
+      });
+      if (!sessionRes.ok) {
+        toast.error(sessionRes.error ?? "Payment gateway error");
+        return;
+      }
+      setCart([]);
+      toast.success("Payment page opened in new tab. Customer can pay via UPI, card, etc.");
+      await openCashfreeCheckout(sessionRes.payment_session_id, { redirectTarget: "_blank" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to open payment");
+    } finally {
+      setPlacing(false);
+    }
   };
 
   if (loading) {
@@ -274,6 +313,7 @@ export default function POS() {
                 variant="outline"
                 className="flex-1 gap-2"
                 onClick={handleUpiQr}
+                disabled={placing}
               >
                 <QrCode size={18} /> {t("generateUpiQr")}
               </Button>

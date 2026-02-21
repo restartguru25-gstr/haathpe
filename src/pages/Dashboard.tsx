@@ -252,8 +252,8 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Quick actions - uniform tile height on mobile */}
-        <div className="mb-6 grid grid-cols-2 gap-3 [grid-auto-rows:1fr]">
+        {/* Quick actions - 1 per row on mobile, 2 per row on larger screens */}
+        <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3 [grid-auto-rows:1fr]">
           <motion.div {...fadeUp(5)} className="min-h-[5.5rem]">
             <Link
               to="/catalog"

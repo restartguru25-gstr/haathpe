@@ -53,7 +53,7 @@ const features = [
 
 const steps = [
   { step: 1, title: "Sign up", body: "Create your dukaan account with phone or email in under a minute." },
-  { step: 2, title: "Order supplies", body: "Browse the catalog, add to cart, and place orders. Same-day delivery in Hyderabad." },
+  { step: 2, title: "Order supplies", body: "Browse products, add to cart, and place orders. Same-day delivery in Hyderabad." },
   { step: 3, title: "Build streak & credit", body: "Order regularly to build your streak and unlock credit lines for your dukaan." },
   { step: 4, title: "Earn rewards", body: "Collect points, enter daily draws, and redeem for vouchers and prizes." },
 ];
@@ -155,7 +155,8 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 
 export default function Landing() {
   const { t, lang, setLang } = useApp();
-  const { isAuthenticated } = useSession();
+  const { isAuthenticated, user, signOut } = useSession();
+  const signedInAs = user?.email ?? user?.phone ?? null;
   const navigate = useNavigate();
 
   const setPreferredMode = (mode: PreferredMode) => {
@@ -201,7 +202,7 @@ export default function Landing() {
               Dukaanwaale
             </a>
             <Link to="/catalog" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              Catalog
+              {t("catalog")}
             </Link>
             <Link to="/search" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               {t("searchFindVendors")}
@@ -225,6 +226,11 @@ export default function Landing() {
             )}
             {isAuthenticated && (
               <>
+                {signedInAs && (
+                  <span className="hidden sm:inline text-xs text-muted-foreground border-r border-border pr-3 mr-2">
+                    Signed in as {signedInAs}
+                  </span>
+                )}
                 <Link to="/dashboard">
                   <Button variant="outline" size="sm" className="font-semibold hidden sm:inline-flex">
                     Dashboard
@@ -235,6 +241,18 @@ export default function Landing() {
                     {t("myShop")}
                   </Button>
                 </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={async () => {
+                    await signOut();
+                    window.location.replace("/");
+                  }}
+                >
+                  Log out
+                </Button>
               </>
             )}
             <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
@@ -298,7 +316,7 @@ export default function Landing() {
                 variant="outline"
                 className="h-12 border-2 border-primary-foreground/30 bg-transparent px-8 text-base font-semibold text-primary-foreground hover:bg-primary-foreground/10"
               >
-                Browse catalog
+                {t("browseProducts")}
               </Button>
             </Link>
           </div>
@@ -614,7 +632,7 @@ export default function Landing() {
           <div className="mt-8 text-center">
             <Link to="/catalog">
               <Button variant="outline" size="lg" className="gap-2">
-                <ShoppingBag className="size-4" /> View full catalog
+                <ShoppingBag className="size-4" /> {t("viewFullProducts")}
               </Button>
             </Link>
           </div>
@@ -661,7 +679,7 @@ export default function Landing() {
               <span className="brand-haathpe font-semibold">haathpe</span>
             </div>
             <div className="flex flex-wrap justify-center gap-6 md:gap-8">
-              <Link to="/catalog" className="text-sm text-muted-foreground hover:text-foreground">Catalog</Link>
+              <Link to="/catalog" className="text-sm text-muted-foreground hover:text-foreground">{t("catalog")}</Link>
               <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">Dashboard</Link>
               <Link to="/sales" className="text-sm text-muted-foreground hover:text-foreground">{t("myShop")}</Link>
               <Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground">Contact</Link>

@@ -374,7 +374,7 @@ export default function Orders() {
             </p>
           ) : (
             <p className="text-sm text-muted-foreground mt-1">
-              Orders you place from the catalog will appear here. Reorder anytime.
+              Orders you place from products will appear here. Reorder anytime.
             </p>
           )}
         </div>
@@ -500,7 +500,7 @@ export default function Orders() {
               </h2>
               <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
                 {filter === "All"
-                  ? "Buying Spot is where your supply orders show up. Browse the catalog, add items to cart, and place an order — it will appear here with reorder and invoice options."
+                  ? "Buying Spot is where your supply orders show up. Browse products, add items to cart, and place an order — it will appear here with reorder and invoice options."
                   : `You don't have any ${filter.toLowerCase()} orders.`}
               </p>
               {filter !== "All" ? (
@@ -511,7 +511,7 @@ export default function Orders() {
                 <Link to="/catalog">
                   <Button className="gap-2">
                     <ChevronRight size={16} className="-ml-1" />
-                    Browse catalog to order supplies
+                    {t("browseProductsToOrder")}
                   </Button>
                 </Link>
               )}

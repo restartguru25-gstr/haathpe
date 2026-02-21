@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Store, Wallet, ChevronRight, Sparkles } from "lucide-react";
@@ -6,42 +6,118 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
+import { useSession } from "@/contexts/AuthContext";
 import { isShopOpen, type ShopDetails } from "@/lib/shopDetails";
+
+type VendorInfo = {
+  name: string | null;
+  stall_type: string | null;
+  opening_hours?: Record<string, string>;
+  weekly_off?: string | null;
+  holidays?: string[] | null;
+};
+
+function normalizeVendorRow(row: unknown): VendorInfo | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+  return {
+    name: (r.name ?? r.Name) as string | null,
+    stall_type: (r.stall_type ?? r.stallType) as string | null,
+    opening_hours: (r.opening_hours ?? r.openingHours) as Record<string, string> | undefined,
+    weekly_off: (r.weekly_off ?? r.weeklyOff) as string | null,
+    holidays: (r.holidays as string[] | null) ?? null,
+  };
+}
 
 export default function VendorEntry() {
   const { vendorId } = useParams<{ vendorId: string }>();
   const { t } = useApp();
-  const [vendor, setVendor] = useState<{
-    name: string | null;
-    stall_type: string | null;
-    opening_hours?: Record<string, string>;
-    weekly_off?: string | null;
-    holidays?: string[] | null;
-  } | null>(null);
+  const { user, profile: rawProfile, isLoading: authLoading, refreshProfile } = useSession();
+  const [vendor, setVendor] = useState<VendorInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+
+  const tryProfilesAsOwner = useCallback(async (): Promise<VendorInfo | null> => {
+    if (user?.id !== vendorId) return null;
+    const { data: profileData, error } = await supabase
+      .from("profiles")
+      .select("name, stall_type, opening_hours, weekly_off, holidays")
+      .eq("id", vendorId)
+      .maybeSingle();
+    if (error) return null;
+    return normalizeVendorRow(profileData) ?? null;
+  }, [user?.id, vendorId]);
+
+  const loadVendor = useCallback(async () => {
+    if (!vendorId) return;
+    try {
+      const { data, error } = await supabase.rpc("get_vendor_public_info", { p_vendor_id: vendorId });
+      if (!error && data != null) {
+        const row = Array.isArray(data) ? data[0] : data;
+        const normalized = normalizeVendorRow(row);
+        if (normalized) return normalized;
+      }
+    } catch {
+      /* ignore */
+    }
+    return await tryProfilesAsOwner();
+  }, [vendorId, tryProfilesAsOwner]);
 
   useEffect(() => {
     if (!vendorId) {
       setLoading(false);
       return;
     }
-    supabase
-      .from("profiles")
-      .select("name, stall_type, opening_hours, weekly_off, holidays")
-      .eq("id", vendorId)
-      .single()
-      .then(({ data }) => {
-        setVendor(data as typeof vendor);
-        setLoading(false);
-      });
-  }, [vendorId]);
+    let cancelled = false;
+    const load = async () => {
+      const v = await loadVendor();
+      if (!cancelled && v) setVendor(v);
+      if (!cancelled) setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [vendorId, user?.id, authLoading, loadVendor]);
+
+  const handleOwnerRetry = useCallback(async () => {
+    if (!user?.id || user.id !== vendorId) return;
+    setRetrying(true);
+    try {
+      await refreshProfile();
+      const name = rawProfile?.name ?? (user.user_metadata?.name as string) ?? (user.email ? user.email.split("@")[0] : null);
+      const stall_type = rawProfile?.stall_type ?? (user.user_metadata?.stall_type as string) ?? null;
+      await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          name: name || "My Dukaan",
+          stall_type: stall_type || "Tea Stall",
+          preferred_language: (rawProfile?.preferred_language as "en" | "hi" | "te") ?? "en",
+        },
+        { onConflict: "id" }
+      );
+      const fromProfiles = await tryProfilesAsOwner();
+      if (fromProfiles) setVendor(fromProfiles);
+    } finally {
+      setRetrying(false);
+    }
+  }, [user, vendorId, rawProfile?.name, rawProfile?.stall_type, rawProfile?.preferred_language, refreshProfile, tryProfilesAsOwner]);
+
+  const ownerAutoEnsureDone = useRef(false);
+  useEffect(() => {
+    if (!vendorId || !user?.id || user.id !== vendorId || vendor || loading || authLoading || retrying) return;
+    if (ownerAutoEnsureDone.current) return;
+    ownerAutoEnsureDone.current = true;
+    const t = window.setTimeout(() => {
+      handleOwnerRetry();
+    }, 400);
+    return () => clearTimeout(t);
+  }, [vendorId, user?.id, vendor, loading, authLoading, retrying, handleOwnerRetry]);
 
   const shopDetails: ShopDetails | null = vendor
     ? { opening_hours: vendor.opening_hours, weekly_off: vendor.weekly_off, holidays: vendor.holidays, is_online: true }
     : null;
   const shopStatus = isShopOpen(shopDetails);
 
-  if (loading) {
+  if (loading || (authLoading && !!vendorId)) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background flex flex-col items-center justify-center p-6">
         <div className="h-16 w-16 rounded-2xl bg-primary/10 animate-pulse" />
@@ -52,10 +128,30 @@ export default function VendorEntry() {
   }
 
   if (!vendorId || !vendor) {
+    const isOwner = user?.id === vendorId;
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <p className="text-muted-foreground">Dukaan not found.</p>
-        <Link to="/" className="mt-4"><Button>Go home</Button></Link>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-muted-foreground font-medium">Dukaan not found.</p>
+        <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+          {isOwner
+            ? "Your dukaan profile may not be visible yet. Click “Load my dukaan” to sync your profile and show this page."
+            : "This link may be wrong or the dukaan is not set up yet. If you’re the owner, sign in first, then open this link again and click “Load my dukaan”."}
+        </p>
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+          {isOwner && (
+            <Button onClick={handleOwnerRetry} disabled={retrying}>
+              {retrying ? "Loading…" : "Load my dukaan"}
+            </Button>
+          )}
+          {!user && vendorId && (
+            <Link to="/auth" state={{ next: `/menu/${vendorId}` }}>
+              <Button variant="outline">Sign in (I’m the owner)</Button>
+            </Link>
+          )}
+          <Link to={user ? "/dashboard" : "/"}>
+            <Button variant={isOwner ? "outline" : "default"}>{user ? "Back to Dashboard" : "Go home"}</Button>
+          </Link>
+        </div>
         <MakeInIndiaFooter />
       </div>
     );

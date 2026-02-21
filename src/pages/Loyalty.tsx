@@ -207,7 +207,7 @@ export default function Loyalty() {
             <p className="mt-1 text-xs text-muted-foreground">Next draw at 9 PM tonight</p>
             <Link to="/catalog" className="mt-3 inline-block">
               <Button size="sm" className="gap-1.5">
-                Browse catalog <ChevronRight size={14} />
+                {t("browseProducts")} <ChevronRight size={14} />
               </Button>
             </Link>
           </div>

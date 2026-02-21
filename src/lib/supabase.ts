@@ -15,7 +15,12 @@ let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
 /** Single Supabase client instance — avoids "Multiple GoTrueClient instances" warning. */
 export function getSupabase() {
   if (!supabaseInstance) {
-    supabaseInstance = createClient<Database>(supabaseUrl || "", supabaseAnonKey || "");
+    supabaseInstance = createClient<Database>(supabaseUrl || "", supabaseAnonKey || "", {
+      auth: {
+        persistSession: true,
+        storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      },
+    });
   }
   return supabaseInstance;
 }

@@ -78,7 +78,6 @@ const App = () => (
                 }
               >
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/catalog" element={<Catalog />} />
                 <Route path="/cart" element={<Cart />} />
                 <Route path="/orders" element={<Orders />} />
                 <Route path="/loyalty" element={<Loyalty />} />
@@ -94,6 +93,7 @@ const App = () => (
                 <Route path="/vendor/ondc-export" element={<OndcExport />} />
               </Route>
               <Route path="/search" element={<Search />} />
+              <Route path="/catalog" element={<Catalog />} />
               <Route path="/menu" element={<MenuLanding />} />
               <Route path="/menu/:vendorId" element={<VendorEntry />} />
               <Route path="/menu/:vendorId/browse" element={<PublicMenu />} />

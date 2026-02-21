@@ -1,4 +1,4 @@
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useSession } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -6,8 +6,11 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
-const isDev = import.meta.env.DEV;
-
+/**
+ * Protects vendor routes (Dashboard, Profile, Sales, etc.).
+ * - If not signed in → redirect to /auth with state.next = current path (so after login they return here).
+ * - Same behavior in dev and production so UX is never "logged out but still on Profile".
+ */
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useSession();
   const location = useLocation();
@@ -23,20 +26,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // In production, require sign-in
-  if (!isDev && !isAuthenticated) {
+  if (!isAuthenticated) {
     return <Navigate to="/auth" state={{ next: location.pathname }} replace />;
   }
 
-  // In development: allow viewing without sign-in (mock data will be used)
-  return (
-    <>
-      {isDev && !isAuthenticated && (
-        <div className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-amber-500/90 px-3 py-1.5 text-center text-xs font-medium text-black">
-          Viewing as guest (dev only). <Link to="/auth" className="underline">Sign in / Sign up</Link> for real data.
-        </div>
-      )}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

@@ -140,9 +140,14 @@ export default function Search() {
         {searchError ? (
           <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-6 text-center">
             <p className="font-medium text-amber-900 dark:text-amber-100">Search is temporarily unavailable</p>
-            <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
-              If you see &quot;column reference vendor_id is ambiguous&quot;, run the SQL fix in Supabase: SQL Editor → paste and run <code className="text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">supabase/fix-vendor-search-ambiguous-vendor_id.sql</code> (see DEPLOY-CASHFREE.md).
+            <p className="mt-2 text-sm text-amber-800 dark:text-amber-200 font-mono break-all">
+              {searchError}
             </p>
+            {/ambiguous|42702/i.test(searchError) && (
+              <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+                To fix: open <strong>Supabase Dashboard → SQL Editor</strong>, run the contents of <code className="text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">supabase/migrations/20260220000000_fix_vendor_search_ambiguous_vendor_id.sql</code>. Ensure you run it on the same project as <code className="text-xs">VITE_SUPABASE_URL</code> in your .env.
+              </p>
+            )}
             <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSearchError(null); runSearch(); }}>
               Try again
             </Button>

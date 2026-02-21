@@ -39,7 +39,8 @@ export default function Auth() {
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const state = location.state as { next?: string; from?: { pathname?: string } } | null;
-  const nextPath = state?.next ?? state?.from?.pathname ?? "/";
+  // After sign-in, go to requested page or Dashboard (default for new signups)
+  const nextPath = state?.next ?? state?.from?.pathname ?? "/dashboard";
 
   useEffect(() => {
     if (isAuthenticated) navigate(nextPath, { replace: true });
@@ -136,7 +137,7 @@ export default function Auth() {
     }
     setLoading(true);
     try {
-      const result = await setMpinAfterOtp(digits);
+      const result = await setMpinAfterOtp(digits, phone);
       if (result.ok) {
         toast.success(t("mpinSetSuccess"));
         navigate(nextPath, { replace: true });

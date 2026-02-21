@@ -37,28 +37,61 @@ export async function signInWithMpin(
   return { ok: true };
 }
 
-/** Call Edge Function to set MPIN after OTP verify (requires session). */
-export async function setMpinAfterOtp(mpin: string): Promise<{ ok: boolean; error?: string }> {
+/** Call to set MPIN after OTP verify (requires session). Tries client updateUser first, then Edge Function. */
+export async function setMpinAfterOtp(
+  mpin: string,
+  phoneOverride?: string
+): Promise<{ ok: boolean; error?: string }> {
   const digits = (mpin || "").replace(/\D/g, "").slice(0, 4);
   if (digits.length !== 4) {
     return { ok: false, error: "MPIN must be 4 digits" };
   }
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
+  if (!session?.user) {
     return { ok: false, error: "Not signed in. Verify OTP first." };
   }
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-mpin`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({ mpin: digits }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { ok: false, error: (json as { error?: string }).error ?? "Failed to set MPIN" };
+
+  const padded = padMpin(digits);
+  const phone =
+    phoneOverride ? phoneOverride.replace(/\D/g, "").slice(-10)
+    : (session.user.phone ?? (session.user.user_metadata?.phone as string | undefined) ?? "").replace(/\D/g, "").slice(-10);
+  const syntheticEmail = phone.length === 10 ? `p${phone}@mpin.local` : "";
+
+  if (!syntheticEmail) {
+    return { ok: false, error: "Phone number required for MPIN. Sign in with phone OTP first." };
   }
-  return { ok: true };
+
+  const tryClientUpdate = async (): Promise<{ ok: boolean; error?: string }> => {
+    const { error } = await supabase.auth.updateUser({
+      email: syntheticEmail,
+      password: padded,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  };
+
+  const tryEdgeFunction = async (): Promise<{ ok: boolean; error?: string }> => {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-mpin`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ mpin: digits }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: (json as { error?: string }).error ?? "Edge function failed" };
+    }
+    return { ok: true };
+  };
+
+  const clientResult = await tryClientUpdate();
+  if (clientResult.ok) return clientResult;
+
+  const efResult = await tryEdgeFunction();
+  if (efResult.ok) return efResult;
+
+  return { ok: false, error: clientResult.error ?? efResult.error ?? "Failed to set MPIN" };
 }

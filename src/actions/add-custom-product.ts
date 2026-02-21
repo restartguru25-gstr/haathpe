@@ -1,9 +1,11 @@
 /**
  * Add custom product to vendor menu. Uses Edge Function first (avoids client AbortError),
  * falls back to direct Supabase insert if function not deployed.
+ * Retries once on AbortError / "Signal is aborted" so saves complete.
  */
 import { supabase } from "@/lib/supabase";
 import { addCustomVendorMenuItem } from "@/lib/sales";
+import { retryOnAbort } from "@/lib/retryOnAbort";
 
 export interface AddCustomProductInput {
   vendorId: string;
@@ -31,50 +33,50 @@ export async function addCustomProduct(
     return { ok: false, error: "Valid price (₹) is required" };
   }
 
-  try {
-    const { data: session } = await supabase.auth.getSession();
-    const token = session?.session?.access_token;
+  const doInsert = async (): Promise<AddCustomProductResult> => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
 
-    if (token) {
-      const { data, error } = await supabase.functions.invoke("add-custom-product", {
-        body: {
-          item_name: item_name.trim(),
-          custom_selling_price,
-          sort_order: sort_order ?? 0,
-          gst_rate: gst_rate ?? 5,
-        },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (token) {
+        const { data, error } = await supabase.functions.invoke("add-custom-product", {
+          body: {
+            item_name: item_name.trim(),
+            custom_selling_price,
+            sort_order: sort_order ?? 0,
+            gst_rate: gst_rate ?? 5,
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (!error && data?.ok) {
-        if (import.meta.env.DEV) console.log("[add-custom-product] Edge Function success:", data);
-        return { ok: true, id: data.id };
+        if (!error && data?.ok) {
+          if (import.meta.env.DEV) console.log("[add-custom-product] Edge Function success:", data);
+          return { ok: true, id: data.id };
+        }
+        if (error) {
+          if (import.meta.env.DEV) console.warn("[add-custom-product] Edge Function error, falling back:", error);
+        }
       }
-      if (error) {
-        if (import.meta.env.DEV) console.warn("[add-custom-product] Edge Function error, falling back:", error);
-      }
-    }
-  } catch (e) {
-    if ((e as Error)?.name === "AbortError") {
-      if (import.meta.env.DEV) console.warn("[add-custom-product] Edge Function aborted, falling back");
-    } else {
+    } catch (e) {
       if (import.meta.env.DEV) console.warn("[add-custom-product] Edge Function failed:", e);
     }
-  }
 
-  const result = await addCustomVendorMenuItem(vendorId, {
-    item_name: item_name.trim(),
-    custom_selling_price,
-    sort_order: sort_order ?? 0,
-    gst_rate: gst_rate ?? 5,
-  });
+    const result = await addCustomVendorMenuItem(vendorId, {
+      item_name: item_name.trim(),
+      custom_selling_price,
+      sort_order: sort_order ?? 0,
+      gst_rate: gst_rate ?? 5,
+    });
 
-  if (result.ok && import.meta.env.DEV) {
-    console.log("[add-custom-product] Direct Supabase success:", result.id);
-  }
-  if (!result.ok && import.meta.env.DEV) {
-    console.error("[add-custom-product] Direct Supabase error:", result.error);
-  }
+    if (result.ok && import.meta.env.DEV) {
+      console.log("[add-custom-product] Direct Supabase success:", result.id);
+    }
+    if (!result.ok && import.meta.env.DEV) {
+      console.error("[add-custom-product] Direct Supabase error:", result.error);
+    }
 
-  return result;
+    return result;
+  };
+
+  return retryOnAbort(doInsert);
 }
