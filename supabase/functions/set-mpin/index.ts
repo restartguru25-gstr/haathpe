@@ -58,7 +58,11 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAnon.auth.getUser(token);
 
     if (userError || !user) {
-      return jsonResponse({ error: "Invalid or expired session" }, 401);
+      console.error("set-mpin auth:", userError?.message ?? "no user");
+      return jsonResponse(
+        { error: userError?.message ?? "Invalid or expired session. Try verifying OTP again." },
+        401
+      );
     }
 
     const phone = user.phone ?? (user.user_metadata?.phone as string | undefined);

@@ -64,28 +64,18 @@ export async function setMpinAfterOtp(
   }
 
   const tryEdgeFunction = async (): Promise<{ ok: boolean; error?: string }> => {
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-mpin`;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     // Cap refresh at 5s so slow refresh doesn't cause timeout
     await Promise.race([
       supabase.auth.refreshSession(),
       new Promise((r) => setTimeout(r, 5000)),
     ]);
-    const { data: { session: freshSession } } = await supabase.auth.getSession();
-    const token = freshSession?.access_token ?? session.access_token;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": anonKey ?? "",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({ mpin: digits }),
+    // Use invoke() — automatically attaches session JWT; fixes 401 with manual fetch
+    const { data, error } = await supabase.functions.invoke("set-mpin", {
+      body: { mpin: digits },
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, error: (json as { error?: string }).error ?? "Edge function failed" };
-    }
+    if (error) return { ok: false, error: error.message ?? "Edge function failed" };
+    const err = (data as { error?: string })?.error;
+    if (err) return { ok: false, error: err };
     return { ok: true };
   };
 

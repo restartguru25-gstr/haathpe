@@ -11,10 +11,10 @@ This app uses **Vite + React**, not Next.js. Server Actions and Next.js-specific
 | **400** | `/auth/v1/token?grant_type=password` | Weak password, invalid email/password | Use strong password (8+ chars); validate before submit |
 | **406** | `/rest/v1/profiles`, `customer_profiles` | `.single()` when 0 rows (RLS block or missing row) | Use `.maybeSingle()` — done in AuthContext, customer.ts |
 | **400** | `/auth/v1/user` (PUT) | Invalid body, weak password, stale token | Refresh session before update; validate password |
-| **401** | `/functions/v1/set-mpin` | Missing/invalid JWT, no apikey | Send `apikey` + `Authorization: Bearer <token>`; ensure JWT verify ON for set-mpin (it validates user) |
+| **401** | `/functions/v1/set-mpin` | Supabase JWT gate blocks request before our code; or invalid/stale token | Use `supabase.functions.invoke()` (attaches session). If still 401: disable JWT verify on function (see section 6) |
 | **401** | `/rest/v1/customer_orders` | RLS blocks anon insert | Apply "Anyone can insert" policy — see section 1 below |
 
-**set-mpin:** Requires valid JWT (validates user before admin update). Keep JWT verification ON. Frontend sends apikey + Bearer token.
+**set-mpin:** Frontend uses `supabase.functions.invoke('set-mpin', { body: { mpin } })` so the session is sent automatically. The function validates the token via `getUser(token)`.
 
 ---
 
@@ -111,6 +111,32 @@ PublicMenu uses its own cart state for dukaan menu items; this is intentional an
 
 ---
 
+## 6. MPIN set returns 401 (set-mpin Edge Function)
+
+**Error:** `POST /functions/v1/set-mpin` returns 401  
+**Cause:** Supabase’s built-in JWT verification may block the request before our code runs, or the token is invalid/stale.
+
+### Fix A — Use invoke (implemented)
+
+The frontend now uses `supabase.functions.invoke('set-mpin', { body: { mpin } })`, which attaches the session automatically. Redeploy the app and test.
+
+### Fix B — Disable JWT verification (if 401 persists)
+
+1. Go to **Supabase Dashboard → Edge Functions → set-mpin**
+2. Open the **Config** tab
+3. Set **Verify JWT** → OFF
+4. Save / redeploy the function
+
+The function still validates the user via `getUser(token)` in code. Disabling the built-in JWT check lets the request reach our handler.
+
+**Alternative (CLI):**
+
+```bash
+supabase functions deploy set-mpin --no-verify-jwt
+```
+
+---
+
 ## Checklist for production
 
 | Task | Action |
@@ -118,5 +144,6 @@ PublicMenu uses its own cart state for dukaan menu items; this is intentional an
 | customer_orders 401 | Run RLS policy SQL above in Supabase |
 | Env vars | Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in Vercel |
 | Supabase Auth | Add `https://www.haathpe.com` to Site URL and Redirect URLs |
-| Redeploy | Deploy to Vercel after changes |
-| Verify | Test Place order (guest and customer), profile save |
+| set-mpin 401 | Use `supabase.functions.invoke`; if needed, deploy with `--no-verify-jwt` |
+| Redeploy | Deploy to Vercel and Edge Functions |
+| Verify | Test Place order (guest and customer), MPIN set, profile save |
