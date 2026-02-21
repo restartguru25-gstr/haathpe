@@ -22,92 +22,58 @@ export function isValidMpin(mpin: string): boolean {
   return /^\d{4}$/.test((mpin || "").replace(/\D/g, ""));
 }
 
-/** Sign in with phone + MPIN (for returning users). */
+/** Sign in with phone + MPIN (for returning users). Calls prepare-mpin-signin to set Auth, then signInWithPassword. */
 export async function signInWithMpin(
   phone: string,
   mpin: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const padded = padMpin(mpin);
-  const email = getMpinEmail(phone);
-  if (!padded || !email) {
+  const digits = (phone || "").replace(/\D/g, "").slice(-10);
+  const mpinDigits = (mpin || "").replace(/\D/g, "").slice(0, 4);
+  const fullPhone = digits.length === 10 ? `+91${digits}` : "";
+  if (!fullPhone || mpinDigits.length !== 4) {
     return { ok: false, error: "Enter phone and 4-digit MPIN" };
   }
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/prepare-mpin-signin`;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": anonKey ?? "" },
+    body: JSON.stringify({ phone: fullPhone, mpin: mpinDigits }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: (json as { error?: string }).error ?? "Invalid phone or MPIN" };
+  }
+
+  const padded = padMpin(mpinDigits);
+  const email = getMpinEmail(phone);
   const { error } = await supabase.auth.signInWithPassword({ email, password: padded });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
-const SET_MPIN_TIMEOUT_MS = 45000; // Edge Function cold start + slow networks
-
-/** Call to set MPIN after OTP verify (requires session). Tries Edge Function first (more reliable), then client updateUser. */
+/** Set MPIN after OTP verify. Uses direct REST update to customer_profiles (no Edge Function). */
 export async function setMpinAfterOtp(
   mpin: string,
-  phoneOverride?: string
+  _phoneOverride?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const digits = (mpin || "").replace(/\D/g, "").slice(0, 4);
   if (digits.length !== 4) {
     return { ok: false, error: "MPIN must be 4 digits" };
   }
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return { ok: false, error: "Not signed in. Verify OTP first." };
   }
 
-  const padded = padMpin(digits);
-  const phone =
-    phoneOverride ? phoneOverride.replace(/\D/g, "").slice(-10)
-    : (session.user.phone ?? (session.user.user_metadata?.phone as string | undefined) ?? "").replace(/\D/g, "").slice(-10);
-  const syntheticEmail = phone.length === 10 ? `p${phone}@mpin.local` : "";
+  await supabase.auth.refreshSession();
 
-  if (!syntheticEmail) {
-    return { ok: false, error: "Phone number required for MPIN. Sign in with phone OTP first." };
-  }
+  const { error } = await supabase
+    .from("customer_profiles")
+    .update({ mpin: digits })
+    .eq("id", user.id);
 
-  const tryEdgeFunction = async (): Promise<{ ok: boolean; error?: string }> => {
-    // Cap refresh at 5s so slow refresh doesn't cause timeout
-    await Promise.race([
-      supabase.auth.refreshSession(),
-      new Promise((r) => setTimeout(r, 5000)),
-    ]);
-    // Use invoke() — automatically attaches session JWT; fixes 401 with manual fetch
-    const { data, error } = await supabase.functions.invoke("set-mpin", {
-      body: { mpin: digits },
-    });
-    if (error) return { ok: false, error: error.message ?? "Edge function failed" };
-    const err = (data as { error?: string })?.error;
-    if (err) return { ok: false, error: err };
-    return { ok: true };
-  };
-
-  const tryClientUpdate = async (): Promise<{ ok: boolean; error?: string }> => {
-    const { error } = await supabase.auth.updateUser({
-      email: syntheticEmail,
-      password: padded,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  };
-
-  const timeout = () =>
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Setting MPIN timed out. Please try again.")), SET_MPIN_TIMEOUT_MS)
-    );
-
-  const run = async (): Promise<{ ok: boolean; error?: string }> => {
-    // Refresh session first (helps avoid stale-token 400)
-    await supabase.auth.refreshSession();
-    // Try client first (fast, no network) — works when Supabase allows updateUser for phone auth
-    const clientResult = await tryClientUpdate();
-    if (clientResult.ok) return clientResult;
-    // Fallback to Edge Function (admin API, more reliable when client fails)
-    const efResult = await tryEdgeFunction();
-    if (efResult.ok) return efResult;
-    return { ok: false, error: clientResult.error ?? efResult.error ?? "Failed to set MPIN" };
-  };
-
-  try {
-    return await Promise.race([run(), timeout()]);
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Failed to set MPIN. Try again." };
-  }
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

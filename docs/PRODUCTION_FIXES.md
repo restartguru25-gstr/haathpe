@@ -111,7 +111,21 @@ PublicMenu uses its own cart state for dukaan menu items; this is intentional an
 
 ---
 
-## 6. MPIN set returns 401 (set-mpin Edge Function)
+## 6. MPIN — Setup (required)
+
+**Set MPIN** uses direct REST update to `customer_profiles`. No Edge Function.
+
+**Step 1 — Add mpin column.** Run in Supabase Dashboard → SQL Editor:
+```sql
+ALTER TABLE public.customer_profiles ADD COLUMN IF NOT EXISTS mpin TEXT;
+```
+Or run `supabase/run-add-mpin-column.sql`.
+
+**Step 2 — Deploy prepare-mpin-signin** (for Sign in with MPIN). Create the function from `supabase/functions/prepare-mpin-signin/index.ts`, deploy it, and set **Verify JWT = OFF** in the function Config. If using CLI: `supabase functions deploy prepare-mpin-signin --no-verify-jwt`.
+
+---
+
+## 7. MPIN set returns 401 (legacy set-mpin Edge Function)
 
 **Error:** `POST /functions/v1/set-mpin` returns 401  
 **Cause:** Supabase’s built-in JWT verification may block the request before our code runs, or the token is invalid/stale.
@@ -148,6 +162,6 @@ The function still validates the token via `getUser(token)`. Disabling the built
 | customer_orders 401 | Run RLS policy SQL above in Supabase |
 | Env vars | Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in Vercel |
 | Supabase Auth | Add `https://www.haathpe.com` to Site URL and Redirect URLs |
-| set-mpin 401 | Use `supabase.functions.invoke`; if needed, deploy with `--no-verify-jwt` |
+| MPIN setup | Run `run-add-mpin-column.sql`; deploy `prepare-mpin-signin` with JWT OFF |
 | Redeploy | Deploy to Vercel and Edge Functions |
 | Verify | Test Place order (guest and customer), MPIN set, profile save |

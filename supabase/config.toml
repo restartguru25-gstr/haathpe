@@ -1,5 +1,6 @@
 # Supabase config. Create with: supabase init (if missing)
-# Set verify_jwt = false for set-mpin so the request reaches our handler.
-# We still validate the token in code via getUser(token).
 [functions.set-mpin]
+verify_jwt = false
+
+[functions.prepare-mpin-signin]
 verify_jwt = false
