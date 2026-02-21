@@ -854,7 +854,7 @@ export default function Profile() {
                 </Button>
               )}
             </div>
-            {isAdmin && (
+            {isAdmin ? (
               <Link to="/admin">
                 <Button variant="outline" className="w-full justify-between text-sm border-primary/30 text-primary">
                   <span className="flex items-center gap-2">
@@ -863,6 +863,18 @@ export default function Profile() {
                   <ChevronRight size={16} className="text-muted-foreground" />
                 </Button>
               </Link>
+            ) : (
+              <details className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+                  How to access Admin dashboard
+                </summary>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Run <code className="rounded bg-muted px-1">supabase/set-admin-by-email.sql</code> in Supabase SQL Editor with your email, then log out and back in. See <code className="rounded bg-muted px-1">docs/ADMIN_ACCESS.md</code>.
+                </p>
+                <Link to="/admin" className="mt-2 inline-block text-xs text-primary hover:underline">
+                  Try /admin →
+                </Link>
+              </details>
             )}
           </div>
         </motion.div>

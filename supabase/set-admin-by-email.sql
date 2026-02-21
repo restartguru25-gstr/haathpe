@@ -1,5 +1,5 @@
 -- Set admin role for ANY user by email.
--- 1. Replace 'YOUR_EMAIL@example.com' below with your actual sign-up email (in all 3 places).
+-- 1. Replace 'YOUR_EMAIL@example.com' below with your actual sign-up email (in both places).
 -- 2. Run in Supabase SQL Editor.
 -- 3. Log out and log back in so the app picks up the new role.
 
