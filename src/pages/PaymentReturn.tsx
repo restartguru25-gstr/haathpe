@@ -81,10 +81,20 @@ export default function PaymentReturn() {
         return;
       }
 
-      // Catalog order flow
+      // Catalog order flow or customer_orders (PublicMenu/PayDirect)
       const tracked = await getOrderForTracking(orderId);
       if (tracked) {
-        setStatus(tracked.status === "paid" ? "paid" : "pending");
+        if (tracked.status === "paid") {
+          setStatus("paid");
+          return;
+        }
+        // Status pending: verify Cashfree (webhook may not have run yet)
+        const verify = await verifyCashfreePayment(orderId);
+        if (verify.ok && verify.paid) {
+          setStatus("paid");
+          return;
+        }
+        setStatus("pending");
         return;
       }
       const { data: dbOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).single();
@@ -115,7 +125,13 @@ export default function PaymentReturn() {
 
       const pending = getPendingOrder();
       if (!pending || pending.orderId !== orderId) {
-        setStatus("error");
+        // No pending order = customer_orders flow (PublicMenu). Payment verified, show success.
+        const retracked = await getOrderForTracking(orderId);
+        if (retracked) {
+          setStatus("paid");
+          return;
+        }
+        setStatus("paid"); // Optimistic: Cashfree says paid
         return;
       }
 
