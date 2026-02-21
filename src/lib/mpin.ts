@@ -37,7 +37,9 @@ export async function signInWithMpin(
   return { ok: true };
 }
 
-/** Call to set MPIN after OTP verify (requires session). Tries client updateUser first, then Edge Function. */
+const SET_MPIN_TIMEOUT_MS = 15000;
+
+/** Call to set MPIN after OTP verify (requires session). Tries Edge Function first (more reliable), then client updateUser. */
 export async function setMpinAfterOtp(
   mpin: string,
   phoneOverride?: string
@@ -50,8 +52,6 @@ export async function setMpinAfterOtp(
   if (!session?.user) {
     return { ok: false, error: "Not signed in. Verify OTP first." };
   }
-  // Refresh session before update (fixes 400/401 in production when token is stale)
-  await supabase.auth.refreshSession();
 
   const padded = padMpin(digits);
   const phone =
@@ -63,18 +63,10 @@ export async function setMpinAfterOtp(
     return { ok: false, error: "Phone number required for MPIN. Sign in with phone OTP first." };
   }
 
-  const tryClientUpdate = async (): Promise<{ ok: boolean; error?: string }> => {
-    const { error } = await supabase.auth.updateUser({
-      email: syntheticEmail,
-      password: padded,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  };
-
   const tryEdgeFunction = async (): Promise<{ ok: boolean; error?: string }> => {
     const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-mpin`;
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    await supabase.auth.refreshSession();
     const { data: { session: freshSession } } = await supabase.auth.getSession();
     const token = freshSession?.access_token ?? session.access_token;
     const res = await fetch(url, {
@@ -93,11 +85,31 @@ export async function setMpinAfterOtp(
     return { ok: true };
   };
 
-  const clientResult = await tryClientUpdate();
-  if (clientResult.ok) return clientResult;
+  const tryClientUpdate = async (): Promise<{ ok: boolean; error?: string }> => {
+    const { error } = await supabase.auth.updateUser({
+      email: syntheticEmail,
+      password: padded,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  };
 
-  const efResult = await tryEdgeFunction();
-  if (efResult.ok) return efResult;
+  const timeout = () =>
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Setting MPIN timed out. Please try again.")), SET_MPIN_TIMEOUT_MS)
+    );
 
-  return { ok: false, error: clientResult.error ?? efResult.error ?? "Failed to set MPIN" };
+  const run = async (): Promise<{ ok: boolean; error?: string }> => {
+    const efResult = await tryEdgeFunction();
+    if (efResult.ok) return efResult;
+    const clientResult = await tryClientUpdate();
+    if (clientResult.ok) return clientResult;
+    return { ok: false, error: efResult.error ?? clientResult.error ?? "Failed to set MPIN" };
+  };
+
+  try {
+    return await Promise.race([run(), timeout()]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to set MPIN. Try again." };
+  }
 }

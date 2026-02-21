@@ -26,28 +26,46 @@ export async function sendCustomerOtp(phone: string): Promise<{ ok: boolean; err
   return { ok: true };
 }
 
+const VERIFY_TIMEOUT_MS = 15000;
+
 /** Verify OTP and return session. Creates or updates customer_profiles row. */
 export async function verifyCustomerOtp(
   phone: string,
   token: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const { data, error } = await supabase.auth.verifyOtp({
-    phone,
-    token,
-    type: "sms",
-  });
-  if (error) return { ok: false, error: error.message };
-  if (!data.user) return { ok: false, error: "Verification failed" };
-  const uid = data.user.id;
-  await supabase.auth.updateUser({ data: { role: "customer" } });
-  const { error: upsertError } = await supabase.from("customer_profiles").upsert(
-    { id: uid, phone, name: data.user.user_metadata?.name ?? null },
-    { onConflict: "id" }
-  );
-  if (upsertError) {
-    console.warn("Customer profile upsert:", upsertError.message);
+  const timeout = () =>
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Verification timed out. Please try again.")), VERIFY_TIMEOUT_MS)
+    );
+
+  const doVerify = async (): Promise<{ ok: boolean; error?: string }> => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone,
+      token,
+      type: "sms",
+    });
+    if (error) return { ok: false, error: error.message };
+    if (!data.user) return { ok: false, error: "Verification failed" };
+    const uid = data.user.id;
+
+    // updateUser can be slow/fail with 400 — run in background so we don't block
+    supabase.auth.updateUser({ data: { role: "customer" } }).catch(() => {});
+
+    const { error: upsertError } = await supabase.from("customer_profiles").upsert(
+      { id: uid, phone, name: data.user.user_metadata?.name ?? null },
+      { onConflict: "id" }
+    );
+    if (upsertError) {
+      console.warn("Customer profile upsert:", upsertError.message);
+    }
+    return { ok: true };
+  };
+
+  try {
+    return await Promise.race([doVerify(), timeout()]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Verification failed. Try again." };
   }
-  return { ok: true };
 }
 
 /** Get customer profile for current auth user (id = auth.uid()). */

@@ -231,7 +231,7 @@ export default function CustomerLogin() {
               disabled={loading || otp.length < 4}
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : null}
-              {loading ? " " : ""}{t("customerLoginVerify")}
+              {loading ? " " : ""}{loading ? t("customerLoginVerifying") : t("customerLoginVerify")}
             </Button>
             <button
               type="button"
@@ -246,7 +246,6 @@ export default function CustomerLogin() {
         {step === "mpin-create" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t("mpinCreateTitle")}</p>
-            <p className="text-xs text-muted-foreground">{t("mpinCreateSubtitle")}</p>
             <div>
               <Label>{t("mpinPlaceholder")}</Label>
               <MPINInput
@@ -279,7 +278,7 @@ export default function CustomerLogin() {
                 disabled={loading || mpin.replace(/\D/g, "").length !== 4 || mpinConfirm.replace(/\D/g, "").length !== 4}
               >
                 {loading ? <Loader2 size={18} className="animate-spin" /> : null}
-                {loading ? " " : ""}Set MPIN
+                {loading ? " " : ""}{loading ? t("mpinSetting") : "Set MPIN"}
               </Button>
             </div>
           </div>
