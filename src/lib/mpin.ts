@@ -37,7 +37,7 @@ export async function signInWithMpin(
   return { ok: true };
 }
 
-const SET_MPIN_TIMEOUT_MS = 15000;
+const SET_MPIN_TIMEOUT_MS = 45000; // Edge Function cold start + slow networks
 
 /** Call to set MPIN after OTP verify (requires session). Tries Edge Function first (more reliable), then client updateUser. */
 export async function setMpinAfterOtp(
@@ -66,7 +66,11 @@ export async function setMpinAfterOtp(
   const tryEdgeFunction = async (): Promise<{ ok: boolean; error?: string }> => {
     const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-mpin`;
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    await supabase.auth.refreshSession();
+    // Cap refresh at 5s so slow refresh doesn't cause timeout
+    await Promise.race([
+      supabase.auth.refreshSession(),
+      new Promise((r) => setTimeout(r, 5000)),
+    ]);
     const { data: { session: freshSession } } = await supabase.auth.getSession();
     const token = freshSession?.access_token ?? session.access_token;
     const res = await fetch(url, {
