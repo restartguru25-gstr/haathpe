@@ -19,6 +19,7 @@ import {
   Banknote,
   Image,
   UserPlus,
+  Plus,
   Zap,
   Coins,
 } from "lucide-react";
