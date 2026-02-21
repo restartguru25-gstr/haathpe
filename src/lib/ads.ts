@@ -14,6 +14,51 @@ export interface Ad {
   created_at: string;
 }
 
+/** Placement config: which pages show ads. Cached for 2 min. */
+let placementCache: { config: Record<string, boolean>; at: number } | null = null;
+const PLACEMENT_CACHE_MS = 120_000;
+
+export async function getAdPlacementsConfig(): Promise<Record<string, boolean>> {
+  if (placementCache && Date.now() - placementCache.at < PLACEMENT_CACHE_MS) {
+    return placementCache.config;
+  }
+  const { data, error } = await supabase
+    .from("ad_placement_config")
+    .select("page_slug, enabled");
+  if (error || !data) {
+    return {}; // Default: allow all if table missing or error
+  }
+  const config: Record<string, boolean> = {};
+  for (const row of data as { page_slug: string; enabled: boolean }[]) {
+    config[row.page_slug] = row.enabled ?? true;
+  }
+  placementCache = { config, at: Date.now() };
+  return config;
+}
+
+export async function updateAdPlacement(
+  pageSlug: string,
+  enabled: boolean
+): Promise<{ ok: boolean; error?: string }> {
+  placementCache = null; // Invalidate cache
+  const { error } = await supabase
+    .from("ad_placement_config")
+    .update({ enabled, updated_at: new Date().toISOString() })
+    .eq("page_slug", pageSlug);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Admin: Get placement config with labels. */
+export async function getAdminAdPlacements(): Promise<{ page_slug: string; enabled: boolean; label: string | null }[]> {
+  const { data, error } = await supabase
+    .from("ad_placement_config")
+    .select("page_slug, enabled, label")
+    .order("page_slug");
+  if (error) return [];
+  return (data ?? []) as { page_slug: string; enabled: boolean; label: string | null }[];
+}
+
 /** Admin: Get all ads. */
 export async function getAdminAds(): Promise<Ad[]> {
   const { data, error } = await supabase

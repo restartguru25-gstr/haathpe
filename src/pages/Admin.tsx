@@ -65,6 +65,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   getAdminVendorIncentives,
   getAllIncentiveSlabs,
@@ -77,7 +78,7 @@ import {
   type VendorIncentive,
   type IncentiveSlab,
 } from "@/lib/incentives";
-import { getAdminAds, upsertAd, deleteAd, uploadAdImage, type Ad } from "@/lib/ads";
+import { getAdminAds, getAdminAdPlacements, updateAdPlacement, upsertAd, deleteAd, uploadAdImage, type Ad } from "@/lib/ads";
 import { getOndcOrdersForAdmin, type OndcOrder } from "@/lib/ondcOrders";
 import {
   getAdminRedemptions,
@@ -181,6 +182,8 @@ export default function Admin() {
   const [monthlyDrawRunning, setMonthlyDrawRunning] = useState(false);
   const [adminAds, setAdminAds] = useState<Ad[]>([]);
   const [loadingAds, setLoadingAds] = useState(false);
+  const [adPlacements, setAdPlacements] = useState<{ page_slug: string; enabled: boolean; label: string | null }[]>([]);
+  const [loadingPlacements, setLoadingPlacements] = useState(false);
   const [eligibleForDraw, setEligibleForDraw] = useState<VendorIncentive[]>([]);
   const [slabFormOpen, setSlabFormOpen] = useState(false);
   const [editingSlab, setEditingSlab] = useState<IncentiveSlab | null>(null);
@@ -408,6 +411,23 @@ export default function Admin() {
     setLoadingAds(false);
   };
 
+  const loadAdPlacements = async () => {
+    setLoadingPlacements(true);
+    const list = await getAdminAdPlacements();
+    setAdPlacements(list);
+    setLoadingPlacements(false);
+  };
+
+  const handlePlacementToggle = async (pageSlug: string, enabled: boolean) => {
+    const res = await updateAdPlacement(pageSlug, enabled);
+    if (res.ok) {
+      setAdPlacements((prev) => prev.map((p) => (p.page_slug === pageSlug ? { ...p, enabled } : p)));
+      toast.success(`Ad placement ${pageSlug} ${enabled ? "enabled" : "disabled"}`);
+    } else {
+      toast.error(res.error ?? "Failed to update");
+    }
+  };
+
   const loadOndc = async () => {
     setLoadingOndc(true);
     const ords = await getOndcOrdersForAdmin();
@@ -481,6 +501,7 @@ export default function Admin() {
       loadSvanidhiRequests();
       loadIncentives();
       loadAds();
+      loadAdPlacements();
       loadOndc();
       loadCustomerRedemptions();
       loadCoinsConfig();
@@ -1443,11 +1464,30 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="ads" className="space-y-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold mb-3">Ad placements</h3>
+            <p className="text-xs text-muted-foreground mb-3">Enable or disable ads on specific pages.</p>
+            {loadingPlacements ? (
+              <Skeleton className="h-32 w-full" />
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {adPlacements.map((p) => (
+                  <div key={p.page_slug} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+                    <span className="text-sm">{p.label ?? p.page_slug}</span>
+                    <Switch
+                      checked={p.enabled}
+                      onCheckedChange={(checked) => handlePlacementToggle(p.page_slug, checked)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => openAdForm(null)}>
               <Plus size={14} /> Add ad
             </Button>
-            <Button variant="outline" size="sm" onClick={loadAds} disabled={loadingAds}>
+            <Button variant="outline" size="sm" onClick={() => { loadAds(); loadAdPlacements(); }} disabled={loadingAds}>
               <RefreshCw size={14} className={loadingAds ? "animate-spin" : ""} /> Refresh
             </Button>
           </div>

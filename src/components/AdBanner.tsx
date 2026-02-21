@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { getRandomAd, recordAdImpression, getSessionId, type Ad } from "@/lib/ads";
+import { getRandomAd, recordAdImpression, getSessionId, getAdPlacementsConfig, type Ad } from "@/lib/ads";
 import { toast } from "sonner";
 
 interface AdBannerProps {
@@ -12,8 +12,17 @@ interface AdBannerProps {
 
 export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdBannerProps) {
   const [ad, setAd] = useState<Ad | null>(null);
+  const [placementEnabled, setPlacementEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
+    getAdPlacementsConfig().then((config) => {
+      const slug = page ?? "general";
+      setPlacementEnabled(config[slug] !== false);
+    });
+  }, [page]);
+
+  useEffect(() => {
+    if (placementEnabled !== true) return;
     getRandomAd(vendorZone).then((a) => {
       setAd(a);
       if (a) {
@@ -24,7 +33,7 @@ export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdB
         });
       }
     });
-  }, [vendorId, vendorZone, page]);
+  }, [vendorId, vendorZone, page, placementEnabled]);
 
   const handleClick = () => {
     if (ad) {
@@ -37,7 +46,7 @@ export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdB
     }
   };
 
-  if (!ad) return null;
+  if (placementEnabled === false || !ad) return null;
 
   const href = ad.link_url ?? "#";
   const isExternal = href.startsWith("http");
