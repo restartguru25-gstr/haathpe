@@ -215,6 +215,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t);
   }, [session, isLoading, tryRecoverSession]);
 
+  // Periodic session refresh — keeps JWT fresh for REST calls (fixes 401 in production)
+  useEffect(() => {
+    if (!user?.id) return;
+    const REFRESH_MINUTES = 10;
+    const interval = window.setInterval(async () => {
+      try {
+        const { error } = await supabase.auth.refreshSession();
+        if (error && import.meta.env.DEV) console.warn("[Auth] Session refresh:", error.message);
+      } catch {
+        /* ignore */
+      }
+    }, REFRESH_MINUTES * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
   // Re-check session when user returns to tab (handles storage restored elsewhere or race)
   useEffect(() => {
     const onVisibility = () => {

@@ -18,6 +18,8 @@ export function getSupabase() {
     supabaseInstance = createClient<Database>(supabaseUrl || "", supabaseAnonKey || "", {
       auth: {
         persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
         storage: typeof window !== "undefined" ? window.localStorage : undefined,
       },
     });
