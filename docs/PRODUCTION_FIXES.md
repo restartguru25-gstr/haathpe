@@ -120,20 +120,24 @@ PublicMenu uses its own cart state for dukaan menu items; this is intentional an
 
 The frontend now uses `supabase.functions.invoke('set-mpin', { body: { mpin } })`, which attaches the session automatically. Redeploy the app and test.
 
-### Fix B — Disable JWT verification (if 401 persists)
+### Fix B — Disable JWT verification (required if 401 persists)
 
-1. Go to **Supabase Dashboard → Edge Functions → set-mpin**
-2. Open the **Config** tab
-3. Set **Verify JWT** → OFF
-4. Save / redeploy the function
+Supabase validates the JWT before the request reaches our handler. If that fails, you get 401 before our code runs.
 
-The function still validates the user via `getUser(token)` in code. Disabling the built-in JWT check lets the request reach our handler.
+**Option 1 — config.toml:** `supabase/config.toml` has `verify_jwt = false` for set-mpin. Redeploy:
+```bash
+supabase functions deploy set-mpin
+```
 
-**Alternative (CLI):**
-
+**Option 2 — CLI flag (use if config not applied):**
 ```bash
 supabase functions deploy set-mpin --no-verify-jwt
 ```
+Or run: `./scripts/deploy-set-mpin.sh`
+
+**Option 3 — Dashboard:** Edge Functions → set-mpin → Config → Verify JWT OFF → Redeploy.
+
+The function still validates the token via `getUser(token)`. Disabling the built-in JWT check lets the request reach our handler.
 
 ---
 

@@ -94,11 +94,15 @@ export async function setMpinAfterOtp(
     );
 
   const run = async (): Promise<{ ok: boolean; error?: string }> => {
-    const efResult = await tryEdgeFunction();
-    if (efResult.ok) return efResult;
+    // Refresh session first (helps avoid stale-token 400)
+    await supabase.auth.refreshSession();
+    // Try client first (fast, no network) — works when Supabase allows updateUser for phone auth
     const clientResult = await tryClientUpdate();
     if (clientResult.ok) return clientResult;
-    return { ok: false, error: efResult.error ?? clientResult.error ?? "Failed to set MPIN" };
+    // Fallback to Edge Function (admin API, more reliable when client fails)
+    const efResult = await tryEdgeFunction();
+    if (efResult.ok) return efResult;
+    return { ok: false, error: clientResult.error ?? efResult.error ?? "Failed to set MPIN" };
   };
 
   try {
