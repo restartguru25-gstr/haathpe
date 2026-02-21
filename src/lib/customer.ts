@@ -58,7 +58,7 @@ export async function getCustomerProfile(): Promise<CustomerProfile | null> {
     .from("customer_profiles")
     .select("*")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
   if (error || !data) return null;
   return {
     ...data,
@@ -115,7 +115,7 @@ export async function appendOrderToHistory(
     .from("customer_profiles")
     .select("order_history")
     .eq("id", customerId)
-    .single();
+    .maybeSingle();
   const history = Array.isArray(row?.order_history) ? (row.order_history as OrderHistoryEntry[]) : [];
   const updated = [entry, ...history].slice(0, 100);
   const { error } = await supabase

@@ -50,6 +50,8 @@ export async function setMpinAfterOtp(
   if (!session?.user) {
     return { ok: false, error: "Not signed in. Verify OTP first." };
   }
+  // Refresh session before update (fixes 400/401 in production when token is stale)
+  await supabase.auth.refreshSession();
 
   const padded = padMpin(digits);
   const phone =
@@ -72,11 +74,15 @@ export async function setMpinAfterOtp(
 
   const tryEdgeFunction = async (): Promise<{ ok: boolean; error?: string }> => {
     const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-mpin`;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data: { session: freshSession } } = await supabase.auth.getSession();
+    const token = freshSession?.access_token ?? session.access_token;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
+        "apikey": anonKey ?? "",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({ mpin: digits }),
     });

@@ -2,6 +2,22 @@
 
 This app uses **Vite + React**, not Next.js. Server Actions and Next.js-specific fixes do not apply.
 
+---
+
+## Supabase API Error Reference
+
+| Error | Endpoint | Cause | Fix |
+|-------|----------|-------|-----|
+| **400** | `/auth/v1/token?grant_type=password` | Weak password, invalid email/password | Use strong password (8+ chars); validate before submit |
+| **406** | `/rest/v1/profiles`, `customer_profiles` | `.single()` when 0 rows (RLS block or missing row) | Use `.maybeSingle()` — done in AuthContext, customer.ts |
+| **400** | `/auth/v1/user` (PUT) | Invalid body, weak password, stale token | Refresh session before update; validate password |
+| **401** | `/functions/v1/set-mpin` | Missing/invalid JWT, no apikey | Send `apikey` + `Authorization: Bearer <token>`; ensure JWT verify ON for set-mpin (it validates user) |
+| **401** | `/rest/v1/customer_orders` | RLS blocks anon insert | Apply "Anyone can insert" policy — see section 1 below |
+
+**set-mpin:** Requires valid JWT (validates user before admin update). Keep JWT verification ON. Frontend sends apikey + Bearer token.
+
+---
+
 ## Auth Token Handling (Implemented)
 
 - **Supabase client:** `autoRefreshToken: true`, `detectSessionInUrl: true`, `persistSession: true`

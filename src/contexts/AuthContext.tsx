@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from("profiles")
         .select("*")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
       if (error) {
         if (error?.message !== "AbortError: signal is aborted without reason" && error?.name !== "AbortError") {
           console.warn("Profile fetch error:", error.message);
