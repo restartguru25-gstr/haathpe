@@ -244,7 +244,7 @@ export default function CustomerLogin() {
         )}
 
         {step === "mpin-create" && (
-          <div className="space-y-4">
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleMpinCreate(); }}>
             <p className="text-sm text-muted-foreground">{t("mpinCreateTitle")}</p>
             <div>
               <Label>{t("mpinPlaceholder")}</Label>
@@ -266,6 +266,7 @@ export default function CustomerLogin() {
             </div>
             <div className="flex gap-2">
               <Button
+                type="button"
                 variant="outline"
                 className="flex-1"
                 onClick={() => navigate(returnTo, { replace: true })}
@@ -273,19 +274,19 @@ export default function CustomerLogin() {
                 Skip
               </Button>
               <Button
+                type="submit"
                 className="flex-1"
-                onClick={handleMpinCreate}
                 disabled={loading || mpin.replace(/\D/g, "").length !== 4 || mpinConfirm.replace(/\D/g, "").length !== 4}
               >
                 {loading ? <Loader2 size={18} className="animate-spin" /> : null}
                 {loading ? " " : ""}{loading ? t("mpinSetting") : "Set MPIN"}
               </Button>
             </div>
-          </div>
+          </form>
         )}
 
         {step === "mpin-signin" && (
-          <div className="space-y-4">
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleMpinSignIn(); }}>
             <p className="text-sm text-muted-foreground">{t("mpinSignInSubtitle")}</p>
             <div>
               <Label>{t("customerLoginPhone")}</Label>
@@ -314,8 +315,8 @@ export default function CustomerLogin() {
               />
             </div>
             <Button
+              type="submit"
               className="w-full"
-              onClick={handleMpinSignIn}
               disabled={loading || !isValidPhone || mpin.replace(/\D/g, "").length !== 4}
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : null}
@@ -328,7 +329,7 @@ export default function CustomerLogin() {
             >
               Back
             </button>
-          </div>
+          </form>
         )}
 
         {(step === "choice" || step === "phone" || step === "otp" || step === "mpin-signin") && (
