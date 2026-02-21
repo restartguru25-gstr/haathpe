@@ -121,15 +121,36 @@ export async function getVendorMenuItems(vendorId: string): Promise<VendorMenuIt
   return (data ?? []) as VendorMenuItem[];
 }
 
-/** Get vendor zone for ad targeting (profiles.zone). */
+/** Get vendor public profile (name, zone, shop details). Uses RPC so anon can read. */
+export async function getVendorPublicProfile(vendorId: string): Promise<{
+  name: string | null;
+  zone: string | null;
+  opening_hours?: Record<string, string> | null;
+  weekly_off?: string | null;
+  holidays?: string[] | null;
+  is_online?: boolean;
+} | null> {
+  const { data, error } = await supabase.rpc("get_vendor_public_info", {
+    p_vendor_id: vendorId,
+  });
+  if (error || !data) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+  return {
+    name: (r.name as string | null) ?? null,
+    zone: (r.zone as string | null) ?? null,
+    opening_hours: r.opening_hours as Record<string, string> | null | undefined,
+    weekly_off: r.weekly_off as string | null | undefined,
+    holidays: r.holidays as string[] | null | undefined,
+    is_online: r.is_online as boolean | undefined,
+  };
+}
+
+/** Get vendor zone for ad targeting. Uses getVendorPublicProfile (RPC). */
 export async function getVendorZone(vendorId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("zone")
-    .eq("id", vendorId)
-    .single();
-  if (error) return null;
-  return (data as { zone?: string | null })?.zone ?? null;
+  const p = await getVendorPublicProfile(vendorId);
+  return p?.zone ?? null;
 }
 
 export async function getActiveVendorMenuForPublic(vendorId: string): Promise<VendorMenuItem[]> {

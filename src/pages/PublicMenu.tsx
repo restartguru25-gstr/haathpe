@@ -4,7 +4,7 @@ import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy, ArrowLeft } from "luc
 import { AdBanner } from "@/components/AdBanner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { Button } from "@/components/ui/button";
-import { getActiveVendorMenuForPublic, createCustomerOrder, getVendorZone, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
+import { getActiveVendorMenuForPublic, createCustomerOrder, getVendorPublicProfile, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
 import { supabase } from "@/lib/supabase";
 import { isShopOpen, formatTimeForDisplay, type ShopDetails } from "@/lib/shopDetails";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
@@ -64,14 +64,16 @@ export default function PublicMenu() {
     }
     Promise.all([
       getActiveVendorMenuForPublic(vendorId),
-      getVendorZone(vendorId),
-      supabase.from("profiles").select("name, opening_hours, weekly_off, holidays, is_online").eq("id", vendorId).single(),
-    ]).then(([list, zone, profileRes]) => {
+      getVendorPublicProfile(vendorId),
+    ]).then(([list, profile]) => {
       setMenu(list);
-      setVendorZone(zone);
-      const p = profileRes.data as { name?: string; opening_hours?: Record<string, string>; weekly_off?: string; holidays?: string[]; is_online?: boolean } | null;
-      setVendorName(p?.name ?? null);
-      setShopDetails(p ? { opening_hours: p.opening_hours, weekly_off: p.weekly_off, holidays: p.holidays, is_online: p.is_online } : null);
+      setVendorZone(profile?.zone ?? null);
+      setVendorName(profile?.name ?? null);
+      setShopDetails(
+        profile
+          ? { opening_hours: profile.opening_hours, weekly_off: profile.weekly_off, holidays: profile.holidays, is_online: profile.is_online }
+          : null
+      );
       setLoading(false);
     });
   }, [vendorId]);

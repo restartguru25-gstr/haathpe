@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Wallet, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { createDirectPaymentOrder, getVendorZone } from "@/lib/sales";
+import { createDirectPaymentOrder, getVendorPublicProfile } from "@/lib/sales";
 import { awardCoinsForOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
@@ -34,12 +34,9 @@ export default function PayDirect() {
       setLoading(false);
       return;
     }
-    Promise.all([
-      supabase.from("profiles").select("name").eq("id", vendorId).single(),
-      getVendorZone(vendorId),
-    ]).then(([profileRes, zone]) => {
-      setVendor(profileRes.data as { name: string | null } | null);
-      setVendorZone(zone);
+    getVendorPublicProfile(vendorId).then((profile) => {
+      setVendor(profile ? { name: profile.name } : null);
+      setVendorZone(profile?.zone ?? null);
       setLoading(false);
     });
   }, [vendorId]);
