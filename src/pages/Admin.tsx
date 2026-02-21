@@ -22,6 +22,9 @@ import {
   Plus,
   Zap,
   Coins,
+  LayoutGrid,
+  Tags,
+  UtensilsCrossed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +86,25 @@ import {
   getCoinsConfig,
   updateCoinsConfig,
 } from "@/lib/wallet";
+import {
+  getSectorsAdmin,
+  getCategoriesAdmin,
+  getDefaultMenuItemsAdmin,
+  getCatalogProductsAdmin,
+  upsertSector,
+  deleteSector,
+  upsertCategory,
+  deleteCategory,
+  upsertDefaultMenuItem,
+  deleteDefaultMenuItem,
+  upsertCatalogProduct,
+  deleteCatalogProduct,
+  type Sector,
+  type Category,
+  type DefaultMenuItem,
+  type CatalogProductAdmin,
+} from "@/lib/adminCatalog";
+import { updateSwap } from "@/lib/swaps";
 
 interface AdminProfile {
   id: string;
@@ -146,7 +168,11 @@ export default function Admin() {
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
   const [svanidhiRequests, setSvanidhiRequests] = useState<SvanidhiSupportRow[]>([]);
   const [loadingSvanidhi, setLoadingSvanidhi] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "vendor" | "order" | "swap"; id: string; label?: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: "vendor" | "order" | "swap" | "sector" | "category" | "defaultMenuItem" | "catalogProduct";
+    id: string;
+    label?: string;
+  } | null>(null);
   const [adminIncentives, setAdminIncentives] = useState<VendorIncentive[]>([]);
   const [adminSlabs, setAdminSlabs] = useState<IncentiveSlab[]>([]);
   const [loadingIncentives, setLoadingIncentives] = useState(false);
@@ -172,6 +198,53 @@ export default function Admin() {
   const [coinsConfig, setCoinsConfig] = useState<Awaited<ReturnType<typeof getCoinsConfig>>>([]);
   const [loadingCoinsConfig, setLoadingCoinsConfig] = useState(false);
   const [savingCoinsConfig, setSavingCoinsConfig] = useState(false);
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [defaultMenuItems, setDefaultMenuItems] = useState<DefaultMenuItem[]>([]);
+  const [loadingSectors, setLoadingSectors] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingDefaultMenu, setLoadingDefaultMenu] = useState(false);
+  const [sectorFormOpen, setSectorFormOpen] = useState(false);
+  const [editingSector, setEditingSector] = useState<Sector | null>(null);
+  const [sectorForm, setSectorForm] = useState({ name: "", icon: "" });
+  const [categoryFormOpen, setCategoryFormOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryForm, setCategoryForm] = useState({ name: "", sector_id: "", gst_rate: 5 });
+  const [defaultMenuFormOpen, setDefaultMenuFormOpen] = useState(false);
+  const [editingDefaultMenu, setEditingDefaultMenu] = useState<DefaultMenuItem | null>(null);
+  const [defaultMenuForm, setDefaultMenuForm] = useState({
+    sector_id: "",
+    item_name: "",
+    description: "",
+    default_selling_price_range: "10-50",
+    gst_rate: 5,
+    sort_order: 0,
+  });
+  const [swapEditOpen, setSwapEditOpen] = useState(false);
+  const [editingSwap, setEditingSwap] = useState<VendorSwap | null>(null);
+  const [swapEditForm, setSwapEditForm] = useState({ title: "", description: "", price_notes: "", location: "" });
+  const [svanidhiEditNotesId, setSvanidhiEditNotesId] = useState<string | null>(null);
+  const [svanidhiNotesValue, setSvanidhiNotesValue] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProductAdmin[]>([]);
+  const [loadingCatalogProducts, setLoadingCatalogProducts] = useState(false);
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<CatalogProductAdmin | null>(null);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    name_hi: "",
+    name_te: "",
+    category_id: "",
+    description: "",
+    description_hi: "",
+    description_te: "",
+    mrp: "",
+    selling_price: "",
+    discount_percent: 0,
+    gst_rate: 5,
+    image_url: "",
+    stock_quantity: 0,
+    is_eco: false,
+  });
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -252,6 +325,34 @@ export default function Admin() {
     const list = await getCoinsConfig();
     setCoinsConfig(list);
     setLoadingCoinsConfig(false);
+  };
+
+  const loadSectors = async () => {
+    setLoadingSectors(true);
+    const list = await getSectorsAdmin();
+    setSectors(list);
+    setLoadingSectors(false);
+  };
+
+  const loadCategories = async () => {
+    setLoadingCategories(true);
+    const list = await getCategoriesAdmin();
+    setCategories(list);
+    setLoadingCategories(false);
+  };
+
+  const loadDefaultMenu = async () => {
+    setLoadingDefaultMenu(true);
+    const list = await getDefaultMenuItemsAdmin();
+    setDefaultMenuItems(list);
+    setLoadingDefaultMenu(false);
+  };
+
+  const loadCatalogProducts = async () => {
+    setLoadingCatalogProducts(true);
+    const list = await getCatalogProductsAdmin();
+    setCatalogProducts(list);
+    setLoadingCatalogProducts(false);
   };
 
   const loadSvanidhiRequests = async () => {
@@ -383,6 +484,10 @@ export default function Admin() {
       loadOndc();
       loadCustomerRedemptions();
       loadCoinsConfig();
+      loadSectors();
+      loadCategories();
+      loadDefaultMenu();
+      loadCatalogProducts();
     }
   }, [isAdmin]);
 
@@ -428,6 +533,231 @@ export default function Admin() {
       loadAllSwaps();
     } else {
       toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const openSwapEdit = (swap: VendorSwap) => {
+    setEditingSwap(swap);
+    setSwapEditForm({
+      title: swap.title,
+      description: swap.description ?? "",
+      price_notes: swap.price_notes ?? "",
+      location: swap.location ?? "",
+    });
+    setSwapEditOpen(true);
+  };
+
+  const handleUpdateSwap = async () => {
+    if (!editingSwap) return;
+    setModeratingId(editingSwap.id);
+    const result = await updateSwap(editingSwap.id, swapEditForm);
+    setModeratingId(null);
+    setSwapEditOpen(false);
+    setEditingSwap(null);
+    if (result.ok) {
+      toast.success("Swap updated");
+      loadAllSwaps();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const handleSaveSvanidhiNotes = async (id: string) => {
+    const { error } = await supabase.from("svanidhi_support_requests").update({ admin_notes: svanidhiNotesValue }).eq("id", id);
+    if (error) toast.error("Could not save notes");
+    else {
+      toast.success("Notes saved");
+      setSvanidhiEditNotesId(null);
+      loadSvanidhiRequests();
+    }
+  };
+
+  const openSectorForm = (sector: Sector | null) => {
+    setEditingSector(sector);
+    setSectorForm({ name: sector?.name ?? "", icon: sector?.icon ?? "" });
+    setSectorFormOpen(true);
+  };
+
+  const handleSaveSector = async () => {
+    if (!sectorForm.name.trim()) {
+      toast.error("Name required");
+      return;
+    }
+    const result = await upsertSector({ id: editingSector?.id, name: sectorForm.name.trim(), icon: sectorForm.icon.trim() || null });
+    if (result.ok) {
+      toast.success(editingSector ? "Sector updated" : "Sector added");
+      setSectorFormOpen(false);
+      setEditingSector(null);
+      loadSectors();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const openCategoryForm = (category: Category | null) => {
+    setEditingCategory(category);
+    setCategoryForm({
+      name: category?.name ?? "",
+      sector_id: category?.sector_id ?? sectors[0]?.id ?? "",
+      gst_rate: category?.gst_rate ?? 5,
+    });
+    setCategoryFormOpen(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!categoryForm.name.trim() || !categoryForm.sector_id) {
+      toast.error("Name and sector required");
+      return;
+    }
+    const result = await upsertCategory({
+      id: editingCategory?.id,
+      name: categoryForm.name.trim(),
+      sector_id: categoryForm.sector_id,
+      gst_rate: categoryForm.gst_rate,
+    });
+    if (result.ok) {
+      toast.success(editingCategory ? "Category updated" : "Category added");
+      setCategoryFormOpen(false);
+      setEditingCategory(null);
+      loadCategories();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const openDefaultMenuForm = (item: DefaultMenuItem | null) => {
+    setEditingDefaultMenu(item);
+    setDefaultMenuForm({
+      sector_id: item?.sector_id ?? sectors[0]?.id ?? "",
+      item_name: item?.item_name ?? "",
+      description: item?.description ?? "",
+      default_selling_price_range: item?.default_selling_price_range ?? "10-50",
+      gst_rate: item?.gst_rate ?? 5,
+      sort_order: item?.sort_order ?? 0,
+    });
+    setDefaultMenuFormOpen(true);
+  };
+
+  const handleSaveDefaultMenu = async () => {
+    if (!defaultMenuForm.item_name.trim() || !defaultMenuForm.sector_id) {
+      toast.error("Item name and sector required");
+      return;
+    }
+    const result = await upsertDefaultMenuItem({
+      id: editingDefaultMenu?.id,
+      sector_id: defaultMenuForm.sector_id,
+      item_name: defaultMenuForm.item_name.trim(),
+      description: defaultMenuForm.description.trim() || null,
+      default_selling_price_range: defaultMenuForm.default_selling_price_range,
+      gst_rate: defaultMenuForm.gst_rate,
+      sort_order: defaultMenuForm.sort_order,
+    });
+    if (result.ok) {
+      toast.success(editingDefaultMenu ? "Menu item updated" : "Menu item added");
+      setDefaultMenuFormOpen(false);
+      setEditingDefaultMenu(null);
+      loadDefaultMenu();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const handleDeleteSector = async (id: string) => {
+    const r = await deleteSector(id);
+    if (r.ok) {
+      toast.success("Sector deleted");
+      setDeleteConfirm(null);
+      loadSectors();
+    } else {
+      toast.error(r.error ?? "Failed");
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    const r = await deleteCategory(id);
+    if (r.ok) {
+      toast.success("Category deleted");
+      setDeleteConfirm(null);
+      loadCategories();
+    } else {
+      toast.error(r.error ?? "Failed");
+    }
+  };
+
+  const handleDeleteDefaultMenuItem = async (id: string) => {
+    const r = await deleteDefaultMenuItem(id);
+    if (r.ok) {
+      toast.success("Menu item deleted");
+      setDeleteConfirm(null);
+      loadDefaultMenu();
+    } else {
+      toast.error(r.error ?? "Failed");
+    }
+  };
+
+  const openProductForm = (product: CatalogProductAdmin | null) => {
+    setEditingProduct(product);
+    setProductForm({
+      name: product?.name ?? "",
+      name_hi: product?.name_hi ?? "",
+      name_te: product?.name_te ?? "",
+      category_id: product?.category_id ?? categories[0]?.id ?? "",
+      description: product?.description ?? "",
+      description_hi: product?.description_hi ?? "",
+      description_te: product?.description_te ?? "",
+      mrp: product != null ? String(product.mrp / 100) : "",
+      selling_price: product != null ? String(product.selling_price / 100) : "",
+      discount_percent: product?.discount_percent ?? 0,
+      gst_rate: product?.gst_rate ?? 5,
+      image_url: product?.image_url ?? "",
+      stock_quantity: product?.stock_quantity ?? 0,
+      is_eco: product?.is_eco ?? false,
+    });
+    setProductFormOpen(true);
+  };
+
+  const handleSaveProduct = async () => {
+    if (!productForm.name.trim() || !productForm.category_id) {
+      toast.error("Name and category required");
+      return;
+    }
+    const mrpPaise = Math.round(parseFloat(productForm.mrp || "0") * 100);
+    const sellingPaise = Math.round(parseFloat(productForm.selling_price || "0") * 100);
+    const result = await upsertCatalogProduct({
+      id: editingProduct?.id,
+      name: productForm.name.trim(),
+      name_hi: productForm.name_hi.trim() || null,
+      name_te: productForm.name_te.trim() || null,
+      category_id: productForm.category_id,
+      description: productForm.description.trim() || null,
+      description_hi: productForm.description_hi.trim() || null,
+      description_te: productForm.description_te.trim() || null,
+      mrp: mrpPaise,
+      selling_price: sellingPaise,
+      discount_percent: productForm.discount_percent,
+      gst_rate: productForm.gst_rate,
+      image_url: productForm.image_url.trim() || null,
+      stock_quantity: productForm.stock_quantity,
+      is_eco: productForm.is_eco,
+    });
+    if (result.ok) {
+      toast.success(editingProduct ? "Product updated" : "Product added");
+      setProductFormOpen(false);
+      setEditingProduct(null);
+      loadCatalogProducts();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  };
+
+  const handleDeleteCatalogProduct = async (id: string) => {
+    const r = await deleteCatalogProduct(id);
+    if (r.ok) {
+      toast.success("Product deleted");
+      setDeleteConfirm(null);
+      loadCatalogProducts();
+    } else {
+      toast.error(r.error ?? "Failed");
     }
   };
 
@@ -682,6 +1012,18 @@ export default function Admin() {
           <TabsTrigger value="coinsConfig" className="flex items-center gap-2">
             <Coins size={16} /> Coins
           </TabsTrigger>
+          <TabsTrigger value="sectors" className="flex items-center gap-2">
+            <LayoutGrid size={16} /> Sectors
+          </TabsTrigger>
+          <TabsTrigger value="categories" className="flex items-center gap-2">
+            <Tags size={16} /> Categories
+          </TabsTrigger>
+          <TabsTrigger value="defaultMenu" className="flex items-center gap-2">
+            <UtensilsCrossed size={16} /> Menu
+          </TabsTrigger>
+          <TabsTrigger value="products" className="flex items-center gap-2">
+            <Package size={16} /> Products
+          </TabsTrigger>
           <TabsTrigger value="actions" className="flex items-center gap-2">
             <Trophy size={16} /> Actions
           </TabsTrigger>
@@ -869,6 +1211,9 @@ export default function Admin() {
                         </Button>
                       </>
                     )}
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => openSwapEdit(swap)} disabled={moderatingId === swap.id}>
+                      <Pencil size={14} /> Edit
+                    </Button>
                     <Button size="sm" variant="destructive" className="gap-1" onClick={() => setDeleteConfirm({ type: "swap", id: swap.id, label: swap.title })} disabled={moderatingId === swap.id}>
                       <Trash2 size={14} /> Delete
                     </Button>
@@ -973,7 +1318,28 @@ export default function Admin() {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="p-3 text-muted-foreground max-w-[200px] truncate" title={r.admin_notes ?? ""}>{r.admin_notes ?? "—"}</td>
+                        <td className="p-3">
+                          {svanidhiEditNotesId === r.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={svanidhiNotesValue}
+                                onChange={(e) => setSvanidhiNotesValue(e.target.value)}
+                                placeholder="Admin notes"
+                                className="h-8 max-w-[200px]"
+                                autoFocus
+                              />
+                              <Button size="sm" variant="secondary" onClick={() => handleSaveSvanidhiNotes(r.id)}>Save</Button>
+                              <Button size="sm" variant="ghost" onClick={() => { setSvanidhiEditNotesId(null); }}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="max-w-[180px] truncate text-muted-foreground" title={r.admin_notes ?? ""}>{r.admin_notes ?? "—"}</span>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { setSvanidhiEditNotesId(r.id); setSvanidhiNotesValue(r.admin_notes ?? ""); }} title="Edit notes">
+                                <Pencil size={12} />
+                              </Button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1327,6 +1693,202 @@ export default function Admin() {
           )}
         </TabsContent>
 
+        <TabsContent value="sectors" className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => openSectorForm(null)}>
+              <Plus size={14} /> Add sector
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadSectors} disabled={loadingSectors}>
+              <RefreshCw size={14} className={loadingSectors ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Sectors are top-level groups (e.g. Food, Grocery). Used for catalog and default menu.</p>
+          {loadingSectors ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Name</th>
+                      <th className="text-left p-3 font-semibold">Icon</th>
+                      <th className="w-28 p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sectors.map((s) => (
+                      <tr key={s.id} className="border-t border-border">
+                        <td className="p-3 font-medium">{s.name}</td>
+                        <td className="p-3 text-muted-foreground">{s.icon ?? "—"}</td>
+                        <td className="p-3 text-right">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openSectorForm(s)} title="Edit">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteConfirm({ type: "sector", id: s.id, label: s.name })} title="Delete">
+                            <Trash2 size={14} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {sectors.length === 0 && <p className="p-6 text-center text-muted-foreground">No sectors. Add one to get started.</p>}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="categories" className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => openCategoryForm(null)} disabled={sectors.length === 0}>
+              <Plus size={14} /> Add category
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadCategories} disabled={loadingCategories}>
+              <RefreshCw size={14} className={loadingCategories ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Categories belong to a sector. Add sectors first if none exist.</p>
+          {loadingCategories ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Name</th>
+                      <th className="text-left p-3 font-semibold">Sector</th>
+                      <th className="text-right p-3 font-semibold">GST %</th>
+                      <th className="w-28 p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categories.map((c) => (
+                      <tr key={c.id} className="border-t border-border">
+                        <td className="p-3 font-medium">{c.name}</td>
+                        <td className="p-3 text-muted-foreground">{sectors.find((s) => s.id === c.sector_id)?.name ?? c.sector_id.slice(0, 8)}</td>
+                        <td className="p-3 text-right">{c.gst_rate}%</td>
+                        <td className="p-3 text-right">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCategoryForm(c)} title="Edit">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteConfirm({ type: "category", id: c.id, label: c.name })} title="Delete">
+                            <Trash2 size={14} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {categories.length === 0 && <p className="p-6 text-center text-muted-foreground">No categories. Add sectors first.</p>}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="defaultMenu" className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => openDefaultMenuForm(null)} disabled={sectors.length === 0}>
+              <Plus size={14} /> Add menu item
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadDefaultMenu} disabled={loadingDefaultMenu}>
+              <RefreshCw size={14} className={loadingDefaultMenu ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Default menu items appear when vendors choose a sector. Shown as templates.</p>
+          {loadingDefaultMenu ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Item</th>
+                      <th className="text-left p-3 font-semibold">Sector</th>
+                      <th className="text-left p-3 font-semibold">Price range</th>
+                      <th className="text-right p-3 font-semibold">GST %</th>
+                      <th className="w-28 p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {defaultMenuItems.map((m) => (
+                      <tr key={m.id} className="border-t border-border">
+                        <td className="p-3 font-medium">{m.item_name}</td>
+                        <td className="p-3 text-muted-foreground">{sectors.find((s) => s.id === m.sector_id)?.name ?? m.sector_id.slice(0, 8)}</td>
+                        <td className="p-3 text-muted-foreground">{m.default_selling_price_range}</td>
+                        <td className="p-3 text-right">{m.gst_rate}%</td>
+                        <td className="p-3 text-right">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDefaultMenuForm(m)} title="Edit">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteConfirm({ type: "defaultMenuItem", id: m.id, label: m.item_name })} title="Delete">
+                            <Trash2 size={14} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {defaultMenuItems.length === 0 && <p className="p-6 text-center text-muted-foreground">No default menu items. Add sectors first.</p>}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="products" className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => openProductForm(null)} disabled={categories.length === 0}>
+              <Plus size={14} /> Add product
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadCatalogProducts} disabled={loadingCatalogProducts}>
+              <RefreshCw size={14} className={loadingCatalogProducts ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Catalog products appear on the Catalog page. Add categories first.</p>
+          {loadingCatalogProducts ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Name</th>
+                      <th className="text-left p-3 font-semibold">Category</th>
+                      <th className="text-right p-3 font-semibold">MRP</th>
+                      <th className="text-right p-3 font-semibold">Selling</th>
+                      <th className="text-right p-3 font-semibold">Stock</th>
+                      <th className="w-28 p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catalogProducts.map((p) => (
+                      <tr key={p.id} className="border-t border-border">
+                        <td className="p-3 font-medium">{p.name}</td>
+                        <td className="p-3 text-muted-foreground">{categories.find((c) => c.id === p.category_id)?.name ?? p.category_id.slice(0, 8)}</td>
+                        <td className="p-3 text-right">₹{(p.mrp / 100).toFixed(0)}</td>
+                        <td className="p-3 text-right">₹{(p.selling_price / 100).toFixed(0)}</td>
+                        <td className="p-3 text-right">{p.stock_quantity}</td>
+                        <td className="p-3 text-right">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openProductForm(p)} title="Edit">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteConfirm({ type: "catalogProduct", id: p.id, label: p.name })} title="Delete">
+                            <Trash2 size={14} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {catalogProducts.length === 0 && <p className="p-6 text-center text-muted-foreground">No catalog products. Add categories first.</p>}
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="actions" className="space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -1541,6 +2103,167 @@ export default function Admin() {
         </SheetContent>
       </Sheet>
 
+      {/* Sector form sheet */}
+      <Sheet open={sectorFormOpen} onOpenChange={(open) => !open && (setSectorFormOpen(false), setEditingSector(null))}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingSector ? "Edit sector" : "Add sector"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={sectorForm.name} onChange={(e) => setSectorForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Food, Grocery" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Icon (optional, emoji or class)</Label>
+              <Input value={sectorForm.icon} onChange={(e) => setSectorForm((f) => ({ ...f, icon: e.target.value }))} placeholder="🍜 or lucide icon name" className="mt-1.5" />
+            </div>
+            <Button className="w-full" onClick={handleSaveSector}>Save</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Category form sheet */}
+      <Sheet open={categoryFormOpen} onOpenChange={(open) => !open && (setCategoryFormOpen(false), setEditingCategory(null))}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingCategory ? "Edit category" : "Add category"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={categoryForm.name} onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Snacks, Beverages" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Sector</Label>
+              <Select value={categoryForm.sector_id} onValueChange={(v) => setCategoryForm((f) => ({ ...f, sector_id: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select sector" /></SelectTrigger>
+                <SelectContent>
+                  {sectors.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>GST rate (%)</Label>
+              <Input type="number" min={0} max={28} value={categoryForm.gst_rate} onChange={(e) => setCategoryForm((f) => ({ ...f, gst_rate: parseInt(e.target.value, 10) || 0 }))} className="mt-1.5" />
+            </div>
+            <Button className="w-full" onClick={handleSaveCategory}>Save</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Default menu item form sheet */}
+      <Sheet open={defaultMenuFormOpen} onOpenChange={(open) => !open && (setDefaultMenuFormOpen(false), setEditingDefaultMenu(null))}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingDefaultMenu ? "Edit menu item" : "Add menu item"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div>
+              <Label>Item name</Label>
+              <Input value={defaultMenuForm.item_name} onChange={(e) => setDefaultMenuForm((f) => ({ ...f, item_name: e.target.value }))} placeholder="e.g. Chai, Samosa" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Description (optional)</Label>
+              <Input value={defaultMenuForm.description} onChange={(e) => setDefaultMenuForm((f) => ({ ...f, description: e.target.value }))} placeholder="Brief description" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Sector</Label>
+              <Select value={defaultMenuForm.sector_id} onValueChange={(v) => setDefaultMenuForm((f) => ({ ...f, sector_id: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select sector" /></SelectTrigger>
+                <SelectContent>
+                  {sectors.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Default price range</Label>
+              <Input value={defaultMenuForm.default_selling_price_range} onChange={(e) => setDefaultMenuForm((f) => ({ ...f, default_selling_price_range: e.target.value }))} placeholder="e.g. 10-50" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>GST rate (%)</Label>
+              <Input type="number" min={0} max={28} value={defaultMenuForm.gst_rate} onChange={(e) => setDefaultMenuForm((f) => ({ ...f, gst_rate: parseInt(e.target.value, 10) || 0 }))} className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Sort order (lower first)</Label>
+              <Input type="number" min={0} value={defaultMenuForm.sort_order} onChange={(e) => setDefaultMenuForm((f) => ({ ...f, sort_order: parseInt(e.target.value, 10) || 0 }))} className="mt-1.5" />
+            </div>
+            <Button className="w-full" onClick={handleSaveDefaultMenu}>Save</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Catalog product form sheet */}
+      <Sheet open={productFormOpen} onOpenChange={(open) => !open && (setProductFormOpen(false), setEditingProduct(null))}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingProduct ? "Edit product" : "Add product"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div>
+              <Label>Name *</Label>
+              <Input value={productForm.name} onChange={(e) => setProductForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Basmati Rice" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Name (Hindi)</Label>
+              <Input value={productForm.name_hi} onChange={(e) => setProductForm((f) => ({ ...f, name_hi: e.target.value }))} placeholder="Optional" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Name (Telugu)</Label>
+              <Input value={productForm.name_te} onChange={(e) => setProductForm((f) => ({ ...f, name_te: e.target.value }))} placeholder="Optional" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Category *</Label>
+              <Select value={productForm.category_id} onValueChange={(v) => setProductForm((f) => ({ ...f, category_id: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name} ({sectors.find((s) => s.id === c.sector_id)?.name ?? "—"})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Input value={productForm.description} onChange={(e) => setProductForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>MRP (₹)</Label>
+              <Input type="number" min={0} step={0.01} value={productForm.mrp} onChange={(e) => setProductForm((f) => ({ ...f, mrp: e.target.value }))} placeholder="e.g. 60" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Selling price (₹)</Label>
+              <Input type="number" min={0} step={0.01} value={productForm.selling_price} onChange={(e) => setProductForm((f) => ({ ...f, selling_price: e.target.value }))} placeholder="e.g. 55" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Discount %</Label>
+              <Input type="number" min={0} max={100} value={productForm.discount_percent} onChange={(e) => setProductForm((f) => ({ ...f, discount_percent: parseInt(e.target.value, 10) || 0 }))} className="mt-1.5" />
+            </div>
+            <div>
+              <Label>GST %</Label>
+              <Input type="number" min={0} max={28} value={productForm.gst_rate} onChange={(e) => setProductForm((f) => ({ ...f, gst_rate: parseInt(e.target.value, 10) || 0 }))} className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Stock quantity</Label>
+              <Input type="number" min={0} value={productForm.stock_quantity} onChange={(e) => setProductForm((f) => ({ ...f, stock_quantity: parseInt(e.target.value, 10) || 0 }))} className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Image URL (emoji or https://)</Label>
+              <Input value={productForm.image_url} onChange={(e) => setProductForm((f) => ({ ...f, image_url: e.target.value }))} placeholder="🍚 or https://…" className="mt-1.5" />
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="is_eco" checked={productForm.is_eco} onChange={(e) => setProductForm((f) => ({ ...f, is_eco: e.target.checked }))} />
+              <Label htmlFor="is_eco">Eco-friendly</Label>
+            </div>
+            <Button className="w-full" onClick={handleSaveProduct}>Save</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Edit vendor sheet */}
       <Sheet open={!!editVendor} onOpenChange={(open) => !open && setEditVendor(null)}>
         <SheetContent side="right" className="overflow-y-auto">
@@ -1618,15 +2341,54 @@ export default function Admin() {
         </SheetContent>
       </Sheet>
 
+      {/* Edit swap sheet */}
+      <Sheet open={swapEditOpen} onOpenChange={(open) => !open && (setSwapEditOpen(false), setEditingSwap(null))}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit swap listing</SheetTitle>
+          </SheetHeader>
+          {editingSwap && (
+            <div className="mt-6 space-y-4">
+              <div>
+                <Label>Title</Label>
+                <Input value={swapEditForm.title} onChange={(e) => setSwapEditForm((f) => ({ ...f, title: e.target.value }))} className="mt-1.5" />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Input value={swapEditForm.description} onChange={(e) => setSwapEditForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional" className="mt-1.5" />
+              </div>
+              <div>
+                <Label>Price notes</Label>
+                <Input value={swapEditForm.price_notes} onChange={(e) => setSwapEditForm((f) => ({ ...f, price_notes: e.target.value }))} className="mt-1.5" />
+              </div>
+              <div>
+                <Label>Location</Label>
+                <Input value={swapEditForm.location} onChange={(e) => setSwapEditForm((f) => ({ ...f, location: e.target.value }))} placeholder="Optional" className="mt-1.5" />
+              </div>
+              <Button className="w-full" onClick={handleUpdateSwap} disabled={moderatingId === editingSwap.id}>
+                {moderatingId === editingSwap.id ? <Loader2 size={16} className="animate-spin" /> : null}
+                Save changes
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteConfirm?.type === "vendor" ? "vendor" : deleteConfirm?.type === "order" ? "order" : "swap"}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete {deleteConfirm?.type === "vendor" ? "vendor" : deleteConfirm?.type === "order" ? "order" : deleteConfirm?.type === "swap" ? "swap" : deleteConfirm?.type === "sector" ? "sector" : deleteConfirm?.type === "category" ? "category" : deleteConfirm?.type === "defaultMenuItem" ? "menu item" : "product"}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteConfirm?.type === "vendor" && "This will remove the vendor profile. Dependent data (orders, etc.) may be affected."}
               {deleteConfirm?.type === "order" && "This will permanently delete the order and its items."}
               {deleteConfirm?.type === "swap" && "This will permanently delete the swap listing."}
+              {deleteConfirm?.type === "sector" && "This will remove the sector. Categories under it may be affected."}
+              {deleteConfirm?.type === "category" && "This will remove the category."}
+              {deleteConfirm?.type === "defaultMenuItem" && "This will remove the default menu item."}
+              {deleteConfirm?.type === "catalogProduct" && "This will remove the catalog product. It will no longer appear on the Catalog page."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1640,6 +2402,10 @@ export default function Admin() {
                 if (type === "vendor") void handleDeleteVendor(id);
                 else if (type === "order") void handleDeleteOrder(id);
                 else if (type === "swap") void handleDeleteSwap(id);
+                else if (type === "sector") void handleDeleteSector(id);
+                else if (type === "category") void handleDeleteCategory(id);
+                else if (type === "defaultMenuItem") void handleDeleteDefaultMenuItem(id);
+                else if (type === "catalogProduct") void handleDeleteCatalogProduct(id);
               }}
             >
               Delete

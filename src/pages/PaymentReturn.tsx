@@ -13,6 +13,11 @@ import {
   clearPendingOrder,
   finalizeOrderAfterPayment,
 } from "@/lib/cashfree";
+import {
+  getPendingPremium,
+  clearPendingPremium,
+  finalizePremiumAfterPayment,
+} from "@/lib/premium";
 import { awardCoinsForPaidOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
@@ -22,6 +27,7 @@ export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
   const [status, setStatus] = useState<"loading" | "paid" | "pending" | "error">("loading");
+  const [isPremiumPayment, setIsPremiumPayment] = useState(false);
   const [testingGateway, setTestingGateway] = useState(false);
   const [congrats, setCongrats] = useState<{ coins: number; cashback: number } | null>(null);
   const [showCongratsOverlay, setShowCongratsOverlay] = useState(false);
@@ -34,8 +40,48 @@ export default function PaymentReturn() {
       return;
     }
 
+    const isPremium = orderId.startsWith("prem_");
+
     const run = async () => {
-      // 1) Check if order already exists in DB (e.g. from webhook or legacy flow)
+      if (isPremium) {
+        setIsPremiumPayment(true);
+        // Premium flow: verify Cashfree, finalize premium
+        let verify = await verifyCashfreePayment(orderId);
+        const maxAttempts = 8;
+        const pollIntervalMs = 3500;
+        for (let attempt = 1; attempt <= maxAttempts && !verify.paid; attempt++) {
+          if (!verify.ok) {
+            setStatus("error");
+            return;
+          }
+          if (verify.paid) break;
+          if (attempt < maxAttempts) {
+            setStatus("pending");
+            await new Promise((r) => setTimeout(r, pollIntervalMs));
+            verify = await verifyCashfreePayment(orderId);
+          }
+        }
+        if (!verify.ok || !verify.paid) {
+          setStatus(verify.ok ? "pending" : "error");
+          return;
+        }
+        const pending = getPendingPremium();
+        if (!pending || pending.orderId !== orderId) {
+          setStatus("error");
+          return;
+        }
+        const finalize = await finalizePremiumAfterPayment(pending);
+        if (!finalize.ok) {
+          setStatus("error");
+          return;
+        }
+        clearPendingPremium();
+        finalizedByServer.current = true;
+        setStatus("paid");
+        return;
+      }
+
+      // Catalog order flow
       const tracked = await getOrderForTracking(orderId);
       if (tracked) {
         setStatus(tracked.status === "paid" ? "paid" : "pending");
@@ -47,44 +93,34 @@ export default function PaymentReturn() {
         return;
       }
 
-      // 2) Order not in DB — post-payment flow: verify Cashfree (poll — can take 5–30s to update)
       let verify = await verifyCashfreePayment(orderId);
       const maxAttempts = 8;
       const pollIntervalMs = 3500;
       for (let attempt = 1; attempt <= maxAttempts && !verify.paid; attempt++) {
         if (!verify.ok) {
-          console.error("[PaymentReturn] Verify failed:", verify.error);
           setStatus("error");
           return;
         }
         if (verify.paid) break;
         if (attempt < maxAttempts) {
-          if (typeof window !== "undefined") console.log("[PaymentReturn] Cashfree not PAID yet, retry", attempt + 1, "of", maxAttempts);
           setStatus("pending");
           await new Promise((r) => setTimeout(r, pollIntervalMs));
           verify = await verifyCashfreePayment(orderId);
         }
       }
-      if (!verify.ok) {
-        setStatus("error");
-        return;
-      }
-      if (!verify.paid) {
-        setStatus("pending");
+      if (!verify.ok || !verify.paid) {
+        setStatus(verify.ok ? "pending" : "error");
         return;
       }
 
-      // 3) Payment verified: finalize server-side (avoids client AbortError)
       const pending = getPendingOrder();
       if (!pending || pending.orderId !== orderId) {
-        console.error("[PaymentReturn] No pending order for", orderId, "- session may have been lost");
         setStatus("error");
         return;
       }
 
       const finalize = await finalizeOrderAfterPayment(pending);
       if (!finalize.ok) {
-        console.error("[PaymentReturn] Finalize failed:", finalize.error);
         setStatus("error");
         return;
       }
@@ -103,6 +139,7 @@ export default function PaymentReturn() {
 
   useEffect(() => {
     if (status !== "paid" || !orderId || awardCalled.current || finalizedByServer.current) return;
+    if (orderId.startsWith("prem_")) return;
     awardCalled.current = true;
     awardCoinsForPaidOrder(orderId)
       .then((res) => {
@@ -141,19 +178,36 @@ export default function PaymentReturn() {
             <div className="rounded-full h-20 w-20 mx-auto mb-6 flex items-center justify-center bg-green-100 dark:bg-green-900/40">
               <Check className="h-10 w-10 text-green-600 dark:text-green-400" />
             </div>
-            <h2 className="text-xl font-bold text-foreground mb-2">Payment successful</h2>
+            <h2 className="text-xl font-bold text-foreground mb-2">
+              {isPremiumPayment ? "Premium activated!" : "Payment successful"}
+            </h2>
             <p className="text-muted-foreground text-sm mb-6">
-              Your payment has been received. The dukaanwaala will be notified.
+              {isPremiumPayment
+                ? "Your dukaan now has boosted search, priority listing, and more. Enjoy!"
+                : "Your payment has been received. The dukaanwaala will be notified."}
             </p>
-            <Link to={orderId ? `/order/${orderId}` : "/"}>
-              <Button className="w-full">Track order</Button>
-            </Link>
-            <Link to="/orders" className="block mt-2">
-              <Button variant="outline" className="w-full">View my orders</Button>
-            </Link>
-            <Link to="/" className="block mt-3">
-              <Button variant="ghost" className="w-full">Back to home</Button>
-            </Link>
+            {isPremiumPayment ? (
+              <>
+                <Link to="/sales">
+                  <Button className="w-full">Go to My Shop</Button>
+                </Link>
+                <Link to="/" className="block mt-3">
+                  <Button variant="ghost" className="w-full">Back to home</Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to={orderId ? `/order/${orderId}` : "/"}>
+                  <Button className="w-full">Track order</Button>
+                </Link>
+                <Link to="/orders" className="block mt-2">
+                  <Button variant="outline" className="w-full">View my orders</Button>
+                </Link>
+                <Link to="/" className="block mt-3">
+                  <Button variant="ghost" className="w-full">Back to home</Button>
+                </Link>
+              </>
+            )}
           </div>
         )}
 

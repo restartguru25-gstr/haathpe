@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Store, Wallet, ChevronRight, Sparkles } from "lucide-react";
+import { Store, Wallet, ChevronRight, Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
@@ -161,6 +161,16 @@ export default function VendorEntry() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background flex flex-col">
+      <header className="sticky top-0 z-10 border-b border-border/50 bg-background/95 backdrop-blur-md">
+        <div className="flex h-14 items-center gap-3 px-4">
+          <Link to="/search">
+            <Button variant="ghost" size="icon" aria-label="Back">
+              <ArrowLeft size={20} className="text-muted-foreground" />
+            </Button>
+          </Link>
+          <span className="text-sm font-medium text-muted-foreground">Find dukaan</span>
+        </div>
+      </header>
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <motion.div
           initial={{ opacity: 0, y: 12 }}

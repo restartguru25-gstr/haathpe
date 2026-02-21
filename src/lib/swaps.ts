@@ -207,6 +207,23 @@ export async function getAllSwapsForAdmin(): Promise<VendorSwap[]> {
   })) as VendorSwap[];
 }
 
+export async function updateSwap(
+  swapId: string,
+  payload: { title?: string; description?: string | null; price_notes?: string; location?: string | null }
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase
+    .from("vendor_swaps")
+    .update({
+      ...(payload.title != null && { title: payload.title }),
+      ...(payload.description != null && { description: payload.description }),
+      ...(payload.price_notes != null && { price_notes: payload.price_notes }),
+      ...(payload.location != null && { location: payload.location }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", swapId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 export async function deleteSwap(swapId: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from("vendor_swaps").delete().eq("id", swapId);
   return error ? { ok: false, error: error.message } : { ok: true };

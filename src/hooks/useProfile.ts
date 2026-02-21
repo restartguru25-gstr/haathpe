@@ -62,6 +62,7 @@ function profileToDisplay(p: Profile | null, user?: { email?: string | null; pho
     available_balance?: number | null;
     zone?: string | null;
     premium_tier?: string | null;
+    premium_expires_at?: string | null;
     alert_volume?: "low" | "medium" | "high" | null;
   };
   const shopUrls = raw.shop_photo_urls;
@@ -91,7 +92,14 @@ function profileToDisplay(p: Profile | null, user?: { email?: string | null; pho
     udyamNumber: raw.udyam_number ?? "",
     fssaiLicense: raw.fssai_license ?? "",
     otherBusinessDetails: raw.other_business_details ?? "",
-    premiumTier: (raw.premium_tier as "free" | "basic" | "premium") || "free",
+    premiumTier: (() => {
+      const tier = (raw.premium_tier as "free" | "basic" | "premium") || "free";
+      if (tier !== "premium") return tier;
+      const expiresAt = raw.premium_expires_at;
+      if (!expiresAt) return tier;
+      if (new Date(expiresAt) <= new Date()) return "free" as const;
+      return tier;
+    })(),
     upiId: raw.upi_id ?? "",
   };
 }

@@ -302,12 +302,12 @@ export default function Landing() {
                 {t("searchFindVendors")} <ArrowRight className="ml-2 size-5" />
               </Button>
             </Link>
-            <Link to="/catalog">
+            <Link to="/customer-login">
               <Button
                 size="lg"
                 className="h-12 px-8 text-base font-bold border-2 border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
               >
-                Get started
+                {t("customerSignIn")}
               </Button>
             </Link>
             <Link to="/catalog">
@@ -316,7 +316,7 @@ export default function Landing() {
                 variant="outline"
                 className="h-12 border-2 border-primary-foreground/30 bg-transparent px-8 text-base font-semibold text-primary-foreground hover:bg-primary-foreground/10"
               >
-                {t("browseProducts")}
+                {t("browseSuppliesForDukaan")}
               </Button>
             </Link>
           </div>

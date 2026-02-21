@@ -43,7 +43,7 @@ import {
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
-import { upgradeToPremiumMock } from "@/lib/premium";
+import { createPremiumCheckout, isPremiumCheckoutConfigured } from "@/lib/premium";
 import { isShopOpen } from "@/lib/shopDetails";
 import { Clock } from "lucide-react";
 
@@ -315,14 +315,18 @@ export default function Sales() {
   };
 
   const handlePremiumUpgrade = async () => {
+    if (!vendorId) return;
+    if (!isPremiumCheckoutConfigured()) {
+      toast.error("Payment gateway not configured. Contact support.");
+      return;
+    }
     setUpgrading(true);
     try {
-      const result = await upgradeToPremiumMock();
-      if (result.ok) {
-        toast.success("Premium activated! (Mock — real payment coming soon)");
-        if (typeof refreshProfile === "function") refreshProfile();
-      } else {
-        toast.error(result.error ?? "Failed");
+      const result = await createPremiumCheckout(vendorId, {
+        customerPhone: rawProfile?.phone ?? user?.phone ?? undefined,
+      });
+      if (!result.ok) {
+        toast.error(result.error ?? "Failed to start checkout");
       }
     } finally {
       setUpgrading(false);
@@ -411,7 +415,7 @@ export default function Sales() {
                 <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">{t("premiumBenefits")}</p>
               </div>
               <Button size="sm" onClick={handlePremiumUpgrade} disabled={upgrading} className="shrink-0">
-                {upgrading ? "..." : "Upgrade (mock)"}
+                {upgrading ? "..." : t("premiumUpgradeCta")}
               </Button>
             </div>
           </div>
