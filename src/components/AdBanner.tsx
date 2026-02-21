@@ -7,7 +7,7 @@ interface AdBannerProps {
   vendorId?: string | null;
   vendorZone?: string | null;
   page?: string | null;
-  variant?: "sidebar" | "banner";
+  variant?: "sidebar" | "banner" | "compact";
 }
 
 export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdBannerProps) {
@@ -42,10 +42,11 @@ export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdB
   const href = ad.link_url ?? "#";
   const isExternal = href.startsWith("http");
 
+  const isCompact = variant === "compact";
   const content = (
     <div
-      className={`flex items-center gap-3 overflow-hidden rounded-lg border border-border bg-card p-3 transition hover:bg-muted/50 cursor-pointer ${
-        variant === "sidebar" ? "flex-col w-full max-w-[200px]" : "w-full"
+      className={`flex items-center gap-2 overflow-hidden rounded-lg border border-border bg-card transition hover:bg-muted/50 cursor-pointer ${
+        variant === "sidebar" ? "flex-col w-full max-w-[200px] p-3 gap-3" : variant === "compact" ? "p-2 gap-2" : "p-3 gap-3 w-full"
       }`}
       role={href ? "button" : undefined}
       onClick={href ? handleClick : undefined}
@@ -53,12 +54,14 @@ export function AdBanner({ vendorId, vendorZone, page, variant = "banner" }: AdB
       <img
         src={ad.image_url}
         alt={ad.brand_name}
-        className={`object-cover rounded ${variant === "sidebar" ? "h-16 w-full" : "h-16 w-28 shrink-0"}`}
+        className={`object-cover rounded shrink-0 ${
+          variant === "sidebar" ? "h-16 w-full" : variant === "compact" ? "h-10 w-14" : "h-16 w-28"
+        }`}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sponsored</p>
-        <p className="text-sm font-semibold truncate">{ad.title || ad.brand_name}</p>
-        {ad.link_url && (
+        <p className={`uppercase tracking-wider text-muted-foreground ${isCompact ? "text-[9px]" : "text-[10px]"}`}>Sponsored</p>
+        <p className={`font-semibold truncate ${isCompact ? "text-xs" : "text-sm"}`}>{ad.title || ad.brand_name}</p>
+        {ad.link_url && !isCompact && (
           <p className="text-xs text-primary truncate">
             {ad.link_url.startsWith("/") ? "View products" : "Learn more →"}
           </p>

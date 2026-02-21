@@ -4,7 +4,9 @@ import { motion } from "framer-motion";
 import { Store, Wallet, ChevronRight, Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { getVendorZone } from "@/lib/sales";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
+import { AdBanner } from "@/components/AdBanner";
 import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
 import { isShopOpen, type ShopDetails } from "@/lib/shopDetails";
@@ -36,6 +38,7 @@ export default function VendorEntry() {
   const [vendor, setVendor] = useState<VendorInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [vendorZone, setVendorZone] = useState<string | null>(null);
 
   const tryProfilesAsOwner = useCallback(async (): Promise<VendorInfo | null> => {
     if (user?.id !== vendorId) return null;
@@ -70,8 +73,9 @@ export default function VendorEntry() {
     }
     let cancelled = false;
     const load = async () => {
-      const v = await loadVendor();
+      const [v, zone] = await Promise.all([loadVendor(), getVendorZone(vendorId)]);
       if (!cancelled && v) setVendor(v);
+      if (!cancelled) setVendorZone(zone);
       if (!cancelled) setLoading(false);
     };
     load();
@@ -243,6 +247,10 @@ export default function VendorEntry() {
               </motion.div>
             </Link>
           </motion.div>
+
+          <div className="mt-6 max-w-xs mx-auto">
+            <AdBanner vendorId={vendorId ?? undefined} vendorZone={vendorZone} page="dukaan" variant="banner" />
+          </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Powered by haathpe · Sab kuch haath pe

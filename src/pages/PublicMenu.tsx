@@ -354,6 +354,9 @@ export default function PublicMenu() {
             </div>
           </div>
         )}
+        <div className="mb-4 md:hidden">
+          <AdBanner vendorId={vendorId} vendorZone={vendorZone} page="menu_mobile" variant="compact" />
+        </div>
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Link to={`/menu/${vendorId}`} className="shrink-0 rounded-lg p-1.5 hover:bg-muted transition-colors" aria-label="Back">

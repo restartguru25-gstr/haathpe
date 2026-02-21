@@ -12,6 +12,7 @@ import {
   type VendorSearchFilters,
 } from "@/lib/vendorSearch";
 import VendorCard from "@/components/VendorCard";
+import { AdBanner } from "@/components/AdBanner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
@@ -172,11 +173,16 @@ export default function Search() {
             </p>
           </div>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedResults.map((v) => (
-              <VendorCard key={v.vendor_id} vendor={v} />
-            ))}
-          </div>
+          <>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sortedResults.map((v) => (
+                <VendorCard key={v.vendor_id} vendor={v} />
+              ))}
+            </div>
+            <div className="mt-6 max-w-sm">
+              <AdBanner page="search" variant="compact" />
+            </div>
+          </>
         )}
       </main>
       <MakeInIndiaFooter />

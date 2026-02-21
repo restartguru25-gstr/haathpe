@@ -4,10 +4,11 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Wallet, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { createDirectPaymentOrder } from "@/lib/sales";
+import { createDirectPaymentOrder, getVendorZone } from "@/lib/sales";
 import { awardCoinsForOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
+import { AdBanner } from "@/components/AdBanner";
 import { useApp } from "@/contexts/AppContext";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { appendOrderToHistory } from "@/lib/customer";
@@ -26,21 +27,21 @@ export default function PayDirect() {
   const [paying, setPaying] = useState(false);
   const [done, setDone] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [vendorZone, setVendorZone] = useState<string | null>(null);
 
   useEffect(() => {
     if (!vendorId) {
       setLoading(false);
       return;
     }
-    supabase
-      .from("profiles")
-      .select("name")
-      .eq("id", vendorId)
-      .single()
-      .then(({ data }) => {
-        setVendor(data as { name: string | null } | null);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from("profiles").select("name").eq("id", vendorId).single(),
+      getVendorZone(vendorId),
+    ]).then(([profileRes, zone]) => {
+      setVendor(profileRes.data as { name: string | null } | null);
+      setVendorZone(zone);
+      setLoading(false);
+    });
   }, [vendorId]);
 
   const amountNum = Math.max(0, parseFloat(amount.replace(/[^\d.]/g, "")) || 0);
@@ -252,6 +253,10 @@ export default function PayDirect() {
               {key}
             </motion.button>
           ))}
+        </div>
+
+        <div className="mb-4 max-w-[280px] mx-auto">
+          <AdBanner vendorId={vendorId} vendorZone={vendorZone} page="pay" variant="compact" />
         </div>
 
         {/* Optional note */}
