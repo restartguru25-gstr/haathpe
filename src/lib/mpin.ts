@@ -53,27 +53,68 @@ export async function signInWithMpin(
   return { ok: true };
 }
 
-/** Set MPIN after OTP verify. Uses direct REST update to customer_profiles (no Edge Function). */
+const SET_MPIN_TIMEOUT_MS = 10000;
+
+/** Set MPIN after OTP verify. Uses direct REST upsert to customer_profiles (no Edge Function). */
 export async function setMpinAfterOtp(
   mpin: string,
-  _phoneOverride?: string
+  phoneOverride?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const digits = (mpin || "").replace(/\D/g, "").slice(0, 4);
   if (digits.length !== 4) {
     return { ok: false, error: "MPIN must be 4 digits" };
   }
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, error: "Not signed in. Verify OTP first." };
+
+  const run = async (): Promise<{ ok: boolean; error?: string }> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { ok: false, error: "Not signed in. Verify OTP first." };
+    }
+
+    const phoneRaw =
+      phoneOverride?.replace(/\D/g, "").slice(-10) ||
+      (user.phone ?? (user.user_metadata?.phone as string | undefined) ?? "").replace(/\D/g, "").slice(-10);
+    const fullPhone = phoneRaw.length === 10 ? `+91${phoneRaw}` : (user.phone as string) ?? "";
+    if (!fullPhone) {
+      return { ok: false, error: "Phone number required. Verify OTP again." };
+    }
+
+    await Promise.race([
+      supabase.auth.refreshSession(),
+      new Promise((r) => setTimeout(r, 3000)),
+    ]);
+
+    const { error } = await supabase
+      .from("customer_profiles")
+      .upsert(
+        { id: user.id, phone: fullPhone || undefined, mpin: digits },
+        { onConflict: "id" }
+      );
+
+    if (error) {
+      const msg = error.message;
+      if (msg?.includes("column") && msg?.includes("mpin")) {
+        return {
+          ok: false,
+          error: "MPIN column missing. Run in Supabase SQL: ALTER TABLE customer_profiles ADD COLUMN mpin TEXT;",
+        };
+      }
+      return { ok: false, error: msg };
+    }
+    return { ok: true };
+  };
+
+  const timeout = () =>
+    new Promise<{ ok: boolean; error?: string }>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Request timed out. Check your connection and try again.")),
+        SET_MPIN_TIMEOUT_MS
+      )
+    );
+
+  try {
+    return await Promise.race([run(), timeout()]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to set MPIN." };
   }
-
-  await supabase.auth.refreshSession();
-
-  const { error } = await supabase
-    .from("customer_profiles")
-    .update({ mpin: digits })
-    .eq("id", user.id);
-
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
 }
