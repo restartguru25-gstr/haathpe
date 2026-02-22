@@ -71,6 +71,8 @@ import {
   WEEKLY_OFF_OPTIONS,
   type ShopDetails,
 } from "@/lib/shopDetails";
+import VendorCashWalletSection from "@/components/VendorCashWalletSection";
+import { ensureVendorWalletWithSignupBonus } from "@/lib/vendorCashWallet";
 
 const fadeUp = (i: number) => ({
   initial: { opacity: 0, y: 14 },
@@ -290,6 +292,11 @@ export default function Profile() {
       await refreshProfile();
       setEditOpen(false);
       toast.success(t("profileUpdated"));
+      try {
+        await ensureVendorWalletWithSignupBonus(user.id);
+      } catch {
+        /* ignore */
+      }
     } catch (e: unknown) {
       if (e instanceof Error && (e.name === "AbortError" || /signal is aborted|aborted without reason/i.test(e.message))) {
         toast.error("Request was interrupted. Please try saving again.");
@@ -476,6 +483,13 @@ export default function Profile() {
             <span className="text-[11px] font-medium text-muted-foreground">{t("streak")}</span>
           </Link>
         </motion.div>
+
+        {/* Vendor Cash Wallet (signup bonus, rewards) */}
+        {user?.id && profile?.stallType && (
+          <motion.div {...fadeUp(2.3)} className="mb-6">
+            <VendorCashWalletSection vendorId={user.id} />
+          </motion.div>
+        )}
 
         {/* Incentive Earnings */}
         {user?.id && (

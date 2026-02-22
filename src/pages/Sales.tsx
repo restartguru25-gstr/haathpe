@@ -46,6 +46,7 @@ import { supabase } from "@/lib/supabase";
 import { createPremiumCheckout, isPremiumCheckoutConfigured } from "@/lib/premium";
 import { isShopOpen } from "@/lib/shopDetails";
 import { Clock } from "lucide-react";
+import VendorCashWalletSection from "@/components/VendorCashWalletSection";
 
 export default function Sales() {
   const { t } = useApp();
@@ -403,6 +404,11 @@ export default function Sales() {
               </Button>
             </Link>
           </div>
+        </div>
+
+        {/* Cash Wallet (signup bonus, rewards, withdraw) */}
+        <div className="mb-6">
+          <VendorCashWalletSection vendorId={vendorId} />
         </div>
 
         {!isPremium && (

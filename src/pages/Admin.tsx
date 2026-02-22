@@ -106,6 +106,10 @@ import {
   type CatalogProductAdmin,
 } from "@/lib/adminCatalog";
 import { updateSwap } from "@/lib/swaps";
+import {
+  getVendorSettings,
+  updateVendorSettings,
+} from "@/lib/vendorCashWallet";
 
 interface AdminProfile {
   id: string;
@@ -232,6 +236,12 @@ export default function Admin() {
   const [loadingCatalogProducts, setLoadingCatalogProducts] = useState(false);
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<CatalogProductAdmin | null>(null);
+  const [vendorWalletSettings, setVendorWalletSettings] = useState<{
+    signup_bonus_amount: number;
+    min_withdrawal_amount: number;
+  } | null>(null);
+  const [loadingVendorWalletSettings, setLoadingVendorWalletSettings] = useState(false);
+  const [savingVendorWalletSettings, setSavingVendorWalletSettings] = useState(false);
   const [productForm, setProductForm] = useState({
     name: "",
     name_hi: "",
@@ -328,6 +338,23 @@ export default function Admin() {
     const list = await getCoinsConfig();
     setCoinsConfig(list);
     setLoadingCoinsConfig(false);
+  };
+
+  const loadVendorWalletSettings = async () => {
+    setLoadingVendorWalletSettings(true);
+    try {
+      const s = await getVendorSettings();
+      if (s) {
+        setVendorWalletSettings({
+          signup_bonus_amount: Number(s.signup_bonus_amount),
+          min_withdrawal_amount: Number(s.min_withdrawal_amount),
+        });
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoadingVendorWalletSettings(false);
+    }
   };
 
   const loadSectors = async () => {
@@ -505,6 +532,7 @@ export default function Admin() {
       loadOndc();
       loadCustomerRedemptions();
       loadCoinsConfig();
+      loadVendorWalletSettings();
       loadSectors();
       loadCategories();
       loadDefaultMenu();
@@ -1032,6 +1060,9 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="coinsConfig" className="flex items-center gap-2">
             <Coins size={16} /> Coins
+          </TabsTrigger>
+          <TabsTrigger value="vendorWallet" className="flex items-center gap-2">
+            <Banknote size={16} /> Vendor Wallet
           </TabsTrigger>
           <TabsTrigger value="sectors" className="flex items-center gap-2">
             <LayoutGrid size={16} /> Sectors
@@ -1730,6 +1761,95 @@ export default function Admin() {
                 <p className="text-muted-foreground text-center py-4">No coins config. Run migration part22.</p>
               )}
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="vendorWallet" className="space-y-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={loadVendorWalletSettings} disabled={loadingVendorWalletSettings}>
+              <RefreshCw size={14} className={loadingVendorWalletSettings ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Vendor Cash Wallet: signup bonus and min withdrawal. Used when vendors first activate profile.</p>
+          {loadingVendorWalletSettings ? (
+            <Skeleton className="h-32 w-full rounded-xl" />
+          ) : vendorWalletSettings ? (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-4 max-w-md">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label>Signup Bonus (₹)</Label>
+                  <Select
+                    value={String(vendorWalletSettings.signup_bonus_amount)}
+                    onValueChange={async (v) => {
+                      const n = Number(v);
+                      if (Number.isNaN(n) || n < 0) return;
+                      setSavingVendorWalletSettings(true);
+                      const ok = await updateVendorSettings({ signup_bonus_amount: n });
+                      setSavingVendorWalletSettings(false);
+                      if (ok.ok) {
+                        setVendorWalletSettings((s) => (s ? { ...s, signup_bonus_amount: n } : null));
+                        toast.success("Signup bonus updated");
+                      } else {
+                        toast.error(ok.error ?? "Failed");
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="99">₹99</SelectItem>
+                      <SelectItem value="149">₹149</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Min Withdrawal (₹)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={100}
+                      max={10000}
+                      step={1}
+                      value={vendorWalletSettings.min_withdrawal_amount}
+                      className="w-32"
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v) && v >= 100) {
+                          setVendorWalletSettings((s) => (s ? { ...s, min_withdrawal_amount: v } : null));
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      disabled={savingVendorWalletSettings}
+                      onClick={async () => {
+                        const n = vendorWalletSettings.min_withdrawal_amount;
+                        if (n < 100) {
+                          toast.error("Min ₹100");
+                          return;
+                        }
+                        setSavingVendorWalletSettings(true);
+                        const ok = await updateVendorSettings({ min_withdrawal_amount: n });
+                        setSavingVendorWalletSettings(false);
+                        if (ok.ok) {
+                          toast.success("Min withdrawal updated");
+                        } else {
+                          toast.error(ok.error ?? "Failed");
+                        }
+                      }}
+                    >
+                      {savingVendorWalletSettings ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              {savingVendorWalletSettings && (
+                <p className="text-xs text-muted-foreground">Saving…</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Run migration 20260220800000_vendor_cash_wallet.sql first.</p>
           )}
         </TabsContent>
 
