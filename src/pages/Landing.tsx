@@ -30,89 +30,40 @@ const langOptions: { value: Language; label: string }[] = [
   { value: "te", label: "తె" },
 ];
 
-const features = [
-  {
-    icon: Truck,
-    title: "Easy Supplies",
-    desc: "Paper plates, cups, matchboxes — delivered to your dukaan in hours across Hyderabad.",
-    emoji: "📦",
-  },
-  {
-    icon: TrendingUp,
-    title: "Unlock Credit",
-    desc: "Order 20/30 days straight and unlock credit lines so you never run out of stock.",
-    emoji: "🔥",
-  },
-  {
-    icon: Gift,
-    title: "Earn & Redeem",
-    desc: "Earn loyalty points on every order. Redeem for family trips, cash prizes & supplies.",
-    emoji: "🎁",
-  },
+const featureKeys = [
+  { icon: Truck, keyTitle: "featureEasySupplies" as const, keyDesc: "featureEasySuppliesDesc" as const, emoji: "📦" },
+  { icon: TrendingUp, keyTitle: "featureUnlockCredit" as const, keyDesc: "featureUnlockCreditDesc" as const, emoji: "🔥" },
+  { icon: Gift, keyTitle: "featureEarnRedeem" as const, keyDesc: "featureEarnRedeemDesc" as const, emoji: "🎁" },
 ];
 
-const steps = [
-  { step: 1, title: "Sign up", body: "Create your dukaan account with phone or email in under a minute." },
-  { step: 2, title: "Order supplies", body: "Browse products, add to cart, and place orders. Same-day delivery in Hyderabad." },
-  { step: 3, title: "Build streak & credit", body: "Order regularly to build your streak and unlock credit lines for your dukaan." },
-  { step: 4, title: "Earn rewards", body: "Collect points, enter daily draws, and redeem for vouchers and prizes." },
+const stepKeys = [
+  { step: 1, keyTitle: "step1Title" as const, keyBody: "step1Body" as const },
+  { step: 2, keyTitle: "step2Title" as const, keyBody: "step2Body" as const },
+  { step: 3, keyTitle: "step3Title" as const, keyBody: "step3Body" as const },
+  { step: 4, keyTitle: "step4Title" as const, keyBody: "step4Body" as const },
 ];
 
-const howItWorksFaq = [
-  {
-    q: "Who can join haathpe?",
-    a: "Any small retailer or dukaanwaala in our service area (Hyderabad and expanding) can join. You need a phone number to sign up. No GST or paperwork required to start ordering supplies.",
-  },
-  {
-    q: "How fast is delivery?",
-    a: "We offer same-day delivery across Hyderabad for orders placed in the morning. You can track your order in the app. Delivery slots depend on your area — most dukaanwaale get supplies within a few hours.",
-  },
-  {
-    q: "What can I redeem my points for?",
-    a: "Points can be redeemed for family trips, cash prizes, daily draws, and supplies. You also get better credit limits and rewards as you maintain your ordering streak.",
-  },
+const faqKeys = [
+  { keyQ: "faqWhoCanJoin" as const, keyA: "faqWhoCanJoinA" as const },
+  { keyQ: "faqHowFastDelivery" as const, keyA: "faqHowFastDeliveryA" as const },
+  { keyQ: "faqRedeemPoints" as const, keyA: "faqRedeemPointsA" as const },
 ];
 
-const testimonials = [
-  {
-    name: "Raju",
-    stall: "Tea dukaan near Charminar",
-    quote: "Credit line helped me stock up before Ramadan. No more running to the wholesaler every day.",
-    avatar: "☕",
-  },
-  {
-    name: "Lakshmi",
-    stall: "Snacks dukaan, Secunderabad",
-    quote: "Points got my family a trip to Tirupati. This app is like a bonus for doing what I already do.",
-    avatar: "🍿",
-  },
-  {
-    name: "Suresh",
-    stall: "Beverage dukaan, Gachibowli",
-    quote: "Delivery is fast. I order in the morning and get supplies by afternoon. Game changer.",
-    avatar: "🥤",
-  },
+const testimonialKeys = [
+  { keyName: "testimonial1Name" as const, keyStall: "testimonial1Stall" as const, keyQuote: "testimonial1Quote" as const, avatar: "☕" },
+  { keyName: "testimonial2Name" as const, keyStall: "testimonial2Stall" as const, keyQuote: "testimonial2Quote" as const, avatar: "🍿" },
+  { keyName: "testimonial3Name" as const, keyStall: "testimonial3Stall" as const, keyQuote: "testimonial3Quote" as const, avatar: "🥤" },
 ];
 
-const stats = [
-  { value: "1000+", label: "Dukaanwaale" },
-  { value: "50K+", label: "Orders delivered" },
-  { value: "Hyderabad", label: "Serving now" },
+const statKeys = [
+  { value: "1000+", keyLabel: "statsDukaanwaale" as const },
+  { value: "50K+", keyLabel: "statsOrdersDelivered" as const },
+  { value: "Hyderabad", keyLabel: "statsServingNow" as const },
 ];
 
-const buyBullets = [
-  "Wholesale matchboxes, plates, rice, etc.",
-  "Unlock credit on streaks",
-  "Earn loyalty points & trips",
-  "Fast Hyderabad delivery",
-];
-
-const sellBullets = [
-  "Ready default menu for your dukaan type",
-  "Quick POS at dukaan (cash/UPI)",
-  "Online orders via QR code",
-  "Track sales, profits & re-order suggestions",
-];
+const buyBulletKeys = ["buyBullet1", "buyBullet2", "buyBullet3", "buyBullet4"] as const;
+const sellBulletKeys = ["sellBullet1", "sellBullet2", "sellBullet3", "sellBullet4"] as const;
+const productTeaserKeys = ["productTeaser1", "productTeaser2", "productTeaser3", "productTeaser4"] as const;
 
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
@@ -193,13 +144,13 @@ export default function Landing() {
 
           <nav className="hidden items-center gap-6 md:flex">
             <a href="#features" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              Features
+              {t("landingFeaturesNav")}
             </a>
             <a href="#how-it-works" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              How it works
+              {t("landingHowItWorksNav")}
             </a>
             <a href="#testimonials" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              Dukaanwaale
+              {t("landingDukaanwaaleNav")}
             </a>
             <Link to="/catalog" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               {t("catalog")}
@@ -228,7 +179,7 @@ export default function Landing() {
               <>
                 {signedInAs && (
                   <span className="hidden sm:inline text-xs text-muted-foreground border-r border-border pr-3 mr-2">
-                    Signed in as {signedInAs}
+                    {t("signedInAs")} {signedInAs}
                   </span>
                 )}
                 <Link to="/dashboard">
@@ -251,7 +202,7 @@ export default function Landing() {
                     window.location.replace("/");
                   }}
                 >
-                  Log out
+                  {t("logOut")}
                 </Button>
               </>
             )}
@@ -287,10 +238,10 @@ export default function Landing() {
         >
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-1.5 text-sm font-medium text-primary-foreground">
             <MapPin size={14} className="shrink-0" />
-            Kirana, tea stall, hardware & more — Hyderabad
+            {t("landingHeroPin")}
           </div>
           <p className="mb-2 font-accent text-4xl leading-tight text-primary-foreground/95 md:text-5xl lg:text-[4.5rem]" style={{ fontFamily: "var(--font-accent)" }}>
-            Your dukaan, simplified
+            {t("landingHeroTagline")}
           </p>
           <h1 className="mb-5 font-heading text-3xl font-bold leading-[1.15] text-primary-foreground md:text-4xl lg:text-5xl">
             {t("heroHeadline")}
@@ -326,7 +277,7 @@ export default function Landing() {
             </Link>
           </div>
           <div className="mt-14 flex flex-wrap items-center justify-center gap-8 md:gap-12">
-            {stats.map((s, i) => (
+            {statKeys.map((s, i) => (
               <motion.div
                 key={s.label}
                 initial={{ opacity: 0, y: 10 }}
@@ -335,7 +286,7 @@ export default function Landing() {
                 className="text-center"
               >
                 <div className="text-2xl font-bold text-primary-foreground md:text-3xl">{s.value}</div>
-                <div className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70">{s.label}</div>
+                <div className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70">{t(s.keyLabel)}</div>
               </motion.div>
             ))}
           </div>
@@ -346,7 +297,7 @@ export default function Landing() {
       <section className="border-b border-border bg-background px-4 py-8">
         <div className="mx-auto max-w-5xl">
           <p className="mb-4 text-center text-sm font-medium text-muted-foreground">
-            For every chhoti dukaan — kirana to saloon
+            {t("landingForEveryDukaan")}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             {[
@@ -391,10 +342,10 @@ export default function Landing() {
                 <h2 className="text-xl font-bold md:text-2xl">{t("tileBuyHeadline")}</h2>
               </CardHeader>
               <CardContent className="space-y-2 pb-4">
-                {buyBullets.map((bullet, i) => (
+                {buyBulletKeys.map((key, i) => (
                   <p key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-                    {bullet}
+                    {t(key)}
                   </p>
                 ))}
               </CardContent>
@@ -427,10 +378,10 @@ export default function Landing() {
                 <h2 className="text-xl font-bold md:text-2xl">{t("tileSellHeadline")}</h2>
               </CardHeader>
               <CardContent className="space-y-2 pb-4">
-                {sellBullets.map((bullet, i) => (
+                {sellBulletKeys.map((key, i) => (
                   <p key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent/60" />
-                    {bullet}
+                    {t(key)}
                   </p>
                 ))}
               </CardContent>
@@ -469,16 +420,16 @@ export default function Landing() {
             className="mb-12 text-center"
           >
             <h2 className="mb-3 text-3xl font-bold md:text-4xl">
-              Why dukaanwaale <span className="text-gradient">love us</span>
+              {t("landingWhyLoveUs")}
             </h2>
             <p className="mx-auto max-w-xl text-muted-foreground">
-              Built for the daily grind. Order supplies, build credit, and earn rewards — all from your phone.
+              {t("landingWhyLoveUsDesc")}
             </p>
           </motion.div>
           <div className="grid gap-8 md:grid-cols-3">
-            {features.map((f, i) => (
+            {featureKeys.map((f, i) => (
               <motion.div
-                key={f.title}
+                key={f.keyTitle}
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
@@ -498,9 +449,9 @@ export default function Landing() {
                   whileHover={{ x: 4 }}
                   transition={{ type: "spring", stiffness: 400 }}
                 >
-                  {f.title}
+                  {t(f.keyTitle)}
                 </motion.h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{t(f.keyDesc)}</p>
               </motion.div>
             ))}
           </div>
@@ -516,11 +467,11 @@ export default function Landing() {
             viewport={{ once: true }}
             className="mb-12 text-center"
           >
-            <h2 className="mb-3 text-3xl font-bold md:text-4xl">How it works</h2>
-            <p className="text-muted-foreground">Four steps to supplies, credit, and rewards.</p>
+            <h2 className="mb-3 text-3xl font-bold md:text-4xl">{t("landingHowItWorksTitle")}</h2>
+            <p className="text-muted-foreground">{t("landingHowItWorksSub")}</p>
           </motion.div>
           <div className="space-y-8">
-            {steps.map((s, i) => (
+            {stepKeys.map((s, i) => (
               <motion.div
                 key={s.step}
                 initial={{ opacity: 0, x: -20 }}
@@ -533,8 +484,8 @@ export default function Landing() {
                   {s.step}
                 </div>
                 <div>
-                  <h3 className="mb-1 font-bold">{s.title}</h3>
-                  <p className="text-sm text-muted-foreground">{s.body}</p>
+                  <h3 className="mb-1 font-bold">{t(s.keyTitle)}</h3>
+                  <p className="text-sm text-muted-foreground">{t(s.keyBody)}</p>
                 </div>
               </motion.div>
             ))}
@@ -549,11 +500,11 @@ export default function Landing() {
           >
             <h3 className="mb-6 flex items-center gap-2 text-xl font-bold">
               <HelpCircle className="size-5 text-primary" />
-              Common questions
+              {t("faqCommonQuestions")}
             </h3>
             <div className="space-y-3">
-              {howItWorksFaq.map((faq, idx) => (
-                <FaqItem key={idx} question={faq.q} answer={faq.a} />
+              {faqKeys.map((faq, idx) => (
+                <FaqItem key={idx} question={t(faq.keyQ)} answer={t(faq.keyA)} />
               ))}
             </div>
           </motion.div>
@@ -569,15 +520,15 @@ export default function Landing() {
             viewport={{ once: true }}
             className="mb-12 text-center"
           >
-            <h2 className="mb-3 text-3xl font-bold md:text-4xl">Dukaanwaale like you</h2>
+            <h2 className="mb-3 text-3xl font-bold md:text-4xl">{t("landingDukaanwaaleLikeYou")}</h2>
             <p className="mx-auto max-w-xl text-muted-foreground">
-              Real stories from Hyderabad’s chai wallahs, snack sellers, and street food heroes.
+              {t("landingDukaanwaaleDesc")}
             </p>
           </motion.div>
           <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((t, i) => (
+            {testimonialKeys.map((tc, i) => (
               <motion.div
-                key={t.name}
+                key={tc.keyName}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -586,14 +537,14 @@ export default function Landing() {
               >
                 <div className="mb-3 flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-2xl">
-                    {t.avatar}
+                    {tc.avatar}
                   </div>
                   <div>
-                    <div className="font-semibold">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">{t.stall}</div>
+                    <div className="font-semibold">{t(tc.keyName)}</div>
+                    <div className="text-xs text-muted-foreground">{t(tc.keyStall)}</div>
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed text-muted-foreground">&ldquo;{t.quote}&rdquo;</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">&ldquo;{t(tc.keyQuote)}&rdquo;</p>
                 <div className="mt-3 flex gap-0.5">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star key={star} className="size-4 fill-amber-400 text-amber-400" />
@@ -614,9 +565,9 @@ export default function Landing() {
             viewport={{ once: true }}
             className="mb-10 text-center"
           >
-            <h2 className="mb-3 text-3xl font-bold md:text-4xl">What you can order</h2>
+            <h2 className="mb-3 text-3xl font-bold md:text-4xl">{t("landingWhatYouCanOrder")}</h2>
             <p className="text-muted-foreground">
-              Disposables, essentials, and ready-to-use kits for your dukaan.
+              {t("landingWhatYouCanOrderDesc")}
             </p>
           </motion.div>
           <motion.div
@@ -625,12 +576,12 @@ export default function Landing() {
             viewport={{ once: true }}
             className="flex flex-wrap justify-center gap-4"
           >
-            {["🍽️ Paper plates & cups", "🔥 Matchboxes & napkins", "🍵 Tea, sugar & essentials", "🎪 Panipuri & eco kits"].map((item) => (
+            {productTeaserKeys.map((key) => (
               <span
-                key={item}
+                key={key}
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium shadow-sm"
               >
-                {item}
+                {t(key)}
               </span>
             ))}
           </motion.div>
@@ -653,15 +604,15 @@ export default function Landing() {
           className="mx-auto max-w-2xl"
         >
           <h2 className="mb-3 text-2xl font-bold text-primary-foreground md:text-3xl">
-            Ready to grow your dukaan?
+            {t("landingReadyToGrow")}
           </h2>
           <p className="mb-8 text-primary-foreground/90">
-            Join 1000+ dukaanwaale in Hyderabad. Get supplies delivered, build credit, and earn rewards.
+            {t("landingJoinCta")}
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link to="/dashboard">
               <Button size="lg" className="h-12 bg-accent px-8 font-bold text-accent-foreground hover:bg-accent/90">
-                Start now <ArrowRight className="ml-2 size-5" />
+                {t("landingStartNow")} <ArrowRight className="ml-2 size-5" />
               </Button>
             </Link>
             <Link to="/auth">
@@ -685,11 +636,11 @@ export default function Landing() {
             </div>
             <div className="flex flex-wrap justify-center gap-6 md:gap-8">
               <Link to="/catalog" className="text-sm text-muted-foreground hover:text-foreground">{t("catalog")}</Link>
-              <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">Dashboard</Link>
+              <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">{t("landingDashboardNav")}</Link>
               <Link to="/sales" className="text-sm text-muted-foreground hover:text-foreground">{t("myShop")}</Link>
               <Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground">Contact</Link>
-              <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">Features</a>
-              <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground">How it works</a>
+              <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">{t("landingFeaturesNav")}</a>
+              <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground">{t("landingHowItWorksNav")}</a>
               <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground">{t("signInSignUp")}</Link>
             </div>
           </div>
