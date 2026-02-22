@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Bell, ShoppingCart } from "lucide-react";
+import BackButton from "@/components/BackButton";
 import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,8 @@ export default function MobileHeader() {
       className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-md md:hidden"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
-      <Link to="/dashboard" className="flex items-center gap-2">
+      <BackButton fallbackTo="/dashboard" />
+      <Link to="/dashboard" className="flex items-center gap-2 shrink-0">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground font-brand tracking-widest">
           h
         </div>

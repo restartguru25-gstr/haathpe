@@ -35,6 +35,7 @@ import {
 } from "@/lib/catalog";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import BackButton from "@/components/BackButton";
 
 const CATEGORIES = ["All", "Essentials", "Disposables", "Kits"] as const;
 
@@ -202,6 +203,7 @@ export default function Catalog() {
     <div className="min-h-screen bg-muted/20 pb-6">
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-3 px-4">
+          <BackButton fallbackTo="/" />
           <Link to="/" className="brand-haathpe shrink-0 text-lg font-medium">
             haathpe
           </Link>

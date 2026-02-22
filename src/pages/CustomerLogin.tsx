@@ -10,6 +10,7 @@ import { useApp } from "@/contexts/AppContext";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { toast } from "sonner";
 import { Loader2, Smartphone, KeyRound } from "lucide-react";
+import BackButton from "@/components/BackButton";
 
 const PHONE_PREFIX = "+91";
 
@@ -138,8 +139,11 @@ export default function CustomerLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/20 flex flex-col items-center p-4">
-      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
+    <div className="min-h-screen bg-muted/20 flex flex-col">
+      <header className="sticky top-0 z-50 flex h-14 items-center border-b border-border/50 bg-background/95 backdrop-blur-md px-4">
+        <BackButton fallbackTo={returnTo} />
+      </header>
+      <div className="flex-1 flex flex-col items-center justify-center p-4 w-full max-w-sm mx-auto">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-6 flex justify-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">

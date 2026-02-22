@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Search as SearchIcon, MapPin } from "lucide-react";
+import BackButton from "@/components/BackButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +75,7 @@ export default function Search() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-4xl items-center gap-3 px-4">
+          <BackButton fallbackTo="/" />
           <Link to="/" className="brand-haathpe shrink-0 text-lg font-medium">
             haathpe
           </Link>

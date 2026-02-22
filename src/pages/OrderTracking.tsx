@@ -7,6 +7,7 @@ import OrderStatusTimeline from "@/components/OrderStatusTimeline";
 import { useApp } from "@/contexts/AppContext";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { Copy, Check } from "lucide-react";
+import BackButton from "@/components/BackButton";
 import { toast } from "sonner";
 
 export default function OrderTracking() {
@@ -73,6 +74,9 @@ export default function OrderTracking() {
   if (loading) {
     return (
       <div className="min-h-screen bg-muted/20 flex flex-col">
+        <header className="sticky top-0 z-50 flex h-14 items-center border-b border-border/50 bg-background/95 backdrop-blur-md px-4">
+          <BackButton fallbackTo="/" />
+        </header>
         <div className="flex-1 flex items-center justify-center p-4">
           <p className="text-muted-foreground">Loading...</p>
         </div>
@@ -84,6 +88,9 @@ export default function OrderTracking() {
   if (!order) {
     return (
       <div className="min-h-screen bg-muted/20 flex flex-col">
+        <header className="sticky top-0 z-50 flex h-14 items-center border-b border-border/50 bg-background/95 backdrop-blur-md px-4">
+          <BackButton fallbackTo="/" />
+        </header>
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <p className="text-muted-foreground text-center">Order not found.</p>
           <Link to="/">
@@ -97,6 +104,9 @@ export default function OrderTracking() {
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col pb-24">
+      <header className="sticky top-0 z-50 flex h-14 items-center border-b border-border/50 bg-background/95 backdrop-blur-md px-4">
+        <BackButton fallbackTo="/" />
+      </header>
       <div className="container flex-1 max-w-lg mx-auto px-4 py-6">
         <div className="rounded-xl border border-border bg-card p-6">
           <h1 className="text-xl font-bold mb-4">{t("trackOrder")}</h1>

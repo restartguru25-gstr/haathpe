@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import BackButton from "@/components/BackButton";
 import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
@@ -174,6 +175,9 @@ export default function PaymentReturn() {
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col pb-24">
+      <header className="sticky top-0 z-50 flex h-14 items-center border-b border-border/50 bg-background/95 backdrop-blur-md px-4">
+        <BackButton fallbackTo="/" />
+      </header>
       {showCongratsOverlay && congrats && (
         <CongratsOverlay
           coins={congrats.coins}

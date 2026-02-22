@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Home, ShoppingBag, Store, Receipt, Star, User, ShoppingCart, Bell, Shield } from "lucide-react";
+import BackButton from "@/components/BackButton";
 import { useApp } from "@/contexts/AppContext";
 import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
@@ -31,8 +32,9 @@ export default function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 hidden border-b border-border bg-card/95 backdrop-blur-md md:block">
-      <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
+      <div className="container flex h-16 items-center justify-between gap-2">
+        <BackButton fallbackTo="/dashboard" />
+        <Link to="/" className="flex items-center gap-2 shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground font-brand tracking-widest">
             h
           </div>
