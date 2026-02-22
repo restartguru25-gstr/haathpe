@@ -1123,7 +1123,7 @@ export default function Profile() {
                   placeholder="e.g. 36AABCU9603R1ZM"
                   className="flex-1 min-w-[160px]"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleVerifyGstin} disabled={verifying !== null || !editForm.gstNumber.trim() || editForm.gstNumber.trim().length !== 15}>
+                <Button type="button" variant="outline" size="sm" onClick={handleVerifyGstin} disabled>
                   {verifying === "gstin" ? <Loader2 size={14} className="animate-spin" /> : null}
                   {verifying === "gstin" ? " Verifying…" : " Verify GSTIN"}
                 </Button>
@@ -1140,7 +1140,7 @@ export default function Profile() {
                   placeholder="e.g. ABCDE1234F"
                   className="flex-1 min-w-[120px]"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleVerifyPan} disabled={verifying !== null || !editForm.panNumber.trim() || editForm.panNumber.trim().length !== 10}>
+                <Button type="button" variant="outline" size="sm" onClick={handleVerifyPan} disabled>
                   {verifying === "pan" ? <Loader2 size={14} className="animate-spin" /> : null}
                   {verifying === "pan" ? " Verifying…" : " Verify PAN"}
                 </Button>
@@ -1167,7 +1167,7 @@ export default function Profile() {
                   placeholder="e.g. HDFC0001234"
                   className="flex-1 min-w-[120px]"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleVerifyBank} disabled={verifying !== null || !editForm.bankAccountNumber.trim() || !editForm.ifscCode.trim()}>
+                <Button type="button" variant="outline" size="sm" onClick={handleVerifyBank} disabled>
                   {verifying === "bank" ? <Loader2 size={14} className="animate-spin" /> : null}
                   {verifying === "bank" ? " Verifying…" : " Verify Bank"}
                 </Button>
