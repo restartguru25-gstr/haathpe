@@ -277,6 +277,8 @@ export default function Landing() {
       {/* Hero */}
       <section className="relative overflow-hidden gradient-hero px-4 pt-16 pb-24 text-center md:pt-24 md:pb-32">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(255,255,255,0.15),transparent)]" />
+        <div className="absolute right-0 top-1/4 h-64 w-64 rounded-full bg-accent/10 blur-3xl" aria-hidden />
+        <div className="absolute bottom-1/4 left-0 h-48 w-48 rounded-full bg-primary-foreground/5 blur-3xl" aria-hidden />
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -287,7 +289,10 @@ export default function Landing() {
             <MapPin size={14} className="shrink-0" />
             Kirana, tea stall, hardware & more — Hyderabad
           </div>
-          <h1 className="mb-5 text-4xl font-extrabold leading-[1.15] text-primary-foreground md:text-5xl lg:text-6xl">
+          <p className="mb-2 font-accent text-4xl leading-tight text-primary-foreground/95 md:text-5xl lg:text-[4.5rem]" style={{ fontFamily: "var(--font-accent)" }}>
+            Your dukaan, simplified
+          </p>
+          <h1 className="mb-5 font-heading text-3xl font-bold leading-[1.15] text-primary-foreground md:text-4xl lg:text-5xl">
             {t("heroHeadline")}
           </h1>
           <p className="mb-10 text-base text-primary-foreground/90 md:text-lg max-w-2xl mx-auto">
@@ -375,7 +380,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
           >
-            <Card className="h-full border-2 border-primary/20 bg-card shadow-md transition-all hover:shadow-lg hover:border-primary/30">
+            <Card className="h-full border-2 border-primary/20 bg-card shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-primary/30">
               <CardHeader className="pb-3">
                 <span className="mb-2 inline-block rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
                   {t("tileBuyBadge")}
@@ -411,7 +416,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.2 }}
           >
-            <Card className="h-full border-2 border-accent/20 bg-card shadow-md transition-all hover:shadow-lg hover:border-accent/30">
+            <Card className="h-full border-2 border-accent/20 bg-card shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-accent/30">
               <CardHeader className="pb-3">
                 <span className="mb-2 inline-block rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground">
                   {t("tileSellBadge")}

@@ -15,8 +15,11 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        brand: ["Outfit", "sans-serif"],
+        sans: ["Figtree", "var(--font-body)", "sans-serif"],
+        body: ["Figtree", "sans-serif"],
+        heading: ["Poppins", "var(--font-heading)", "sans-serif"],
+        accent: ["Great Vibes", "var(--font-accent)", "cursive"],
+        brand: ["Poppins", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -97,6 +100,10 @@ export default {
           "0%, 100%": { boxShadow: "0 0 0 0 hsl(25 95% 53% / 0.4)" },
           "50%": { boxShadow: "0 0 0 12px hsl(25 95% 53% / 0)" },
         },
+        "badge-pulse": {
+          "0%, 100%": { transform: "scale(1)", opacity: "1" },
+          "50%": { transform: "scale(1.1)", opacity: "0.9" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -105,6 +112,10 @@ export default {
         "scale-in": "scale-in 0.3s ease-out forwards",
         "slide-up": "slide-up 0.4s ease-out",
         "pulse-glow": "pulse-glow 2s infinite",
+        "badge-pulse": "badge-pulse 0.6s ease-out",
+      },
+      boxShadow: {
+        "card-hover": "0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.05)",
       },
     },
   },

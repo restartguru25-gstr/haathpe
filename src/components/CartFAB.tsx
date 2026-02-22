@@ -16,9 +16,11 @@ export default function CartFAB() {
       <ShoppingCart size={24} strokeWidth={2.2} />
       {cartCount > 0 && (
         <motion.span
+          key={cartCount}
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground"
+          transition={{ type: "spring", stiffness: 500, damping: 25 }}
+          className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground shadow-md"
         >
           {cartCount > 99 ? "99+" : cartCount}
         </motion.span>

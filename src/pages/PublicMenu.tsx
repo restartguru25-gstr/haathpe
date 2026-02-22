@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy, ArrowLeft } from "lucide-react";
 import { AdBanner } from "@/components/AdBanner";
+import { Skeleton } from "@/components/ui/skeleton";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { Button } from "@/components/ui/button";
 import { getActiveVendorMenuForPublic, createCustomerOrder, getVendorPublicProfile, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
@@ -242,9 +243,33 @@ export default function PublicMenu() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-muted/20 flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Loading menu...</p>
+      <div className="min-h-screen bg-muted/20 flex flex-col pb-24 md:pb-8">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-md">
+          <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-3">
+            <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+            <div className="flex-1 space-y-1">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
+        </header>
+        <div className="mx-auto max-w-6xl px-4 py-6 flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0 space-y-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Skeleton className="h-9 w-9 rounded-md" />
+                  <Skeleton className="h-6 w-6 rounded" />
+                  <Skeleton className="h-9 w-9 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
         <MakeInIndiaFooter />
       </div>
