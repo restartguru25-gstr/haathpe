@@ -17,6 +17,7 @@ import {
   Gift,
   HelpCircle,
   Banknote,
+  Wallet,
   Image,
   UserPlus,
   Plus,
@@ -1030,7 +1031,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="vendors" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1">
+        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1">
           <TabsTrigger value="vendors" className="flex items-center gap-2">
             <Users size={16} /> Vendors
           </TabsTrigger>
@@ -1062,7 +1063,7 @@ export default function Admin() {
             <Coins size={16} /> Coins
           </TabsTrigger>
           <TabsTrigger value="vendorWallet" className="flex items-center gap-2">
-            <Banknote size={16} /> Vendor Wallet
+            <Wallet size={16} /> Vendor Wallet
           </TabsTrigger>
           <TabsTrigger value="sectors" className="flex items-center gap-2">
             <LayoutGrid size={16} /> Sectors
@@ -1765,19 +1766,27 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="vendorWallet" className="space-y-4">
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={loadVendorWalletSettings} disabled={loadingVendorWalletSettings}>
-              <RefreshCw size={14} className={loadingVendorWalletSettings ? "animate-spin" : ""} /> Refresh
-            </Button>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Wallet size={20} /> Vendor Cash Wallet Settings
+              </h2>
+              <Button variant="outline" size="sm" onClick={loadVendorWalletSettings} disabled={loadingVendorWalletSettings}>
+                <RefreshCw size={14} className={loadingVendorWalletSettings ? "animate-spin" : ""} /> Refresh
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Signup bonus is credited when a vendor first activates their profile. Min withdrawal is the threshold vendors must reach before they can request a withdrawal.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">Vendor Cash Wallet: signup bonus and min withdrawal. Used when vendors first activate profile.</p>
           {loadingVendorWalletSettings ? (
             <Skeleton className="h-32 w-full rounded-xl" />
           ) : vendorWalletSettings ? (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-4 max-w-md">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label>Signup Bonus (₹)</Label>
+            <div className="rounded-xl border border-border bg-card p-6 space-y-6 max-w-lg">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">Signup Bonus (₹)</Label>
+                  <p className="text-xs text-muted-foreground">Amount credited to new vendors on first profile activation</p>
                   <Select
                     value={String(vendorWalletSettings.signup_bonus_amount)}
                     onValueChange={async (v) => {
@@ -1803,8 +1812,9 @@ export default function Admin() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Min Withdrawal (₹)</Label>
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">Min Withdrawal (₹)</Label>
+                  <p className="text-xs text-muted-foreground">Vendors cannot withdraw below this amount</p>
                   <div className="flex gap-2">
                     <Input
                       type="number"
@@ -1815,7 +1825,7 @@ export default function Admin() {
                       className="w-32"
                       onChange={(e) => {
                         const v = parseInt(e.target.value, 10);
-                        if (!Number.isNaN(v) && v >= 100) {
+                        if (!Number.isNaN(v) && v >= 0) {
                           setVendorWalletSettings((s) => (s ? { ...s, min_withdrawal_amount: v } : null));
                         }
                       }}
@@ -1849,7 +1859,9 @@ export default function Admin() {
               )}
             </div>
           ) : (
-            <p className="text-muted-foreground">Run migration 20260220800000_vendor_cash_wallet.sql first.</p>
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-destructive">
+              Run migration 20260220800000_vendor_cash_wallet.sql first to create vendor_settings table.
+            </div>
           )}
         </TabsContent>
 
@@ -2050,20 +2062,22 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="actions" className="space-y-6">
+          <h2 className="text-lg font-semibold">Admin Actions</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-border bg-card p-4"
+            className="rounded-xl border border-border bg-card p-4 flex flex-col"
           >
-            <h3 className="mb-3 flex items-center gap-2 font-bold">
+            <h3 className="mb-2 flex items-center gap-2 font-semibold">
               <Banknote size={18} className="text-primary" />
-              Run daily incentive calc
+              Daily Incentive Calc
             </h3>
-            <p className="mb-3 text-sm text-muted-foreground">
-              Count yesterday&apos;s customer_orders per vendor, match slabs, insert vendor_incentives.
+            <p className="mb-4 text-sm text-muted-foreground flex-1">
+              Count yesterday&apos;s orders per vendor, match slabs, insert vendor_incentives. Rewards also credit cash wallet.
             </p>
-            <Button onClick={handleRunDailyCalc} disabled={dailyCalcRunning}>
-              {dailyCalcRunning ? <Loader2 size={16} className="animate-spin" /> : <Banknote size={16} />}
+            <Button onClick={handleRunDailyCalc} disabled={dailyCalcRunning} className="w-fit">
+              {dailyCalcRunning ? <Loader2 size={16} className="animate-spin mr-1" /> : <Banknote size={16} className="mr-1" />}
               {dailyCalcRunning ? " Running…" : " Run Daily Calc"}
             </Button>
           </motion.div>
@@ -2072,17 +2086,17 @@ export default function Admin() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.03 }}
-            className="rounded-xl border border-border bg-card p-4"
+            className="rounded-xl border border-border bg-card p-4 flex flex-col"
           >
-            <h3 className="mb-3 flex items-center gap-2 font-bold">
+            <h3 className="mb-2 flex items-center gap-2 font-semibold">
               <UserPlus size={18} className="text-primary" />
-              Run referral bonus calc
+              Referral Bonus Calc
             </h3>
-            <p className="mb-3 text-sm text-muted-foreground">
+            <p className="mb-4 text-sm text-muted-foreground flex-1">
               Pay referrers ₹100 for each referred vendor who hit 100+ entries yesterday. Run after Daily Calc.
             </p>
-            <Button onClick={handleRunReferralCalc} disabled={referralCalcRunning}>
-              {referralCalcRunning ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+            <Button onClick={handleRunReferralCalc} disabled={referralCalcRunning} className="w-fit">
+              {referralCalcRunning ? <Loader2 size={16} className="animate-spin mr-1" /> : <UserPlus size={16} className="mr-1" />}
               {referralCalcRunning ? " Running…" : " Run Referral Calc"}
             </Button>
           </motion.div>
@@ -2091,17 +2105,17 @@ export default function Admin() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="rounded-xl border border-border bg-card p-4"
+            className="rounded-xl border border-border bg-card p-4 flex flex-col"
           >
-            <h3 className="mb-3 flex items-center gap-2 font-bold">
+            <h3 className="mb-2 flex items-center gap-2 font-semibold">
               <Trophy size={18} className="text-accent" />
-              Run monthly draw
+              Monthly Draw
             </h3>
-            <p className="mb-3 text-sm text-muted-foreground">
+            <p className="mb-4 text-sm text-muted-foreground flex-1">
               Pick RNG winner from vendors with 10000+ entries last month (₹5000 lucky draw).
             </p>
-            <Button onClick={handleRunMonthlyDraw} disabled={monthlyDrawRunning}>
-              {monthlyDrawRunning ? <Loader2 size={16} className="animate-spin" /> : <Trophy size={16} />}
+            <Button onClick={handleRunMonthlyDraw} disabled={monthlyDrawRunning} className="w-fit">
+              {monthlyDrawRunning ? <Loader2 size={16} className="animate-spin mr-1" /> : <Trophy size={16} className="mr-1" />}
               {monthlyDrawRunning ? " Running…" : " Run Monthly Draw"}
             </Button>
           </motion.div>
@@ -2110,18 +2124,18 @@ export default function Admin() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-xl border border-border bg-card p-4"
+            className="rounded-xl border border-border bg-card p-4 flex flex-col"
           >
-            <h3 className="mb-3 flex items-center gap-2 font-bold">
+            <h3 className="mb-2 flex items-center gap-2 font-semibold">
               <Trophy size={18} className="text-accent" />
-              Run daily draw
+              Daily Draw
             </h3>
-            <p className="mb-3 text-sm text-muted-foreground">
-              Pick a random winner from today&apos;s eligible entries and send them a notification.
+            <p className="mb-4 text-sm text-muted-foreground flex-1">
+              Pick a random winner from today&apos;s eligible entries and send a notification.
             </p>
-            <Button onClick={handleRunDraw} disabled={drawRunning}>
-              {drawRunning ? <Loader2 size={16} className="animate-spin" /> : <Trophy size={16} />}
-              {drawRunning ? " Running…" : " Run today&apos;s draw"}
+            <Button onClick={handleRunDraw} disabled={drawRunning} className="w-fit">
+              {drawRunning ? <Loader2 size={16} className="animate-spin mr-1" /> : <Trophy size={16} className="mr-1" />}
+              {drawRunning ? " Running…" : " Run Daily Draw"}
             </Button>
           </motion.div>
 
@@ -2129,7 +2143,7 @@ export default function Admin() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="rounded-xl border border-border bg-card p-4"
+            className="rounded-xl border border-border bg-card p-4 sm:col-span-2 lg:col-span-3"
           >
             <h3 className="mb-3 flex items-center gap-2 font-bold">
               <CreditCard size={18} className="text-primary" />
@@ -2171,6 +2185,7 @@ export default function Admin() {
               </Button>
             </div>
           </motion.div>
+          </div>
         </TabsContent>
       </Tabs>
 
