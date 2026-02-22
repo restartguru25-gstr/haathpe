@@ -5,11 +5,12 @@
  * Deploy: supabase functions deploy verify-cashfree
  * (Use default JWT verification - do NOT use --no-verify-jwt)
  *
- * Secrets (Supabase Dashboard > Project Settings > Edge Functions):
- *   CASHFREE_APP_ID  - x-client-id from Cashfree Verification dashboard
- *   CASHFREE_SECRET  - x-client-secret
+ * Secrets (Supabase Dashboard > Edge Functions > Secrets):
+ *   CASHFREE_VERIFICATION_APP_ID  - from https://merchant.cashfree.com/verificationsuite/developers/api-keys
+ *   CASHFREE_VERIFICATION_SECRET  - (separate from Payments keys)
+ *   CASHFREE_VERIFICATION_BASE   - optional; default prod. Sandbox: https://sandbox.cashfree.com/verification
  *
- * Client: supabase.functions.invoke("verify-cashfree", { body: { type, ... } })
+ * Client: supabase.functions.invoke("verify-cashfree", { body: { type, ... }, headers: { Authorization: "Bearer <jwt>" } })
  * Body: { type: "bank"|"pan"|"gstin", bank_account?, ifsc?, name?, phone?, pan?, GSTIN? }
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -196,7 +197,7 @@ serve(async (req) => {
     const clientId = Deno.env.get("CASHFREE_VERIFICATION_APP_ID");
     const clientSecret = Deno.env.get("CASHFREE_VERIFICATION_SECRET");
     if (!clientId || !clientSecret) {
-      return fail("Cashfree credentials not configured. Add CASHFREE_VERIFICATION_APP_ID and CASHFREE_VERIFICATION_SECRET in Supabase Edge Function secrets.");
+      return fail("Cashfree Verification not configured. In Supabase Dashboard → Edge Functions → Secrets, add CASHFREE_VERIFICATION_APP_ID and CASHFREE_VERIFICATION_SECRET from https://merchant.cashfree.com/verificationsuite/developers/api-keys");
     }
 
     let body: Record<string, unknown>;

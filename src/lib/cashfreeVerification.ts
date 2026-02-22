@@ -13,7 +13,7 @@ export interface VerifyResult {
   message?: string;
 }
 
-const INVOKE_TIMEOUT_MS = 30000;
+const INVOKE_TIMEOUT_MS = 35000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -51,6 +51,7 @@ export async function verifyBank(params: {
       supabase.functions.invoke("verify-cashfree", {
         body: { type: "bank", ...params },
         headers: { Authorization: `Bearer ${token}` },
+        timeout: INVOKE_TIMEOUT_MS,
       }),
       INVOKE_TIMEOUT_MS
     );
@@ -75,6 +76,7 @@ export async function verifyPan(params: { pan: string; name?: string }): Promise
       supabase.functions.invoke("verify-cashfree", {
         body: { type: "pan", ...params },
         headers: { Authorization: `Bearer ${token}` },
+        timeout: INVOKE_TIMEOUT_MS,
       }),
       INVOKE_TIMEOUT_MS
     );
@@ -102,6 +104,7 @@ export async function verifyGstin(params: {
       supabase.functions.invoke("verify-cashfree", {
         body: { type: "gstin", ...params },
         headers: { Authorization: `Bearer ${token}` },
+        timeout: INVOKE_TIMEOUT_MS,
       }),
       INVOKE_TIMEOUT_MS
     );

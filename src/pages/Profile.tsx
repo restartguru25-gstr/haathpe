@@ -141,6 +141,16 @@ export default function Profile() {
     upiId: "",
   });
   const [verifying, setVerifying] = useState<"bank" | "pan" | "gstin" | null>(null);
+
+  // Safety: always clear "Verifying" after 40s so UI never gets stuck
+  useEffect(() => {
+    if (!verifying) return;
+    const t = setTimeout(() => {
+      setVerifying(null);
+      toast.error("Verification took too long. Please try again.");
+    }, 40000);
+    return () => clearTimeout(t);
+  }, [verifying]);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
