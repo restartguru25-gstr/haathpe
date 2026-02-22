@@ -2,7 +2,8 @@
  * Update vendor profile server-side (avoids client AbortError + RLS confusion).
  *
  * Deploy:
- *   supabase functions deploy update-profile --no-verify-jwt
+ *   supabase functions deploy update-profile
+ * (JWT verification enabled by default)
  *
  * Secrets required:
  *   SUPABASE_URL
@@ -12,9 +13,9 @@
  *   supabase.functions.invoke("update-profile", { body: { ...fields } })
  *
  * Notes:
- * - We manually verify the user's JWT from Authorization header.
- * - We then update `public.profiles` using the Service Role key (bypasses RLS).
- * - Only whitelisted fields can be updated.
+ * - JWT validated by Supabase before request reaches handler.
+ * - We resolve user ID from Authorization header and update profiles via Service Role.
+ * - Only whitelisted fields can be updated (includes bank_account_number, ifsc_code, bank_verified, pan_verified, gstin_verified).
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -61,7 +62,12 @@ type AllowedUpdate =
   | "weekly_off"
   | "holidays"
   | "is_online"
-  | "alert_volume";
+  | "alert_volume"
+  | "bank_account_number"
+  | "ifsc_code"
+  | "bank_verified"
+  | "pan_verified"
+  | "gstin_verified";
 
 const ALLOWED_FIELDS: ReadonlySet<AllowedUpdate> = new Set<AllowedUpdate>([
   "name",
@@ -81,6 +87,11 @@ const ALLOWED_FIELDS: ReadonlySet<AllowedUpdate> = new Set<AllowedUpdate>([
   "holidays",
   "is_online",
   "alert_volume",
+  "bank_account_number",
+  "ifsc_code",
+  "bank_verified",
+  "pan_verified",
+  "gstin_verified",
 ]);
 
 function pickAllowed(body: Record<string, unknown>) {

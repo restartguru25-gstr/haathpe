@@ -26,6 +26,8 @@ import {
   UserPlus,
   Clock,
   Gift,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +75,7 @@ import {
 } from "@/lib/shopDetails";
 import VendorCashWalletSection from "@/components/VendorCashWalletSection";
 import { ensureVendorWalletWithSignupBonus } from "@/lib/vendorCashWallet";
+import { verifyBank, verifyPan, verifyGstin } from "@/lib/cashfreeVerification";
 
 const fadeUp = (i: number) => ({
   initial: { opacity: 0, y: 14 },
@@ -130,11 +133,14 @@ export default function Profile() {
     shopPhotoUrls: [] as string[],
     gstNumber: "",
     panNumber: "",
+    bankAccountNumber: "",
+    ifscCode: "",
     udyamNumber: "",
     fssaiLicense: "",
     otherBusinessDetails: "",
     upiId: "",
   });
+  const [verifying, setVerifying] = useState<"bank" | "pan" | "gstin" | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -170,6 +176,11 @@ export default function Profile() {
     shopPhotoUrls,
     gstNumber,
     panNumber,
+    bankAccountNumber,
+    ifscCode,
+    bankVerified,
+    panVerified,
+    gstinVerified,
     udyamNumber,
     fssaiLicense,
     otherBusinessDetails,
@@ -231,6 +242,8 @@ export default function Profile() {
       shopPhotoUrls: [...shopPhotoUrls],
       gstNumber: gstNumber || "",
       panNumber: panNumber || "",
+      bankAccountNumber: bankAccountNumber || "",
+      ifscCode: ifscCode || "",
       udyamNumber: udyamNumber || "",
       fssaiLicense: fssaiLicense || "",
       otherBusinessDetails: otherBusinessDetails || "",
@@ -255,6 +268,8 @@ export default function Profile() {
         shop_photo_urls: editForm.shopPhotoUrls.length ? editForm.shopPhotoUrls : null,
         gst_number: (editForm.gstNumber || "").trim() || null,
         pan_number: (editForm.panNumber || "").trim() || null,
+        bank_account_number: (editForm.bankAccountNumber || "").trim() || null,
+        ifsc_code: (editForm.ifscCode || "").trim().toUpperCase() || null,
         udyam_number: (editForm.udyamNumber || "").trim() || null,
         fssai_license: (editForm.fssaiLicense || "").trim() || null,
         other_business_details: (editForm.otherBusinessDetails || "").trim() || null,
@@ -346,6 +361,100 @@ export default function Profile() {
       ...f,
       shopPhotoUrls: f.shopPhotoUrls.filter((_, i) => i !== index),
     }));
+  };
+
+  const updateProfileVerified = async (field: "bank_verified" | "pan_verified" | "gstin_verified", value: boolean) => {
+    if (!user?.id) return;
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
+      const opts = token ? { body: { [field]: value }, headers: { Authorization: `Bearer ${token}` } as Record<string, string> } : { body: { [field]: value } };
+      const { error } = await supabase.functions.invoke("update-profile", opts);
+      if (!error) {
+        await refreshProfile();
+        return;
+      }
+    } catch {
+      /* fallback to direct update */
+    }
+    try {
+      const { error } = await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
+      if (!error) await refreshProfile();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleVerifyBank = async () => {
+    const acc = (editForm.bankAccountNumber || "").trim();
+    const ifsc = (editForm.ifscCode || "").trim();
+    if (!acc || !ifsc) {
+      toast.error("Enter bank account and IFSC");
+      return;
+    }
+    setVerifying("bank");
+    try {
+      const res = await verifyBank({
+        bank_account: acc,
+        ifsc,
+        name: name || undefined,
+        phone: phone || undefined,
+      });
+      if (res.ok && res.valid) {
+        await updateProfileVerified("bank_verified", true);
+        toast.success("Bank verified successfully!");
+      } else {
+        toast.error(res.error || res.message || "Bank verification failed");
+      }
+    } catch {
+      toast.error("Bank verification failed");
+    } finally {
+      setVerifying(null);
+    }
+  };
+
+  const handleVerifyPan = async () => {
+    const pan = (editForm.panNumber || "").trim();
+    if (!pan || pan.length !== 10) {
+      toast.error("Enter valid 10-character PAN");
+      return;
+    }
+    setVerifying("pan");
+    try {
+      const res = await verifyPan({ pan, name: name || undefined });
+      if (res.ok && res.valid) {
+        await updateProfileVerified("pan_verified", true);
+        toast.success("PAN verified successfully!");
+      } else {
+        toast.error(res.error || res.message || "PAN verification failed");
+      }
+    } catch {
+      toast.error("PAN verification failed");
+    } finally {
+      setVerifying(null);
+    }
+  };
+
+  const handleVerifyGstin = async () => {
+    const gstin = (editForm.gstNumber || "").trim();
+    if (!gstin || gstin.length !== 15) {
+      toast.error("Enter valid 15-character GSTIN");
+      return;
+    }
+    setVerifying("gstin");
+    try {
+      const res = await verifyGstin({ GSTIN: gstin, business_name: name || undefined });
+      if (res.ok && res.valid) {
+        await updateProfileVerified("gstin_verified", true);
+        toast.success("GSTIN verified successfully!");
+      } else {
+        toast.error(res.error || res.message || "GSTIN verification failed");
+      }
+    } catch {
+      toast.error("GSTIN verification failed");
+    } finally {
+      setVerifying(null);
+    }
   };
 
   const handleNotifToggle = (key: keyof NotificationSettings, value: boolean) => {
@@ -995,24 +1104,65 @@ export default function Profile() {
               </div>
             </div>
             <div>
-              <Label htmlFor="edit-gst">GST number (optional)</Label>
+              <Label htmlFor="edit-gst">GSTIN (15 digits, optional)</Label>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <Input
+                  id="edit-gst"
+                  value={editForm.gstNumber}
+                  onChange={(e) => setEditForm((f) => ({ ...f, gstNumber: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. 36AABCU9603R1ZM"
+                  className="flex-1 min-w-[160px]"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleVerifyGstin} disabled={verifying !== null || !editForm.gstNumber.trim() || editForm.gstNumber.trim().length !== 15}>
+                  {verifying === "gstin" ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {verifying === "gstin" ? " Verifying…" : " Verify GSTIN"}
+                </Button>
+                {gstinVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-pan">PAN (10 chars, optional)</Label>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <Input
+                  id="edit-pan"
+                  value={editForm.panNumber}
+                  onChange={(e) => setEditForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. ABCDE1234F"
+                  className="flex-1 min-w-[120px]"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleVerifyPan} disabled={verifying !== null || !editForm.panNumber.trim() || editForm.panNumber.trim().length !== 10}>
+                  {verifying === "pan" ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {verifying === "pan" ? " Verifying…" : " Verify PAN"}
+                </Button>
+                {panVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-bank">Bank account (optional)</Label>
               <Input
-                id="edit-gst"
-                value={editForm.gstNumber}
-                onChange={(e) => setEditForm((f) => ({ ...f, gstNumber: e.target.value }))}
-                placeholder="e.g. 36AABCU9603R1ZM"
+                id="edit-bank"
+                value={editForm.bankAccountNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value.replace(/\D/g, "") }))}
+                placeholder="Account number"
                 className="mt-1.5"
               />
             </div>
             <div>
-              <Label htmlFor="edit-pan">PAN (optional)</Label>
-              <Input
-                id="edit-pan"
-                value={editForm.panNumber}
-                onChange={(e) => setEditForm((f) => ({ ...f, panNumber: e.target.value }))}
-                placeholder="e.g. ABCDE1234F"
-                className="mt-1.5"
-              />
+              <Label htmlFor="edit-ifsc">IFSC code</Label>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <Input
+                  id="edit-ifsc"
+                  value={editForm.ifscCode}
+                  onChange={(e) => setEditForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. HDFC0001234"
+                  className="flex-1 min-w-[120px]"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleVerifyBank} disabled={verifying !== null || !editForm.bankAccountNumber.trim() || !editForm.ifscCode.trim()}>
+                  {verifying === "bank" ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {verifying === "bank" ? " Verifying…" : " Verify Bank"}
+                </Button>
+                {bankVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
+              </div>
             </div>
             <div>
               <Label htmlFor="edit-udyam">UDYAM number (optional)</Label>

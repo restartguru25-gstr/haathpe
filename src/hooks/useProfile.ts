@@ -23,6 +23,11 @@ export interface DisplayProfile {
   shopPhotoUrls: string[];
   gstNumber: string;
   panNumber: string;
+  bankAccountNumber: string;
+  ifscCode: string;
+  bankVerified: boolean;
+  panVerified: boolean;
+  gstinVerified: boolean;
   udyamNumber: string;
   fssaiLicense: string;
   otherBusinessDetails: string;
@@ -55,6 +60,11 @@ function profileToDisplay(p: Profile | null, user?: { email?: string | null; pho
     shop_photo_urls?: string[] | null;
     gst_number?: string | null;
     pan_number?: string | null;
+    bank_account_number?: string | null;
+    ifsc_code?: string | null;
+    bank_verified?: boolean | null;
+    pan_verified?: boolean | null;
+    gstin_verified?: boolean | null;
     udyam_number?: string | null;
     fssai_license?: string | null;
     other_business_details?: string | null;
@@ -89,6 +99,11 @@ function profileToDisplay(p: Profile | null, user?: { email?: string | null; pho
     shopPhotoUrls: Array.isArray(shopUrls) ? shopUrls : [],
     gstNumber: raw.gst_number ?? "",
     panNumber: raw.pan_number ?? "",
+    bankAccountNumber: raw.bank_account_number ?? "",
+    ifscCode: raw.ifsc_code ?? "",
+    bankVerified: raw.bank_verified === true,
+    panVerified: raw.pan_verified === true,
+    gstinVerified: raw.gstin_verified === true,
     udyamNumber: raw.udyam_number ?? "",
     fssaiLicense: raw.fssai_license ?? "",
     otherBusinessDetails: raw.other_business_details ?? "",
@@ -126,6 +141,11 @@ function vendorProfileToDisplay(): DisplayProfile {
     shopPhotoUrls: [],
     gstNumber: "",
     panNumber: "",
+    bankAccountNumber: "",
+    ifscCode: "",
+    bankVerified: false,
+    panVerified: false,
+    gstinVerified: false,
     udyamNumber: "",
     fssaiLicense: "",
     otherBusinessDetails: "",
