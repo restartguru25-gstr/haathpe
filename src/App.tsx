@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PWAInstallProvider } from "@/contexts/PWAInstallContext";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 import { PaymentNotificationProvider } from "@/contexts/PaymentNotificationContext";
 import AppLayout from "@/components/AppLayout";
@@ -59,12 +61,14 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <PWAInstallProvider>
       <AuthProvider>
         <CustomerAuthProvider>
         <AppProvider>
           <PaymentNotificationProvider>
           <Toaster />
           <Sonner />
+          <PWAInstallPrompt />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -114,6 +118,7 @@ const App = () => (
         </AppProvider>
         </CustomerAuthProvider>
       </AuthProvider>
+      </PWAInstallProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
