@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 interface PaymentSuccessPopupProps {
   visible: boolean;
   amount: number;
+  title?: string;
   onClose: () => void;
   onReplayVoice?: () => void;
   canReplayVoice?: boolean;
@@ -15,6 +16,7 @@ const CONFETTI_COUNT = 40;
 export default function PaymentSuccessPopup({
   visible,
   amount,
+  title = "Payment Received!",
   onClose,
   onReplayVoice,
   canReplayVoice,
@@ -80,7 +82,7 @@ export default function PaymentSuccessPopup({
               transition={{ delay: 0.15 }}
               className="mb-1 text-center text-lg font-semibold uppercase tracking-wide text-white/90"
             >
-              Payment Received!
+              {title}
             </motion.p>
             <motion.p
               initial={{ y: 5 }}

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 import PaymentSuccessPopup from "@/components/PaymentSuccessPopup";
 import {
   triggerPaymentNotification,
+  triggerOrderNotification,
   speakOrderSummary,
   speakPaymentReceived,
   type VoiceLang,
@@ -20,8 +21,17 @@ export interface TriggerPaymentReceivedParams {
   orderItems?: OrderItemForVoice[] | null;
 }
 
+export interface TriggerOrderReceivedParams {
+  amount: number;
+  orderId: string;
+  voiceLang: VoiceLang;
+  alertVolume?: "low" | "medium" | "high" | null;
+  orderItems?: OrderItemForVoice[] | null;
+}
+
 interface PaymentNotificationContextValue {
   triggerPaymentReceived: (params: TriggerPaymentReceivedParams) => void;
+  triggerOrderReceived: (params: TriggerOrderReceivedParams) => void;
   replayVoice: () => void;
   lastVoice: { voiceLang: VoiceLang; amount: number; orderItems: OrderItemForVoice[] | null } | null;
 }
@@ -38,13 +48,14 @@ interface PaymentNotificationProviderProps {
 }
 
 export function PaymentNotificationProvider({ children }: PaymentNotificationProviderProps) {
-  const [popup, setPopup] = useState<{ amount: number } | null>(null);
+  const [popup, setPopup] = useState<{ amount: number; type: "order" | "payment" } | null>(null);
   const [lastVoice, setLastVoice] = useState<{
     voiceLang: VoiceLang;
     amount: number;
     orderItems: OrderItemForVoice[] | null;
   } | null>(null);
   const notifiedIds = useRef<Set<string>>(new Set());
+  const notifiedOrderIds = useRef<Set<string>>(new Set());
 
   const triggerPaymentReceived = useCallback((params: TriggerPaymentReceivedParams) => {
     if (notifiedIds.current.has(params.orderId)) return;
@@ -59,13 +70,36 @@ export function PaymentNotificationProvider({ children }: PaymentNotificationPro
       orderItems: params.orderItems ?? null,
     };
     setLastVoice(voice);
-    setPopup({ amount: params.amount });
+    setPopup({ amount: params.amount, type: "payment" });
     triggerPaymentNotification({
       amount: params.amount,
       orderId: params.orderId,
       voiceLang: params.voiceLang,
       vendorPhone: params.vendorPhone,
       sendWhatsApp: params.sendWhatsApp ?? false,
+      alertVolume: params.alertVolume,
+      orderItems: params.orderItems,
+    });
+  }, []);
+
+  const triggerOrderReceived = useCallback((params: TriggerOrderReceivedParams) => {
+    if (notifiedOrderIds.current.has(params.orderId)) return;
+    notifiedOrderIds.current.add(params.orderId);
+    if (notifiedOrderIds.current.size > DEDUPE_MAX) {
+      const first = notifiedOrderIds.current.values().next().value;
+      if (first) notifiedOrderIds.current.delete(first);
+    }
+    const voice = {
+      voiceLang: params.voiceLang,
+      amount: params.amount,
+      orderItems: params.orderItems ?? null,
+    };
+    setLastVoice(voice);
+    setPopup({ amount: params.amount, type: "order" });
+    triggerOrderNotification({
+      amount: params.amount,
+      orderId: params.orderId,
+      voiceLang: params.voiceLang,
       alertVolume: params.alertVolume,
       orderItems: params.orderItems,
     });
@@ -86,6 +120,7 @@ export function PaymentNotificationProvider({ children }: PaymentNotificationPro
     <PaymentNotificationContext.Provider
       value={{
         triggerPaymentReceived,
+        triggerOrderReceived,
         replayVoice,
         lastVoice,
       }}
@@ -94,6 +129,7 @@ export function PaymentNotificationProvider({ children }: PaymentNotificationPro
       <PaymentSuccessPopup
         visible={!!popup}
         amount={popup?.amount ?? 0}
+        title={popup?.type === "order" ? "New Order!" : "Payment Received!"}
         onClose={closePopup}
         onReplayVoice={replayVoice}
         canReplayVoice={!!lastVoice}

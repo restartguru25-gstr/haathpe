@@ -19,6 +19,15 @@ const VOICE_MESSAGES: Record<VoiceLang, (amount: number) => string> = {
   te: (amount) => `Kotha payment vachindi. ${amount} rupaayalu. Dhanyavaadham!`,
 };
 
+/** Customer-facing: "Thank you for paying X rupees" (when customer completes payment). */
+const CUSTOMER_VOICE_MESSAGES: Record<VoiceLang, (amount: number) => string> = {
+  en: (amount) => `Thank you for paying ${amount} rupees. Payment successful!`,
+  hi: (amount) => `${amount} rupaye dene ke liye dhanyavaad. Payment successful!`,
+  te: (amount) => `${amount} rupaayalu kadite dhanyavaadham. Payment successful!`,
+};
+
+const CUSTOMER_FALLBACK = "Payment successful. Thank you!";
+
 const FALLBACK_MESSAGE = "Payment received. Thank you!";
 
 /** Tiny WAV beep as fallback when MP3 fails (e.g. autoplay blocked). */
@@ -82,6 +91,25 @@ export function vibratePayment(): void {
     }
   } catch {
     // ignore
+  }
+}
+
+/** Speak payment success to customer (Web Speech API): "Thank you for paying X rupees". */
+export function speakPaymentSuccessForCustomer(lang: VoiceLang, amount?: number): void {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    const msg =
+      amount != null && amount > 0
+        ? (CUSTOMER_VOICE_MESSAGES[lang]?.(Math.round(amount)) ?? CUSTOMER_VOICE_MESSAGES.en(Math.round(amount)))
+        : CUSTOMER_FALLBACK;
+    const u = new SpeechSynthesisUtterance(msg);
+    u.lang = lang === "hi" ? "hi-IN" : lang === "te" ? "te-IN" : "en-IN";
+    u.rate = 0.9;
+    u.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -217,5 +245,24 @@ export function triggerPaymentNotification(options: {
   }
   if (sendWhatsApp && vendorPhone) {
     sendWhatsAppPaymentAlert(vendorPhone, Math.round(amount), orderId);
+  }
+}
+
+/** Run order-received notifications (sound, vibration, order-items voice). Use when customer places order via QR. */
+export function triggerOrderNotification(options: {
+  amount: number;
+  orderId: string;
+  voiceLang: VoiceLang;
+  alertVolume?: AlertVolume | null;
+  orderItems?: OrderItemForVoice[] | null;
+}): void {
+  const { amount, voiceLang, alertVolume, orderItems } = options;
+  const vol = getAlertVolumeMultiplier(alertVolume);
+  playPaymentSound(vol);
+  vibratePayment();
+  if (orderItems && orderItems.length > 0) {
+    speakOrderSummary(voiceLang, orderItems, amount);
+  } else {
+    speakPaymentReceived(voiceLang, Math.round(amount));
   }
 }

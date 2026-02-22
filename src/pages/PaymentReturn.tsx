@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import BackButton from "@/components/BackButton";
+import { useApp } from "@/contexts/AppContext";
 import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
@@ -20,6 +21,7 @@ import {
   finalizePremiumAfterPayment,
 } from "@/lib/premium";
 import { awardCoinsForPaidOrder, getCoinsPerPayment } from "@/lib/wallet";
+import { speakPaymentSuccessForCustomer } from "@/lib/paymentNotification";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import CongratsOverlay from "@/components/CongratsOverlay";
@@ -27,6 +29,7 @@ import CongratsOverlay from "@/components/CongratsOverlay";
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
+  const { lang } = useApp();
   const [status, setStatus] = useState<"loading" | "paid" | "pending" | "error">("loading");
   const [isPremiumPayment, setIsPremiumPayment] = useState(false);
   const [testingGateway, setTestingGateway] = useState(false);
@@ -34,6 +37,8 @@ export default function PaymentReturn() {
   const [showCongratsOverlay, setShowCongratsOverlay] = useState(false);
   const awardCalled = useRef(false);
   const finalizedByServer = useRef(false);
+  const paidAmountRef = useRef<number | undefined>(undefined);
+  const voiceSpokenRef = useRef(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -78,6 +83,7 @@ export default function PaymentReturn() {
         }
         clearPendingPremium();
         finalizedByServer.current = true;
+        paidAmountRef.current = 99; // Premium fixed price
         setStatus("paid");
         return;
       }
@@ -86,12 +92,14 @@ export default function PaymentReturn() {
       const tracked = await getOrderForTracking(orderId);
       if (tracked) {
         if (tracked.status === "paid") {
+          paidAmountRef.current = undefined; // No amount from tracking
           setStatus("paid");
           return;
         }
         // Status pending: verify Cashfree (webhook may not have run yet)
         const verify = await verifyCashfreePayment(orderId);
         if (verify.ok && verify.paid) {
+          paidAmountRef.current = undefined;
           setStatus("paid");
           return;
         }
@@ -100,6 +108,7 @@ export default function PaymentReturn() {
       }
       const { data: dbOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).single();
       if (dbOrder?.status) {
+        if (dbOrder.status === "paid") paidAmountRef.current = undefined;
         setStatus(dbOrder.status === "paid" ? "paid" : "pending");
         return;
       }
@@ -127,6 +136,7 @@ export default function PaymentReturn() {
       const pending = getPendingOrder();
       if (!pending || pending.orderId !== orderId) {
         // No pending order = customer_orders flow (PublicMenu). Payment verified, show success.
+        paidAmountRef.current = undefined;
         const retracked = await getOrderForTracking(orderId);
         if (retracked) {
           setStatus("paid");
@@ -144,6 +154,7 @@ export default function PaymentReturn() {
 
       clearPendingOrder();
       finalizedByServer.current = true;
+      paidAmountRef.current = pending.total;
       setStatus("paid");
       if (finalize.coins != null || finalize.cashback != null) {
         setCongrats({ coins: finalize.coins ?? 2, cashback: finalize.cashback ?? 2 });
@@ -153,6 +164,13 @@ export default function PaymentReturn() {
 
     run().catch(() => setStatus("error"));
   }, [orderId]);
+
+  useEffect(() => {
+    if (status !== "paid" || voiceSpokenRef.current) return;
+    voiceSpokenRef.current = true;
+    const amount = paidAmountRef.current;
+    speakPaymentSuccessForCustomer(lang as "en" | "hi" | "te", amount);
+  }, [status, lang]);
 
   useEffect(() => {
     if (status !== "paid" || !orderId || awardCalled.current || finalizedByServer.current) return;
