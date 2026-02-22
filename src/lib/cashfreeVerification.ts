@@ -13,6 +13,17 @@ export interface VerifyResult {
   message?: string;
 }
 
+function parseInvokeError(error: unknown, data: unknown): string {
+  const err = error as { message?: string; context?: { body?: { error?: string } }; status?: number };
+  if (data && typeof data === "object" && "error" in data && typeof (data as { error?: string }).error === "string") {
+    return (data as { error: string }).error;
+  }
+  if (err?.context?.body?.error) return err.context.body.error;
+  if (err?.status === 401) return "Session expired. Please sign in again.";
+  if (err?.status === 503) return "Verification service not configured.";
+  return err?.message || "Verification failed";
+}
+
 /** Verify bank account via Cashfree (Edge Function) */
 export async function verifyBank(params: {
   bank_account: string;
@@ -30,8 +41,8 @@ export async function verifyBank(params: {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (error) return { ok: false, error: error.message || "Verification failed" };
-    const res = data as VerifyResult;
+    if (error) return { ok: false, error: parseInvokeError(error, data) };
+    const res = (data ?? {}) as VerifyResult;
     return res.ok ? res : { ok: false, error: res.error || "Verification failed" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Verification failed";
@@ -51,8 +62,8 @@ export async function verifyPan(params: { pan: string; name?: string }): Promise
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (error) return { ok: false, error: error.message || "Verification failed" };
-    const res = data as VerifyResult;
+    if (error) return { ok: false, error: parseInvokeError(error, data) };
+    const res = (data ?? {}) as VerifyResult;
     return res.ok ? res : { ok: false, error: res.error || "Verification failed" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Verification failed";
@@ -75,8 +86,8 @@ export async function verifyGstin(params: {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (error) return { ok: false, error: error.message || "Verification failed" };
-    const res = data as VerifyResult;
+    if (error) return { ok: false, error: parseInvokeError(error, data) };
+    const res = (data ?? {}) as VerifyResult;
     return res.ok ? res : { ok: false, error: res.error || "Verification failed" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Verification failed";
