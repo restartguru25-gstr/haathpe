@@ -48,7 +48,7 @@ async function verifyBank(clientId: string, clientSecret: string, body: {
   phone?: string;
 }): Promise<{ ok: boolean; valid?: boolean; error?: string; message?: string }> {
   try {
-    const res = await fetch(`${BASE}/bank-account/sync`, {
+    const res = await fetchWithTimeout(`${BASE}/bank-account/sync`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -82,8 +82,21 @@ async function verifyBank(clientId: string, clientSecret: string, body: {
       message: valid ? "Bank account verified" : (data.account_status_code as string) || status,
     };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Bank verification request failed";
+    const msg = e instanceof Error ? (e.name === "AbortError" ? "Bank verification timed out" : e.message) : "Bank verification request failed";
     return { ok: false, error: msg };
+  }
+}
+
+const FETCH_TIMEOUT_MS = 25000;
+
+async function fetchWithTimeout(url: string, opts: RequestInit): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
   }
 }
 
@@ -95,32 +108,42 @@ async function verifyPan(clientId: string, clientSecret: string, body: {
   if (!pan || pan.length !== 10) {
     return { ok: false, error: "PAN must be 10 characters" };
   }
-  const res = await fetch(`${BASE}/pan`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-client-id": clientId,
-      "x-client-secret": clientSecret,
-      "x-api-version": "2022-10-26",
-    },
-    body: JSON.stringify({
-      pan,
-      name: body.name?.trim() || "VERIFY",
-    }),
-  });
-  const data = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: (data.message as string) || (data.code as string) || "PAN verification failed",
-    };
+  try {
+    const res = await fetchWithTimeout(`${BASE}/pan`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-client-id": clientId,
+        "x-client-secret": clientSecret,
+        "x-api-version": "2022-10-26",
+      },
+      body: JSON.stringify({
+        pan,
+        name: body.name?.trim() || "VERIFY",
+      }),
+    });
+    let data: Record<string, unknown> = {};
+    try {
+      data = (await res.json()) as Record<string, unknown>;
+    } catch {
+      data = { message: res.statusText || "PAN verification failed" };
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: (data.message as string) || (data.code as string) || `PAN verification failed (${res.status})`,
+      };
+    }
+    if (data.type === "validation_error" || data.type === "authentication_error") {
+      return { ok: false, error: (data.message as string) || "PAN verification failed" };
+    }
+    const valid = data.valid === true;
+    const message = (data.message as string) || (valid ? "PAN verified" : "Invalid PAN");
+    return { ok: true, valid, message };
+  } catch (e) {
+    const msg = e instanceof Error ? (e.name === "AbortError" ? "PAN verification timed out" : e.message) : "PAN verification failed";
+    return { ok: false, error: msg };
   }
-  if (data.type === "validation_error" || data.type === "authentication_error") {
-    return { ok: false, error: (data.message as string) || "PAN verification failed" };
-  }
-  const valid = data.valid === true;
-  const message = (data.message as string) || (valid ? "PAN verified" : "Invalid PAN");
-  return { ok: true, valid, message };
 }
 
 async function verifyGstin(clientId: string, clientSecret: string, body: {
@@ -131,7 +154,8 @@ async function verifyGstin(clientId: string, clientSecret: string, body: {
   if (!gstin || gstin.length !== 15) {
     return { ok: false, error: "GSTIN must be 15 characters" };
   }
-  const res = await fetch(`${BASE}/gstin`, {
+  try {
+  const res = await fetchWithTimeout(`${BASE}/gstin`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -153,6 +177,10 @@ async function verifyGstin(clientId: string, clientSecret: string, body: {
   const valid = data.valid === true;
   const message = (data.message as string) || (valid ? "GSTIN verified" : "GSTIN invalid");
   return { ok: true, valid, message };
+  } catch (e) {
+    const msg = e instanceof Error ? (e.name === "AbortError" ? "GSTIN verification timed out" : e.message) : "GSTIN verification failed";
+    return { ok: false, error: msg };
+  }
 }
 
 serve(async (req) => {

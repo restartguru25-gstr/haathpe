@@ -13,6 +13,17 @@ export interface VerifyResult {
   message?: string;
 }
 
+const INVOKE_TIMEOUT_MS = 30000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Verification timed out. Please try again.")), ms)
+    ),
+  ]);
+}
+
 function parseInvokeError(error: unknown, data: unknown): string {
   const err = error as { message?: string; context?: { body?: { error?: string } }; status?: number };
   if (data && typeof data === "object" && "error" in data && typeof (data as { error?: string }).error === "string") {
@@ -36,10 +47,13 @@ export async function verifyBank(params: {
     const token = session?.session?.access_token;
     if (!token) return { ok: false, error: "Not authenticated" };
 
-    const { data, error } = await supabase.functions.invoke("verify-cashfree", {
-      body: { type: "bank", ...params },
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke("verify-cashfree", {
+        body: { type: "bank", ...params },
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      INVOKE_TIMEOUT_MS
+    );
 
     if (error) return { ok: false, error: parseInvokeError(error, data) };
     const res = (data ?? {}) as VerifyResult;
@@ -57,10 +71,13 @@ export async function verifyPan(params: { pan: string; name?: string }): Promise
     const token = session?.session?.access_token;
     if (!token) return { ok: false, error: "Not authenticated" };
 
-    const { data, error } = await supabase.functions.invoke("verify-cashfree", {
-      body: { type: "pan", ...params },
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke("verify-cashfree", {
+        body: { type: "pan", ...params },
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      INVOKE_TIMEOUT_MS
+    );
 
     if (error) return { ok: false, error: parseInvokeError(error, data) };
     const res = (data ?? {}) as VerifyResult;
@@ -81,10 +98,13 @@ export async function verifyGstin(params: {
     const token = session?.session?.access_token;
     if (!token) return { ok: false, error: "Not authenticated" };
 
-    const { data, error } = await supabase.functions.invoke("verify-cashfree", {
-      body: { type: "gstin", ...params },
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke("verify-cashfree", {
+        body: { type: "gstin", ...params },
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      INVOKE_TIMEOUT_MS
+    );
 
     if (error) return { ok: false, error: parseInvokeError(error, data) };
     const res = (data ?? {}) as VerifyResult;
