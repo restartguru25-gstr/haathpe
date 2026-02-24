@@ -1066,7 +1066,7 @@ export default function Profile() {
                 id="edit-address"
                 value={editForm.stallAddress}
                 onChange={(e) => setEditForm((f) => ({ ...f, stallAddress: e.target.value }))}
-                placeholder="e.g. Near Charminar, Hyderabad"
+                placeholder="e.g. Siddipet, Telangana - 502103"
                 className="mt-1.5"
               />
             </div>
@@ -1222,7 +1222,7 @@ export default function Profile() {
                 id="edit-phone"
                 value={editForm.phone}
                 onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="+91 98765 43210"
+                placeholder="e.g. 7330333743"
                 className="mt-1.5"
               />
             </div>

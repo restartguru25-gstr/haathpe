@@ -185,7 +185,7 @@ export default function CustomerLogin() {
                   id="phone"
                   type="tel"
                   inputMode="numeric"
-                  placeholder="9876543210"
+                  placeholder="7330333743"
                   maxLength={10}
                   value={phone}
                   onChange={(e) => handlePhoneChange(e.target.value)}
@@ -301,7 +301,7 @@ export default function CustomerLogin() {
                 <Input
                   type="tel"
                   inputMode="numeric"
-                  placeholder="9876543210"
+                  placeholder="7330333743"
                   maxLength={10}
                   value={phone}
                   onChange={(e) => handlePhoneChange(e.target.value)}

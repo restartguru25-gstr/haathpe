@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
 import { Mail, Phone, MapPin, Building2, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 
+const LEGAL_ENTITY = "DOCILE ONLINE MART PRIVATE LIMITED";
 const COMPANY = {
-  name: "Docile Online Mart Private Limited",
-  address: "Flat 505, Balaji Homes, Opposite Shivams Banquet Hall, Near New Bus Stand, Siddipet, Telangana - 502103",
+  name: LEGAL_ENTITY,
+  address: "Flat 505, Balaji Homes, Opposite Shivams Banquet Halls, Near New Bus Stand, Siddipet, Telangana - 502103",
   mobile: "7330333743",
   email: "haathpe@gmail.com",
 };
@@ -29,7 +28,7 @@ export default function Contact() {
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-tight">Contact us</h1>
-                <p className="text-sm text-muted-foreground">haathpe · Docile Online Mart</p>
+                <p className="text-sm text-muted-foreground">haathpe · {LEGAL_ENTITY}</p>
               </div>
             </div>
           </div>
@@ -75,10 +74,6 @@ export default function Contact() {
         <p className="mt-6 text-center text-sm text-muted-foreground">
           For support, orders, or partnerships, reach us at the details above.
         </p>
-      </div>
-
-      <div className="w-full mt-auto pt-6">
-        <MakeInIndiaFooter />
       </div>
     </div>
   );

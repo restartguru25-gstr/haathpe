@@ -44,7 +44,13 @@ const Search = lazy(() => import("./pages/Search"));
 const OndcExport = lazy(() => import("./pages/OndcExport"));
 const MenuLanding = lazy(() => import("./pages/MenuLanding"));
 const Contact = lazy(() => import("./pages/Contact"));
+const AboutUs = lazy(() => import("./pages/AboutUs"));
+const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
+const ShippingPolicy = lazy(() => import("./pages/ShippingPolicy"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SiteFooter = lazy(() => import("./components/SiteFooter"));
 
 /** Shown while a lazy route chunk is loading — keeps UX responsive */
 function PageLoader() {
@@ -70,6 +76,8 @@ const App = () => (
           <Sonner />
           <PWAInstallPrompt />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <div className="min-h-screen flex flex-col">
+            <main className="flex-1">
             <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Landing />} />
@@ -110,9 +118,19 @@ const App = () => (
               <Route path="/customer/transactions" element={<CustomerTransactions />} />
               <Route path="/customer/redemption" element={<CustomerRedemption />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/about-us" element={<AboutUs />} />
+              <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/refund-policy" element={<RefundPolicy />} />
+              <Route path="/shipping-policy" element={<ShippingPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+            </main>
+            <Suspense fallback={null}>
+              <SiteFooter />
+            </Suspense>
+            </div>
           </BrowserRouter>
           </PaymentNotificationProvider>
         </AppProvider>

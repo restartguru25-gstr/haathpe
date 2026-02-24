@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
 import { Language } from "@/lib/data";
@@ -624,37 +623,6 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-muted/50 px-4 py-12 md:py-14">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col items-center gap-8 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-brand tracking-widest">
-                h
-              </div>
-              <span className="brand-haathpe font-semibold">haathpe</span>
-            </div>
-            <div className="flex flex-wrap justify-center gap-6 md:gap-8">
-              <Link to="/catalog" className="text-sm text-muted-foreground hover:text-foreground">{t("catalog")}</Link>
-              <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">{t("landingDashboardNav")}</Link>
-              <Link to="/sales" className="text-sm text-muted-foreground hover:text-foreground">{t("myShop")}</Link>
-              <Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground">Contact</Link>
-              <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">{t("landingFeaturesNav")}</a>
-              <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground">{t("landingHowItWorksNav")}</a>
-              <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground">{t("signInSignUp")}</Link>
-            </div>
-          </div>
-          <div className="mt-8 flex flex-col items-center gap-4 border-t border-border pt-8 text-center text-sm text-muted-foreground">
-            <div className="flex flex-wrap items-center justify-center gap-6">
-              <p>© 2026 haathpe. {t("footerTagline")}</p>
-              <p className="flex items-center gap-1">
-                <MapPin className="size-3.5" /> Hyderabad, India
-              </p>
-            </div>
-            <MakeInIndiaFooter />
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
