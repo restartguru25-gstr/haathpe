@@ -82,6 +82,11 @@ import {
 import { getAdminAds, getAdminAdPlacements, updateAdPlacement, upsertAd, deleteAd, uploadAdImage, type Ad } from "@/lib/ads";
 import { getOndcOrdersForAdmin, type OndcOrder } from "@/lib/ondcOrders";
 import {
+  getAdminRentalPayouts,
+  markRentalPayoutPaid,
+  type RentalPayoutRow,
+} from "@/lib/rentalIncome";
+import {
   getAdminRedemptions,
   approveRedemption,
   rejectRedemption,
@@ -190,6 +195,8 @@ export default function Admin() {
   const [adPlacements, setAdPlacements] = useState<{ page_slug: string; enabled: boolean; label: string | null }[]>([]);
   const [loadingPlacements, setLoadingPlacements] = useState(false);
   const [eligibleForDraw, setEligibleForDraw] = useState<VendorIncentive[]>([]);
+  const [rentalPayouts, setRentalPayouts] = useState<RentalPayoutRow[]>([]);
+  const [loadingRentalPayouts, setLoadingRentalPayouts] = useState(false);
   const [slabFormOpen, setSlabFormOpen] = useState(false);
   const [editingSlab, setEditingSlab] = useState<IncentiveSlab | null>(null);
   const [savingSlab, setSavingSlab] = useState(false);
@@ -421,15 +428,22 @@ export default function Admin() {
 
   const loadIncentives = async () => {
     setLoadingIncentives(true);
-    const [inc, slabs, eligible] = await Promise.all([
-      getAdminVendorIncentives(),
-      getAllIncentiveSlabs(),
-      getEligibleForDraw(),
-    ]);
-    setAdminIncentives(inc);
-    setAdminSlabs(slabs);
-    setEligibleForDraw(eligible);
-    setLoadingIncentives(false);
+    setLoadingRentalPayouts(true);
+    try {
+      const [inc, slabs, eligible, rental] = await Promise.all([
+        getAdminVendorIncentives(),
+        getAllIncentiveSlabs(),
+        getEligibleForDraw(),
+        getAdminRentalPayouts(50),
+      ]);
+      setAdminIncentives(inc);
+      setAdminSlabs(slabs);
+      setEligibleForDraw(eligible);
+      setRentalPayouts(rental);
+    } finally {
+      setLoadingIncentives(false);
+      setLoadingRentalPayouts(false);
+    }
   };
 
   const loadAds = async () => {
@@ -1490,6 +1504,52 @@ export default function Admin() {
                   </table>
                 </div>
                 {adminIncentives.length === 0 && <p className="p-6 text-center text-muted-foreground">No incentives yet. Run Daily Calc in Actions.</p>}
+              </div>
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <h3 className="p-4 font-bold">Rental income (volume-based)</h3>
+                <p className="px-4 pb-2 text-xs text-muted-foreground">Create rows via upsertRentalPayoutForVendor (e.g. at month-end). Mark paid to credit vendor&apos;s Cash Wallet.</p>
+                {loadingRentalPayouts ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : (
+                  <div className="overflow-x-auto max-h-[40vh]">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          <th className="text-left p-3">Month</th>
+                          <th className="text-left p-3">Vendor</th>
+                          <th className="text-right p-3">Volume</th>
+                          <th className="text-right p-3">Amount</th>
+                          <th className="text-left p-3">Status</th>
+                          <th className="text-left p-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rentalPayouts.map((r) => (
+                          <tr key={r.id} className="border-t border-border">
+                            <td className="p-3 text-muted-foreground">{r.month}</td>
+                            <td className="p-3 font-mono text-xs">{r.vendor_id.slice(0, 8)}…</td>
+                            <td className="p-3 text-right">₹{Number(r.transaction_volume).toLocaleString("en-IN")}</td>
+                            <td className="p-3 text-right font-semibold">₹{Number(r.incentive_amount).toFixed(0)}</td>
+                            <td className="p-3">{r.status}</td>
+                            <td className="p-3">
+                              {r.status === "pending" && (
+                                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                                  const res = await markRentalPayoutPaid(r.id);
+                                  if (res.ok) { toast.success("Credited to vendor Cash Wallet"); loadIncentives(); } else toast.error(res.error);
+                                }}>
+                                  Credit to wallet
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {!loadingRentalPayouts && rentalPayouts.length === 0 && (
+                  <p className="p-6 text-center text-muted-foreground">No rental payouts yet. Run part24 SQL to create table; then create rows per vendor/month.</p>
+                )}
               </div>
             </>
           )}

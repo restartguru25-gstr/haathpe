@@ -54,10 +54,12 @@ export default function VendorCashWalletSection({ vendorId }: Props) {
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
 
   const load = async () => {
-    if (!vendorId) return;
+    if (!vendorId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      await ensureVendorWalletWithSignupBonus(vendorId);
       const [w, txs, settings] = await Promise.all([
         getVendorWallet(vendorId),
         getVendorCashTransactions(vendorId, 20),
@@ -71,6 +73,15 @@ export default function VendorCashWalletSection({ vendorId }: Props) {
     } finally {
       setLoading(false);
     }
+    ensureVendorWalletWithSignupBonus(vendorId)
+      .then((res) => {
+        if (res.ok && res.bonusAwarded) {
+          getVendorWallet(vendorId).then((wallet) => {
+            if (wallet) setWallet({ balance: Number(wallet.balance) });
+          });
+        }
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {

@@ -49,6 +49,7 @@ const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const ShippingPolicy = lazy(() => import("./pages/ShippingPolicy"));
+const RentalIncome = lazy(() => import("./pages/RentalIncome"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SiteFooter = lazy(() => import("./components/SiteFooter"));
 
@@ -102,6 +103,7 @@ const App = () => (
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/pos" element={<POS />} />
+                <Route path="/rental-income" element={<RentalIncome />} />
                 <Route path="/vendor/ondc-export" element={<OndcExport />} />
               </Route>
               <Route path="/search" element={<Search />} />

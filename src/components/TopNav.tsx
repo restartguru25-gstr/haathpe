@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, ShoppingBag, Store, Receipt, Star, User, ShoppingCart, Bell, Shield } from "lucide-react";
+import { Home, ShoppingBag, Store, Receipt, Star, User, ShoppingCart, Bell, Shield, Banknote } from "lucide-react";
 import BackButton from "@/components/BackButton";
 import { useApp } from "@/contexts/AppContext";
 import { useCartStore, selectCartCount } from "@/store/cartStore";
@@ -14,6 +14,7 @@ const navLinks = [
   { path: "/sales", icon: Store, labelKey: "sales" as const },
   { path: "/orders", icon: Receipt, labelKey: "orders" as const },
   { path: "/loyalty", icon: Star, labelKey: "loyalty" as const },
+  { path: "/rental-income", icon: Banknote, labelKey: "rentalIncome" as const },
   { path: "/profile", icon: User, labelKey: "profile" as const },
 ];
 

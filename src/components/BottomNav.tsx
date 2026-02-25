@@ -1,5 +1,5 @@
 import { useLocation, Link } from "react-router-dom";
-import { Home, ShoppingBag, Store, Receipt, Star, User, Shield } from "lucide-react";
+import { Home, ShoppingBag, Store, Receipt, Star, User, Shield, Banknote } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useCartStore, selectCartCount } from "@/store/cartStore";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -11,6 +11,7 @@ const baseTabs = [
   { path: "/sales", icon: Store, labelKey: "sales" as const },
   { path: "/orders", icon: Receipt, labelKey: "orders" as const },
   { path: "/loyalty", icon: Star, labelKey: "loyalty" as const },
+  { path: "/rental-income", icon: Banknote, labelKey: "rentalIncome" as const },
   { path: "/profile", icon: User, labelKey: "profile" as const },
 ];
 

@@ -176,6 +176,29 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["draws_entries"]["Insert"]>;
       };
+      vendor_rental_payouts: {
+        Row: {
+          id: string;
+          vendor_id: string;
+          month: string;
+          transaction_volume: number;
+          incentive_amount: number;
+          status: "pending" | "paid";
+          paid_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          vendor_id: string;
+          month: string;
+          transaction_volume?: number;
+          incentive_amount?: number;
+          status?: "pending" | "paid";
+          paid_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["vendor_rental_payouts"]["Insert"]>;
+      };
     };
   };
 }

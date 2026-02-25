@@ -13,6 +13,7 @@ import {
   Store,
   ChevronDown,
   HelpCircle,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -33,6 +34,7 @@ const featureKeys = [
   { icon: Truck, keyTitle: "featureEasySupplies" as const, keyDesc: "featureEasySuppliesDesc" as const, emoji: "📦" },
   { icon: TrendingUp, keyTitle: "featureUnlockCredit" as const, keyDesc: "featureUnlockCreditDesc" as const, emoji: "🔥" },
   { icon: Gift, keyTitle: "featureEarnRedeem" as const, keyDesc: "featureEarnRedeemDesc" as const, emoji: "🎁" },
+  { icon: Banknote, keyTitle: "featureRentalIncome" as const, keyDesc: "featureRentalIncomeDesc" as const, emoji: "💰" },
 ];
 
 const stepKeys = [
@@ -425,7 +427,7 @@ export default function Landing() {
               {t("landingWhyLoveUsDesc")}
             </p>
           </motion.div>
-          <div className="grid gap-8 md:grid-cols-3">
+          <div className="grid gap-8 sm:grid-cols-2">
             {featureKeys.map((f, i) => (
               <motion.div
                 key={f.keyTitle}
