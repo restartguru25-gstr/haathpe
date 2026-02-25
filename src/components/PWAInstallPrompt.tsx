@@ -3,14 +3,24 @@ import { Download, Share, MoreVertical, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePWAInstall } from "@/contexts/PWAInstallContext";
 
+/** On iOS, only Safari supports Add to Home Screen. Chrome/Firefox cannot install PWA. */
+function isIOSSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as { MSStream?: boolean }).MSStream;
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS/.test(ua);
+  return !!(isIOS && isSafari);
+}
+
 export default function PWAInstallPrompt() {
   const { isInstallable, isIOS, isAndroid, installPrompt, triggerInstall, dismiss } = usePWAInstall();
   const [installing, setInstalling] = useState(false);
+  const iosSafari = isIOSSafari();
 
   if (!isInstallable) return null;
 
   const handleInstall = async () => {
-    if (isIOS) return; // iOS: no programmatic install
+    if (isIOS) return; // iOS: no programmatic install; user must use Share → Add to Home Screen
     setInstalling(true);
     try {
       await triggerInstall();
@@ -32,35 +42,44 @@ export default function PWAInstallPrompt() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">Install haathpe</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {isIOS
-              ? "Tap Share, then Add to Home Screen"
-              : isAndroid && !installPrompt
-              ? "Tap menu (⋮) → Install app"
-              : "Add to home screen for quick access"}
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            {isIOS ? (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Share className="h-3.5 w-3.5" />
-                <span>Share → Add to Home Screen</span>
+          {isIOS ? (
+            <>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {iosSafari
+                  ? "Tap the Share button (□↑) below, then tap “Add to Home Screen”. The orange “h” will appear as the app icon."
+                  : "To install: open this page in Safari, then tap Share (□↑) → Add to Home Screen."}
+              </p>
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-primary font-medium">
+                <Share className="h-3.5 w-3.5 shrink-0" />
+                <span>{iosSafari ? "Share → Add to Home Screen" : "Use Safari to add to home screen"}</span>
               </div>
-            ) : isAndroid && !installPrompt ? (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <MoreVertical className="h-3.5 w-3.5" />
-                <span>Menu → Install app</span>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isAndroid && !installPrompt
+                  ? "Tap menu (⋮) → Install app or Add to Home screen"
+                  : "Add to home screen for quick access. App icon: orange “h”."}
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                {isAndroid && !installPrompt ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MoreVertical className="h-3.5 w-3.5" />
+                    <span>Menu → Install app</span>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="h-9"
+                    onClick={handleInstall}
+                    disabled={installing}
+                  >
+                    {installing ? "Installing…" : "Install"}
+                  </Button>
+                )}
               </div>
-            ) : (
-              <Button
-                size="sm"
-                className="h-9"
-                onClick={handleInstall}
-                disabled={installing}
-              >
-                {installing ? "Installing…" : "Install"}
-              </Button>
-            )}
-          </div>
+            </>
+          )}
         </div>
         <button
           type="button"
