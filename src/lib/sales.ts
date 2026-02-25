@@ -330,6 +330,39 @@ export async function getOrderForTracking(orderId: string): Promise<TrackedOrder
   return { ...row, delivery_option: row.delivery_option ?? "pickup" };
 }
 
+export interface CustomerOrderReceipt {
+  id: string;
+  created_at: string;
+  status: string;
+  vendor_name: string | null;
+  items: { item_name: string; qty: number; price?: number }[];
+  total: number;
+}
+
+/** Get order receipt data for customer invoice (by order ID). Used on tracking page. */
+export async function getCustomerOrderReceipt(orderId: string): Promise<CustomerOrderReceipt | null> {
+  const { data, error } = await supabase.rpc("get_order_receipt", {
+    p_order_id: orderId,
+  });
+  if (error || !data || !Array.isArray(data) || data.length === 0) return null;
+  const row = data[0] as {
+    id: string;
+    created_at: string;
+    status: string;
+    vendor_name: string | null;
+    items: { item_name: string; qty: number; price?: number }[] | null;
+    total: number;
+  };
+  return {
+    id: row.id,
+    created_at: row.created_at,
+    status: row.status,
+    vendor_name: row.vendor_name ?? null,
+    items: Array.isArray(row.items) ? row.items : [],
+    total: Number(row.total ?? 0),
+  };
+}
+
 export interface VendorReview {
   order_id: string;
   rating: number;

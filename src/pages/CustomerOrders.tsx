@@ -4,9 +4,11 @@ import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { getOrdersForCustomer, submitOrderReview, type CustomerOrderRow } from "@/lib/customer";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LogOut, ArrowLeft, ShoppingBag, Star, ExternalLink, Wallet } from "lucide-react";
+import { LogOut, ArrowLeft, ShoppingBag, Star, ExternalLink, Wallet, FileDown, FileText } from "lucide-react";
+import { buildCustomerReceiptLines, downloadCustomerReceiptPdf, type CustomerReceiptData } from "@/lib/invoice";
 import ReviewModal from "@/components/ReviewModal";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
 
@@ -71,6 +73,35 @@ export default function CustomerOrders() {
 
   const handleSubmitReview = async (orderId: string, rating: number, reviewText: string) => {
     return submitOrderReview(orderId, rating, reviewText || null);
+  };
+
+  const toReceiptData = (o: CustomerOrderRow): CustomerReceiptData => ({
+    id: o.id,
+    created_at: o.created_at,
+    status: o.status,
+    vendor_name: o.vendor_name ?? null,
+    items: Array.isArray(o.items)
+      ? (o.items as { item_name: string; qty: number; price?: number }[])
+      : [],
+    total: Number(o.total),
+  });
+
+  const handleDownloadReceipt = (o: CustomerOrderRow, format: "txt" | "pdf") => {
+    const receipt = toReceiptData(o);
+    if (format === "txt") {
+      const lines = buildCustomerReceiptLines(receipt);
+      const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `haathpe-receipt-${o.id.slice(0, 8)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Receipt downloaded");
+    } else {
+      downloadCustomerReceiptPdf(receipt);
+      toast.success("Receipt PDF downloaded");
+    }
   };
 
   if (authLoading) {
@@ -182,6 +213,24 @@ export default function CustomerOrders() {
                         <ExternalLink size={14} /> {t("trackOrder")}
                       </Button>
                     </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => handleDownloadReceipt(o, "txt")}
+                      title="Download receipt (TXT)"
+                    >
+                      <FileText size={14} /> Receipt (TXT)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => handleDownloadReceipt(o, "pdf")}
+                      title="Download receipt (PDF)"
+                    >
+                      <FileDown size={14} /> Receipt (PDF)
+                    </Button>
                     {canReview && (
                       <Button
                         size="sm"

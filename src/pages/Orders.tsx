@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useApp } from "@/contexts/AppContext";
 import { getCatalogProductById } from "@/lib/catalog";
 import { sampleOrders, products, type Product } from "@/lib/data";
+import { appendMarketingToLines, INVOICE_MARKETING_LINE } from "@/lib/invoice";
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -218,7 +219,7 @@ export default function Orders() {
       lines.push(`Subtotal: ₹${invoiceOrder.subtotal_before_tax}`, `GST: ₹${invoiceOrder.gst_total}`);
     }
     lines.push(`Total: ₹${invoiceOrder.total}`, "", "Thank you for your order.");
-    const text = lines.join("\n");
+    const text = appendMarketingToLines(lines).join("\n");
     const w = window.open("", "_blank");
     if (w) {
       w.document.write(`<pre style="font-family:system-ui;padding:24px;max-width:400px;">${text.replace(/</g, "&lt;")}</pre>`);
@@ -255,7 +256,7 @@ export default function Orders() {
       lines.push(`Subtotal: ₹${invoiceOrder.subtotal_before_tax}`, `GST: ₹${invoiceOrder.gst_total}`);
     }
     lines.push(`Total: ₹${invoiceOrder.total}`, "", "Thank you for your order.");
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const blob = new Blob([appendMarketingToLines(lines).join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -335,6 +336,10 @@ export default function Orders() {
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 100, 100);
     doc.text("Thank you for your order.", 14, y);
+    y += 8;
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(INVOICE_MARKETING_LINE, 14, y, { maxWidth: pageW - 28 });
 
     const filename = `invoice-${invoiceOrder.id.replace(/-/g, "").slice(0, 12)}.pdf`;
     doc.save(filename);

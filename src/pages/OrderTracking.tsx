@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getOrderForTracking } from "@/lib/sales";
+import { getOrderForTracking, getCustomerOrderReceipt } from "@/lib/sales";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
 import { useApp } from "@/contexts/AppContext";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, FileDown, FileText } from "lucide-react";
 import BackButton from "@/components/BackButton";
 import { toast } from "sonner";
+import { buildCustomerReceiptLines, downloadCustomerReceiptPdf } from "@/lib/invoice";
 
 export default function OrderTracking() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -16,6 +17,7 @@ export default function OrderTracking() {
   const [order, setOrder] = useState<Awaited<ReturnType<typeof getOrderForTracking>>>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   const loadOrder = async () => {
     if (!orderId) {
@@ -68,6 +70,37 @@ export default function OrderTracking() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Could not copy");
+    }
+  };
+
+  const handleDownloadReceipt = async (format: "txt" | "pdf") => {
+    if (!orderId) return;
+    setReceiptLoading(true);
+    try {
+      const receipt = await getCustomerOrderReceipt(orderId);
+      if (!receipt) {
+        toast.error("Receipt not available for this order.");
+        return;
+      }
+      if (format === "txt") {
+        const lines = buildCustomerReceiptLines(receipt);
+        const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `haathpe-receipt-${orderId.slice(0, 8)}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Receipt downloaded");
+      } else {
+        downloadCustomerReceiptPdf(receipt);
+        toast.success("Receipt PDF downloaded");
+      }
+    } catch (e) {
+      toast.error("Could not generate receipt.");
+      console.error(e);
+    } finally {
+      setReceiptLoading(false);
     }
   };
 
@@ -133,6 +166,26 @@ export default function OrderTracking() {
               {copied ? <Check size={16} /> : <Copy size={16} />}
               {t("shareTracking")}
             </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-1"
+                disabled={receiptLoading}
+                onClick={() => handleDownloadReceipt("txt")}
+              >
+                <FileText size={14} /> Receipt (TXT)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-1"
+                disabled={receiptLoading}
+                onClick={() => handleDownloadReceipt("pdf")}
+              >
+                <FileDown size={14} /> Receipt (PDF)
+              </Button>
+            </div>
             <Link to={`/menu/${order.vendor_id}`}>
               <Button variant="secondary" className="w-full">Order again</Button>
             </Link>
