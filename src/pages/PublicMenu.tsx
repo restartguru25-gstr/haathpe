@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy, ArrowLeft } from "lucide-react";
 import { AdBanner } from "@/components/AdBanner";
 import { Skeleton } from "@/components/ui/skeleton";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { Button } from "@/components/ui/button";
 import { getActiveVendorMenuForPublic, createCustomerOrder, getVendorPublicProfile, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
+import { getRiderIdByQrCode } from "@/lib/riders";
 import { supabase } from "@/lib/supabase";
 import { isShopOpen, formatTimeForDisplay, type ShopDetails } from "@/lib/shopDetails";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
@@ -38,6 +39,8 @@ function cartTotals(lines: CartLine[]) {
 
 export default function PublicMenu() {
   const { vendorId } = useParams<{ vendorId: string }>();
+  const [searchParams] = useSearchParams();
+  const riderParam = searchParams.get("rider");
   const { t, lang } = useApp();
   const { customer, isCustomer, refreshCustomer } = useCustomerAuth();
   const [menu, setMenu] = useState<VendorMenuItem[]>([]);
@@ -162,6 +165,7 @@ export default function PublicMenu() {
       const { subtotal, gstAmount } = cartTotals(cart);
       const coinsToAward = customer ? await getCoinsPerPayment() : 0;
       const payAtCounter = paymentMethod === "at_dukaan" || (payAtDukaan > 0 && !isCashfreeConfigured());
+      const riderId = riderParam ? await getRiderIdByQrCode(riderParam) : null;
       const result = await createCustomerOrder(vendorId, {
         items,
         subtotal,
@@ -176,6 +180,7 @@ export default function PublicMenu() {
         delivery_address: deliveryOption === "self_delivery" && deliveryAddress.trim() ? deliveryAddress.trim() : null,
         wallet_used: walletToUse,
         coins_awarded: 0,
+        rider_id: riderId,
       });
       if (!result.ok || !result.id) {
         toast.error(result.error ?? "Failed");

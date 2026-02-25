@@ -271,6 +271,7 @@ export async function createCustomerOrder(
     delivery_address?: string | null;
     wallet_used?: number;
     coins_awarded?: number;
+    rider_id?: string | null;
   }
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const { platform_fee, vendor_amount } = await calculatePlatformFee(vendorId, payload.total);
@@ -295,6 +296,7 @@ export async function createCustomerOrder(
       vendor_amount,
       wallet_used: payload.wallet_used ?? 0,
       coins_awarded: payload.coins_awarded ?? 0,
+      rider_id: payload.rider_id ?? null,
     })
     .select("id")
     .single();

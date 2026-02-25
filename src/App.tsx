@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { PWAInstallProvider } from "@/contexts/PWAInstallContext";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
+import { RiderAuthProvider } from "@/contexts/RiderAuthContext";
 import { PaymentNotificationProvider } from "@/contexts/PaymentNotificationContext";
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -50,6 +51,8 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const ShippingPolicy = lazy(() => import("./pages/ShippingPolicy"));
 const RentalIncome = lazy(() => import("./pages/RentalIncome"));
+const RiderSignup = lazy(() => import("./pages/RiderSignup"));
+const RiderDashboard = lazy(() => import("./pages/RiderDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SiteFooter = lazy(() => import("./components/SiteFooter"));
 
@@ -71,6 +74,7 @@ const App = () => (
       <PWAInstallProvider>
       <AuthProvider>
         <CustomerAuthProvider>
+        <RiderAuthProvider>
         <AppProvider>
           <PaymentNotificationProvider>
           <Toaster />
@@ -119,6 +123,8 @@ const App = () => (
               <Route path="/customer/wallet" element={<CustomerWallet />} />
               <Route path="/customer/transactions" element={<CustomerTransactions />} />
               <Route path="/customer/redemption" element={<CustomerRedemption />} />
+              <Route path="/rider-signup" element={<RiderSignup />} />
+              <Route path="/rider/dashboard" element={<RiderDashboard />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/about-us" element={<AboutUs />} />
               <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
@@ -136,6 +142,7 @@ const App = () => (
           </BrowserRouter>
           </PaymentNotificationProvider>
         </AppProvider>
+        </RiderAuthProvider>
         </CustomerAuthProvider>
       </AuthProvider>
       </PWAInstallProvider>

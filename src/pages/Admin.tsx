@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   Tags,
   UtensilsCrossed,
+  Bike,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +117,14 @@ import {
   getVendorSettings,
   updateVendorSettings,
 } from "@/lib/vendorCashWallet";
+import {
+  getAdminRiders,
+  adminSetRiderVerified,
+  adminRunRiderMonthlyPayout,
+  getRiderSettings,
+  adminUpdateRiderSettings,
+  type RiderSettingsRow,
+} from "@/lib/riders";
 
 interface AdminProfile {
   id: string;
@@ -250,6 +259,11 @@ export default function Admin() {
   } | null>(null);
   const [loadingVendorWalletSettings, setLoadingVendorWalletSettings] = useState(false);
   const [savingVendorWalletSettings, setSavingVendorWalletSettings] = useState(false);
+  const [ridersList, setRidersList] = useState<Awaited<ReturnType<typeof getAdminRiders>>>([]);
+  const [loadingRiders, setLoadingRiders] = useState(false);
+  const [riderSettings, setRiderSettings] = useState<RiderSettingsRow[]>([]);
+  const [loadingRiderSettings, setLoadingRiderSettings] = useState(false);
+  const [riderPayoutRunning, setRiderPayoutRunning] = useState(false);
   const [productForm, setProductForm] = useState({
     name: "",
     name_hi: "",
@@ -362,6 +376,30 @@ export default function Admin() {
       /* ignore */
     } finally {
       setLoadingVendorWalletSettings(false);
+    }
+  };
+
+  const loadRiders = async () => {
+    setLoadingRiders(true);
+    try {
+      const list = await getAdminRiders(200);
+      setRidersList(list);
+    } catch {
+      setRidersList([]);
+    } finally {
+      setLoadingRiders(false);
+    }
+  };
+
+  const loadRiderSettings = async () => {
+    setLoadingRiderSettings(true);
+    try {
+      const list = await getRiderSettings();
+      setRiderSettings(list);
+    } catch {
+      setRiderSettings([]);
+    } finally {
+      setLoadingRiderSettings(false);
     }
   };
 
@@ -548,6 +586,8 @@ export default function Admin() {
       loadCustomerRedemptions();
       loadCoinsConfig();
       loadVendorWalletSettings();
+      loadRiders();
+      loadRiderSettings();
       loadSectors();
       loadCategories();
       loadDefaultMenu();
@@ -1078,6 +1118,9 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="vendorWallet" className="flex items-center gap-2">
             <Wallet size={16} /> Vendor Wallet
+          </TabsTrigger>
+          <TabsTrigger value="riders" className="flex items-center gap-2">
+            <Bike size={16} /> Riders
           </TabsTrigger>
           <TabsTrigger value="sectors" className="flex items-center gap-2">
             <LayoutGrid size={16} /> Sectors
@@ -1923,6 +1966,146 @@ export default function Admin() {
               Run migration 20260220800000_vendor_cash_wallet.sql first to create vendor_settings table.
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="riders" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Bike size={20} /> Riders (2/3/4-wheelers)
+            </h2>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { loadRiders(); loadRiderSettings(); }}
+                disabled={loadingRiders || loadingRiderSettings}
+              >
+                <RefreshCw size={14} className={loadingRiders || loadingRiderSettings ? "animate-spin" : ""} /> Refresh
+              </Button>
+              <Button
+                size="sm"
+                disabled={riderPayoutRunning || loadingRiders}
+                onClick={async () => {
+                  setRiderPayoutRunning(true);
+                  try {
+                    const res = await adminRunRiderMonthlyPayout(null);
+                    if (res.ok) {
+                      toast.success(`Monthly payout: ${res.riders_credited ?? 0} riders credited for ${res.month ?? ""}`);
+                      loadRiders();
+                    } else {
+                      toast.error(res.error ?? "Payout failed");
+                    }
+                  } finally {
+                    setRiderPayoutRunning(false);
+                  }
+                }}
+              >
+                {riderPayoutRunning ? <Loader2 size={14} className="animate-spin" /> : null}
+                {riderPayoutRunning ? " Running…" : " Run monthly payout"}
+              </Button>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Base rental ₹75 (2W) / ₹99 (3/4W). +20% bonus for 50+ scans. Cap ₹150. Min withdrawal ₹499.
+          </p>
+          {loadingRiders ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="text-left p-3">Phone</th>
+                    <th className="text-left p-3">Vehicle</th>
+                    <th className="text-left p-3">Balance</th>
+                    <th className="text-left p-3">Verified</th>
+                    <th className="text-left p-3">Created</th>
+                    <th className="text-left p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ridersList.length === 0 ? (
+                    <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">No riders yet.</td></tr>
+                  ) : (
+                    ridersList.map((r) => (
+                      <tr key={r.id} className="border-b border-border/50">
+                        <td className="p-3">{r.phone ?? "—"}</td>
+                        <td className="p-3">{r.vehicle_type ?? "—"}</td>
+                        <td className="p-3">₹{Number(r.balance ?? 0).toFixed(0)}</td>
+                        <td className="p-3">{r.verified ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}</td>
+                        <td className="p-3 text-muted-foreground">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</td>
+                        <td className="p-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const ok = await adminSetRiderVerified(r.id!, !r.verified);
+                              if (ok.ok) {
+                                toast.success(r.verified ? "Unverified" : "Verified");
+                                loadRiders();
+                              } else {
+                                toast.error(ok.error);
+                              }
+                            }}
+                          >
+                            {r.verified ? "Unverify" : "Approve"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="mt-6">
+            <h3 className="text-base font-medium mb-2">Rider settings (slabs)</h3>
+            {loadingRiderSettings ? (
+              <Skeleton className="h-24 w-full rounded-lg" />
+            ) : (
+              <div className="space-y-3">
+                {riderSettings.map((s) => (
+                  <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
+                    <span className="font-medium">{s.vehicle_type}</span>
+                    <span className="text-muted-foreground">Base: ₹{Number(s.base_rental).toFixed(0)}</span>
+                    <span className="text-muted-foreground">Bonus: {Number(s.bonus_percent)}%</span>
+                    <span className="text-muted-foreground">Min withdrawal: ₹{Number(s.min_withdrawal).toFixed(0)}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const base = prompt("Base rental (₹)", String(s.base_rental));
+                        if (base == null) return;
+                        const n = parseInt(base, 10);
+                        if (!Number.isNaN(n) && n >= 0) {
+                          const ok = await adminUpdateRiderSettings(s.vehicle_type, { base_rental: n });
+                          if (ok.ok) { toast.success("Updated"); loadRiderSettings(); } else toast.error(ok.error);
+                        }
+                      }}
+                    >
+                      Edit base
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const v = prompt("Min withdrawal (₹)", String(s.min_withdrawal));
+                        if (v == null) return;
+                        const n = parseInt(v, 10);
+                        if (!Number.isNaN(n) && n >= 0) {
+                          const ok = await adminUpdateRiderSettings(s.vehicle_type, { min_withdrawal: n });
+                          if (ok.ok) { toast.success("Updated"); loadRiderSettings(); } else toast.error(ok.error);
+                        }
+                      }}
+                    >
+                      Edit min withdrawal
+                    </Button>
+                  </div>
+                ))}
+                {riderSettings.length === 0 && <p className="text-sm text-muted-foreground">No rider_settings. Run migration 20260222000000_riders.sql</p>}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="sectors" className="space-y-4">

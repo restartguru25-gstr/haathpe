@@ -33,6 +33,8 @@ export default function SiteFooter() {
           <Link to="/refund-policy" className={linkClass}>Refund &amp; Cancellation</Link>
           <span className="text-muted-foreground/60 text-[10px] sm:text-xs select-none" aria-hidden>·</span>
           <Link to="/shipping-policy" className={linkClass}>Shipping &amp; Delivery</Link>
+          <span className="text-muted-foreground/60 text-[10px] sm:text-xs select-none" aria-hidden>·</span>
+          <Link to="/rider-signup" className={linkClass}>Rider signup</Link>
         </nav>
         {/* Row 2: copyright + Make in India inline */}
         <div className="mt-2.5 pt-2.5 border-t border-border/70 flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-4 text-center">

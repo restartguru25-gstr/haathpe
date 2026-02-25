@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search as SearchIcon, MapPin } from "lucide-react";
 import BackButton from "@/components/BackButton";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ const ZONE_LABELS: Record<string, string> = {
 
 export default function Search() {
   const { t } = useApp();
+  const [searchParams] = useSearchParams();
+  const riderParam = searchParams.get("rider");
   const { customer } = useCustomerAuth();
   const [keyword, setKeyword] = useState("");
   const [zone, setZone] = useState("");
@@ -178,7 +180,7 @@ export default function Search() {
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {sortedResults.map((v) => (
-                <VendorCard key={v.vendor_id} vendor={v} />
+                <VendorCard key={v.vendor_id} vendor={v} riderParam={riderParam ?? undefined} />
               ))}
             </div>
             <div className="mt-6 max-w-sm">

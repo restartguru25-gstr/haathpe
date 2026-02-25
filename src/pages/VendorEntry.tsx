@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Store, Wallet, ChevronRight, Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,9 @@ function normalizeVendorRow(row: unknown): VendorInfo | null {
 
 export default function VendorEntry() {
   const { vendorId } = useParams<{ vendorId: string }>();
+  const [searchParams] = useSearchParams();
+  const riderParam = searchParams.get("rider");
+  const riderQuery = riderParam ? `?rider=${encodeURIComponent(riderParam)}` : "";
   const { t } = useApp();
   const { user, profile: rawProfile, isLoading: authLoading, refreshProfile } = useSession();
   const [vendor, setVendor] = useState<VendorInfo | null>(null);
@@ -213,7 +216,7 @@ export default function VendorEntry() {
             transition={{ delay: 0.2, duration: 0.35 }}
             className="space-y-3"
           >
-            <Link to={`/menu/${vendorId}/browse`}>
+            <Link to={`/menu/${vendorId}/browse${riderQuery}`}>
               <motion.div
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
@@ -230,7 +233,7 @@ export default function VendorEntry() {
               </motion.div>
             </Link>
 
-            <Link to={`/menu/${vendorId}/pay`}>
+            <Link to={`/menu/${vendorId}/pay${riderQuery}`}>
               <motion.div
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}

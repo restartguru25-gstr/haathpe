@@ -10,9 +10,11 @@ import { toggleFavoriteVendor } from "@/lib/customer";
 interface VendorCardProps {
   vendor: VendorSearchResult;
   onFavoriteChange?: () => void;
+  /** Preserve rider attribution when user came from rider QR (search?rider=...) */
+  riderParam?: string;
 }
 
-export default function VendorCard({ vendor, onFavoriteChange }: VendorCardProps) {
+export default function VendorCard({ vendor, onFavoriteChange, riderParam }: VendorCardProps) {
   const { t } = useApp();
   const { customer, refreshCustomer } = useCustomerAuth();
   const favoriteVendorIds = customer?.favorite_vendor_ids ?? [];
@@ -96,7 +98,10 @@ export default function VendorCard({ vendor, onFavoriteChange }: VendorCardProps
         )}
       </CardContent>
       <CardFooter className="pt-2">
-        <Link to={`/menu/${vendor.vendor_id}`} className="w-full">
+        <Link
+          to={riderParam ? `/menu/${vendor.vendor_id}?rider=${encodeURIComponent(riderParam)}` : `/menu/${vendor.vendor_id}`}
+          className="w-full"
+        >
           <Button variant="default" size="sm" className="w-full">
             {t("viewMenu")}
           </Button>
