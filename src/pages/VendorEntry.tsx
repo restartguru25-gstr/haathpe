@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { getVendorZone } from "@/lib/sales";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { AdBanner } from "@/components/AdBanner";
+import MarketingLine from "@/components/MarketingLine";
 import { useApp } from "@/contexts/AppContext";
 import { useSession } from "@/contexts/AuthContext";
 import { isShopOpen, type ShopDetails } from "@/lib/shopDetails";
@@ -208,6 +209,8 @@ export default function VendorEntry() {
               )}
             </div>
           </motion.div>
+
+          <MarketingLine variant="banner" />
 
           {/* CTA buttons */}
           <motion.div

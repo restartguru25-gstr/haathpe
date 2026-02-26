@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Search as SearchIcon, MapPin } from "lucide-react";
+import MarketingLine from "@/components/MarketingLine";
 import BackButton from "@/components/BackButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,8 @@ export default function Search() {
               className="pl-9"
             />
           </div>
+
+          <MarketingLine variant="subtitle" />
 
           <div className="flex flex-wrap gap-2">
             <select
