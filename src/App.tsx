@@ -13,6 +13,7 @@ import { RiderAuthProvider } from "@/contexts/RiderAuthContext";
 import { PaymentNotificationProvider } from "@/contexts/PaymentNotificationContext";
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import SplashScreen from "@/components/SplashScreen";
 import Landing from "@/pages/Landing";
 
 // Lazy-load other pages; Landing is eager so first visit never hits "Failed to fetch dynamically imported module"
@@ -82,6 +83,7 @@ const App = () => (
           <PWAInstallPrompt />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <div className="min-h-screen flex flex-col">
+            <SplashScreen />
             <main className="flex-1">
             <Suspense fallback={<PageLoader />}>
             <Routes>
