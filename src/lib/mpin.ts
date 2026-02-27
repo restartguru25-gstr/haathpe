@@ -34,17 +34,15 @@ export async function signInWithMpin(
     return { ok: false, error: "Enter phone and 4-digit MPIN" };
   }
 
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/prepare-mpin-signin`;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "apikey": anonKey ?? "" },
-    body: JSON.stringify({ phone: fullPhone, mpin: mpinDigits }),
+  const { data, error: fnErr } = await supabase.functions.invoke("prepare-mpin-signin", {
+    body: { phone: fullPhone, mpin: mpinDigits },
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { ok: false, error: (json as { error?: string }).error ?? "Invalid phone or MPIN" };
+  if (fnErr) {
+    const msg = fnErr.message || "Invalid phone or MPIN";
+    return { ok: false, error: msg };
   }
+  const ok = (data as { ok?: boolean } | null)?.ok;
+  if (!ok) return { ok: false, error: "Invalid phone or MPIN" };
 
   const padded = padMpin(mpinDigits);
   const email = getMpinEmail(phone);
@@ -55,10 +53,10 @@ export async function signInWithMpin(
 
 const SET_MPIN_TIMEOUT_MS = 10000;
 
-/** Set MPIN after OTP verify. Uses direct REST upsert to customer_profiles (no Edge Function). */
+/** Set MPIN after OTP verify (server-side). Uses Edge Function so RLS/session issues don't block. */
 export async function setMpinAfterOtp(
   mpin: string,
-  phoneOverride?: string
+  _phoneOverride?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const digits = (mpin || "").replace(/\D/g, "").slice(0, 4);
   if (digits.length !== 4) {
@@ -71,36 +69,15 @@ export async function setMpinAfterOtp(
       return { ok: false, error: "Not signed in. Verify OTP first." };
     }
 
-    const phoneRaw =
-      phoneOverride?.replace(/\D/g, "").slice(-10) ||
-      (user.phone ?? (user.user_metadata?.phone as string | undefined) ?? "").replace(/\D/g, "").slice(-10);
-    const fullPhone = phoneRaw.length === 10 ? `+91${phoneRaw}` : (user.phone as string) ?? "";
-    if (!fullPhone) {
-      return { ok: false, error: "Phone number required. Verify OTP again." };
-    }
+    // Ensure JWT is fresh before invoking set-mpin (it validates Authorization header).
+    await Promise.race([supabase.auth.refreshSession(), new Promise((r) => setTimeout(r, 2500))]);
 
-    await Promise.race([
-      supabase.auth.refreshSession(),
-      new Promise((r) => setTimeout(r, 3000)),
-    ]);
-
-    const { error } = await supabase
-      .from("customer_profiles")
-      .upsert(
-        { id: user.id, phone: fullPhone || undefined, mpin: digits },
-        { onConflict: "id" }
-      );
-
-    if (error) {
-      const msg = error.message;
-      if (msg?.includes("column") && msg?.includes("mpin")) {
-        return {
-          ok: false,
-          error: "MPIN column missing. Run in Supabase SQL: ALTER TABLE customer_profiles ADD COLUMN mpin TEXT;",
-        };
-      }
-      return { ok: false, error: msg };
-    }
+    const { data, error } = await supabase.functions.invoke("set-mpin", {
+      body: { mpin: digits },
+    });
+    if (error) return { ok: false, error: error.message };
+    const ok = (data as { ok?: boolean; error?: string } | null)?.ok;
+    if (!ok) return { ok: false, error: (data as { error?: string } | null)?.error ?? "Failed to set MPIN" };
     return { ok: true };
   };
 
