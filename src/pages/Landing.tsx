@@ -121,8 +121,8 @@ export default function Landing() {
 
   const handleGoToPurchases = () => {
     setPreferredMode("purchases");
-    if (isAuthenticated) navigate("/dashboard", { replace: true });
-    else navigate("/auth", { replace: true, state: { next: "/dashboard" } });
+    // Public browsing: allow anyone to view Products without signing in.
+    navigate("/catalog", { replace: true });
   };
 
   const handleGoToSales = () => {

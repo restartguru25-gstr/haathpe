@@ -9,7 +9,7 @@ import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
-import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured, getCashfreeConfigStatus, savePendingOrder } from "@/lib/cashfree";
+import { createCcaOrder, redirectToCcavenue, isCcavenueConfigured } from "@/lib/ccavenue";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -53,9 +53,8 @@ export default function Cart() {
   const hasEco = cart.some((item) => item.product.eco);
 
   useEffect(() => {
-    const st = getCashfreeConfigStatus();
     if (typeof window !== "undefined") {
-      console.log("[CART] Cashfree on this build:", st.configured ? "configured" : `not configured (missing: ${st.missing ?? "?"})`);
+      console.log("[CART] CCAvenue on this build:", isCcavenueConfigured() ? "configured" : "not configured");
     }
   }, []);
 
@@ -72,78 +71,14 @@ export default function Cart() {
         return;
       }
 
-      const cashfreeOn = isCashfreeConfigured();
-      if (typeof window !== "undefined") console.log("[CART] 2. Cashfree configured:", cashfreeOn);
-
-      if (cashfreeOn) {
-        // Post-payment flow: no DB insert before checkout. Order is inserted on payment success (PaymentReturn).
-        const orderId = crypto.randomUUID();
-        if (typeof window !== "undefined") console.log("[CART] 3. Generated orderId (no DB insert yet):", orderId);
-
-        const items = cart.map((item) => {
-          const unitPriceRupees = getLinePrice(item);
-          return {
-            productId: item.product.id,
-            productName: item.variantLabel
-              ? `${getProductName(item.product, lang)} — ${item.variantLabel}`
-              : getProductName(item.product, lang),
-            qty: item.qty,
-            unitPrice: Math.round(unitPriceRupees),
-            variantId: item.variantId || null,
-            variantLabel: item.variantLabel || null,
-            mrp: item.mrpPaise != null ? Math.round(item.mrpPaise / 100) : null,
-            gstRate: item.gstRate ?? null,
-          };
-        });
-
-        savePendingOrder({
-          orderId,
-          userId,
-          total: Math.round(finalTotal),
-          gstTotal: hasGst ? Math.round(pricing.gstTotal) : null,
-          subtotalBeforeTax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
-          ecoFlag: hasEco,
-          items,
-        });
-        if (typeof window !== "undefined") console.log("[CART] 4. Pending order saved to sessionStorage");
-
-        const returnUrl = `${window.location.origin}/payment/return?order_id=${orderId}`;
-        const sessionRes = await createCashfreeSession({
-          order_id: orderId,
-          order_amount: Math.round(finalTotal),
-          customer_id: userId,
-          return_url: returnUrl,
-          order_note: `Cart order ${orderId} – ₹${finalTotal.toFixed(0)}`,
-        });
-
-        if (!sessionRes.ok) {
-          if (typeof window !== "undefined") console.error("[CART] Backend error or no session_id");
-          const msg = (sessionRes as { error?: string }).error ?? "Payment gateway error.";
-          setPaymentError(msg);
-          toast.error(`${msg} Deploy Edge Function create-cashfree-order and set CASHFREE_APP_ID, CASHFREE_SECRET_KEY in Supabase.`);
-          setPlacing(false);
-          return;
-        }
-
-        if (typeof window !== "undefined") console.log("[CART] 6. Session ID received, launching Cashfree checkout");
-        clearCart();
+      if (!isCcavenueConfigured()) {
+        toast.error("Payment gateway is not configured. Please try again later.");
         setPlacing(false);
-        setRedirectingToPayment(true);
-        try {
-          await openCashfreeCheckout(sessionRes.payment_session_id);
-        } catch (err) {
-          setRedirectingToPayment(false);
-          const errMsg = err instanceof Error ? err.message : "Could not open payment page";
-          if (typeof window !== "undefined") console.error("[CART] openCashfreeCheckout failed:", err);
-          toast.error(`${errMsg}. Check the link in your orders or browser console.`);
-          setPaymentError(errMsg);
-          navigate("/orders");
-        }
         return;
       }
 
-      // Non-Cashfree path: insert order + order_items before notifications/loyalty
-      if (typeof window !== "undefined") console.log("[CART] Non-Cashfree: inserting order into DB...");
+      // Insert order + order_items as pending, then redirect to CCAvenue for payment.
+      if (typeof window !== "undefined") console.log("[CART] Creating pending order in DB...");
       const db = supabase;
       const orderPayload = {
         user_id: userId,
@@ -180,45 +115,31 @@ export default function Cart() {
         throw itemsRes.error;
       }
 
-      await createNotification(
-        userId,
-        "order_update",
-        "Order placed",
-        `Your order of ₹${finalTotal} has been placed.`
-      );
-      await supabase.rpc("upsert_purchase_today", {
-        p_user_id: userId,
-        p_amount: finalTotal,
+      const ccaRes = await createCcaOrder({
+        order_id: order.id,
+        order_amount: Math.round(finalTotal),
+        customer_id: userId,
+        return_to: `${window.location.origin}/payment/return`,
+        order_note: `Cart order ${order.id} – ₹${finalTotal.toFixed(0)}`,
       });
-      if (finalTotal >= 1000) {
-        const { error: drawErr } = await supabase.from("draws_entries").insert({
-          user_id: userId,
-          draw_date: INDIAN_DATE(),
-          eligible: true,
-        });
-        if (drawErr?.code === "23505") {
-          /* already entered today, ignore */
-        } else if (drawErr) throw drawErr;
+
+      if (!ccaRes.ok) {
+        setPaymentError(ccaRes.error ?? "Payment gateway error.");
+        toast.error(ccaRes.error ?? "Payment gateway error.");
+        setPlacing(false);
+        return;
       }
-      await supabase.rpc("add_loyalty_points", {
-        p_user_id: userId,
-        p_points: Math.floor(Math.round(finalTotal) / 100),
-      });
-      await supabase.rpc("refresh_profile_incentives", { p_user_id: userId });
-      if (hasEco) {
-        await supabase.rpc("increment_green_score", {
-          p_user_id: userId,
-          p_delta: 10,
-        });
-      }
-      await refreshProfile();
+
       clearCart();
-      toast.success(
-        pricing.subtotalInclusive >= 1000
-          ? `${t("orderPlacedDraw")} 🎉`
-          : `${t("orderPlaced")} 🎉`
-      );
-      navigate("/orders");
+      setPlacing(false);
+      setRedirectingToPayment(true);
+      redirectToCcavenue({
+        gateway_url: ccaRes.gateway_url,
+        access_code: ccaRes.access_code,
+        enc_request: ccaRes.enc_request,
+        target: "_self",
+      });
+      return;
     } catch (e) {
       const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
       const msg = e && typeof e === "object" && "message" in e ? String((e as { message?: string }).message) : "";
@@ -324,15 +245,15 @@ export default function Cart() {
               </div>
             )}
 
-            {!isCashfreeConfigured() && (
+            {!isCcavenueConfigured() && (
               <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-                <strong>Pay online (Cashfree) is off.</strong> To redirect to Cashfree at checkout: add <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">{getCashfreeConfigStatus().missing ?? "VITE_CASHFREE_APP_ID"}</code> and Supabase URL/Anon Key in <strong>Vercel → Project → Environment Variables</strong>, then <strong>redeploy</strong>. Also deploy the Edge Function <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">create-cashfree-order</code> in Supabase.
+                <strong>Pay online is currently unavailable.</strong> Please configure CCAvenue server secrets and redeploy Edge Functions.
               </div>
             )}
 
             {paymentError && (
               <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-100">
-                <strong>Payment failed:</strong> {paymentError}. Order was placed — check Orders. Fix: Supabase Edge Function <code className="bg-red-100 dark:bg-red-900/50 px-1 rounded">create-cashfree-order</code> and secrets (CASHFREE_APP_ID, CASHFREE_SECRET_KEY).
+                <strong>Payment failed:</strong> {paymentError}. Order was created — you can retry from Orders.
               </div>
             )}
 

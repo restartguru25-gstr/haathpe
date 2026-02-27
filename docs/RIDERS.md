@@ -26,7 +26,7 @@ This creates:
 
 ## Rider flow
 
-1. **Signup** – Rider goes to `/rider-signup`, enters phone, receives OTP, verifies, selects vehicle type. Optional note for Cashfree Secure ID (Aadhaar/PAN) later. A unique `qr_code_text` is assigned.
+1. **Signup** – Rider goes to `/rider-signup`, enters phone, receives OTP, verifies, selects vehicle type. Optional note for Secure ID (Aadhaar/PAN) later. A unique `qr_code_text` is assigned.
 2. **Dashboard** – Rider sees balance, “This month” scans, and a QR code linking to `/search?rider=<qr_code_text>`. Download/print QR. If balance ≥ ₹499 (or slab min), they can request withdrawal (deducts balance; actual payout is manual/external).
 3. **Realtime** – Dashboard subscribes to `riders` and `rider_transactions` for live balance/transaction updates.
 

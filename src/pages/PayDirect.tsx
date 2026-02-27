@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { createDirectPaymentOrder, getVendorPublicProfile } from "@/lib/sales";
 import { awardCoinsForOrder, getCoinsPerPayment } from "@/lib/wallet";
-import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
+import { createCcaOrder, redirectToCcavenue, isCcavenueConfigured } from "@/lib/ccavenue";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { AdBanner } from "@/components/AdBanner";
 import { useApp } from "@/contexts/AppContext";
@@ -78,22 +78,26 @@ export default function PayDirect() {
       if (result.ok && result.id) {
         const vendorName = vendor?.name ?? "Dukaanwaala";
 
-        if (isCashfreeConfigured()) {
-          const returnUrl = `${window.location.origin}/payment/return?order_id=${result.id}`;
-          const sessionRes = await createCashfreeSession({
+        if (isCcavenueConfigured()) {
+          const ccaRes = await createCcaOrder({
             order_id: result.id,
             order_amount: amountNum,
             customer_phone: customer?.phone ?? undefined,
             customer_id: customer?.id ?? undefined,
-            return_url: returnUrl,
+            return_to: `${window.location.origin}/payment/return`,
             order_note: `Direct payment ₹${amountNum} – ${vendorName}`,
           });
-          if (sessionRes.ok) {
+          if (ccaRes.ok) {
             setPaying(false);
-            await openCashfreeCheckout(sessionRes.payment_session_id);
+            redirectToCcavenue({
+              gateway_url: ccaRes.gateway_url,
+              access_code: ccaRes.access_code,
+              enc_request: ccaRes.enc_request,
+              target: "_self",
+            });
             return;
           }
-          toast.error(sessionRes.error ?? "Payment gateway error");
+          toast.error(ccaRes.error ?? "Payment gateway error");
         }
 
         setOrderId(result.id);
@@ -283,7 +287,7 @@ export default function PayDirect() {
             </Button>
           </motion.div>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            {isCashfreeConfigured()
+            {isCcavenueConfigured()
               ? "Pay online with card/UPI or pay at the counter."
               : "Pay at the counter. UPI & card payments coming soon."}
           </p>

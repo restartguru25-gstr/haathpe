@@ -13,7 +13,7 @@ import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { toggleFavorite, appendOrderToHistory } from "@/lib/customer";
 import { getWalletBalance, awardCoinsForOrder, debitWalletForOrder, getCoinsPerPayment } from "@/lib/wallet";
-import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
+import { createCcaOrder, redirectToCcavenue, isCcavenueConfigured } from "@/lib/ccavenue";
 import { toast } from "sonner";
 
 type CartLine = { item: VendorMenuItem; qty: number };
@@ -164,7 +164,7 @@ export default function PublicMenu() {
       const items = cartToOrderItems(cart);
       const { subtotal, gstAmount } = cartTotals(cart);
       const coinsToAward = customer ? await getCoinsPerPayment() : 0;
-      const payAtCounter = paymentMethod === "at_dukaan" || (payAtDukaan > 0 && !isCashfreeConfigured());
+      const payAtCounter = paymentMethod === "at_dukaan" || (payAtDukaan > 0 && !isCcavenueConfigured());
       const riderId = riderParam ? await getRiderIdByQrCode(riderParam) : null;
       const result = await createCustomerOrder(vendorId, {
         items,
@@ -195,25 +195,32 @@ export default function PublicMenu() {
         }
       }
 
-      if (payAtDukaan > 0 && isCashfreeConfigured() && paymentMethod === "online") {
-        const returnUrl = `${window.location.origin}/payment/return?order_id=${result.id}`;
-        const sessionRes = await createCashfreeSession({
+      if (payAtDukaan > 0 && isCcavenueConfigured() && paymentMethod === "online") {
+        const ccaRes = await createCcaOrder({
           order_id: result.id,
           order_amount: payAtDukaan,
           customer_phone: customer?.phone ?? undefined,
           customer_id: customer?.id ?? undefined,
-          return_url: returnUrl,
+          customer_email: undefined,
+          return_to: `${window.location.origin}/payment/return`,
           order_note: `Order ${result.id} – ${vendorName ?? "haathpe"}`,
         });
-        if (sessionRes.ok) {
-          setCart([]);
-          setUseWalletAmount(0);
+
+        if (!ccaRes.ok) {
+          toast.error(ccaRes.error ?? "Payment gateway error");
           setPlacing(false);
-          await openCashfreeCheckout(sessionRes.payment_session_id);
           return;
         }
-        toast.error(sessionRes.error ?? "Payment gateway error");
+
+        setCart([]);
+        setUseWalletAmount(0);
         setPlacing(false);
+        redirectToCcavenue({
+          gateway_url: ccaRes.gateway_url,
+          access_code: ccaRes.access_code,
+          enc_request: ccaRes.enc_request,
+          target: "_self",
+        });
         return;
       }
 
@@ -414,7 +421,7 @@ export default function PublicMenu() {
           )}
         </div>
       )}
-      {payAtDukaan > 0 && isCashfreeConfigured() && (
+      {payAtDukaan > 0 && isCcavenueConfigured() && (
         <div className="mb-4 p-4 rounded-xl border border-border bg-card">
           <p className="text-sm font-medium mb-3">How would you like to pay?</p>
           <div className="flex flex-col gap-2">

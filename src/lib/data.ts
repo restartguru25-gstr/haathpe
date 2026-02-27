@@ -242,7 +242,7 @@ export const translations = {
     congratulationsCoins: "Congratulations! You earned {n} coins – added to your wallet!",
     useWallet: "Use Wallet",
     walletAvailable: "₹{amount} available",
-    searchTitle: "Find dukaan near you",
+    searchTitle: "Find dukaar near you",
     searchPlaceholder: "Search by dukaan name, type or item (e.g. PaniPuri, chai, kirana)",
     searchZoneAll: "All zones",
     searchZoneGeneral: "Hyderabad",

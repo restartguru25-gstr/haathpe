@@ -6,25 +6,12 @@ import { Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrderForTracking } from "@/lib/sales";
 import { supabase } from "@/lib/supabase";
-import {
-  createCashfreeSession,
-  isCashfreeConfigured,
-  getCashfreeConfigStatus,
-  verifyCashfreePayment,
-  getPendingOrder,
-  clearPendingOrder,
-  finalizeOrderAfterPayment,
-} from "@/lib/cashfree";
-import {
-  getPendingPremium,
-  clearPendingPremium,
-  finalizePremiumAfterPayment,
-} from "@/lib/premium";
 import { awardCoinsForPaidOrder, getCoinsPerPayment } from "@/lib/wallet";
 import { speakPaymentSuccessForCustomer } from "@/lib/paymentNotification";
 import { toast } from "sonner";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import CongratsOverlay from "@/components/CongratsOverlay";
+import { isCcavenueConfigured } from "@/lib/ccavenue";
 
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
@@ -32,7 +19,6 @@ export default function PaymentReturn() {
   const { lang } = useApp();
   const [status, setStatus] = useState<"loading" | "paid" | "pending" | "error">("loading");
   const [isPremiumPayment, setIsPremiumPayment] = useState(false);
-  const [testingGateway, setTestingGateway] = useState(false);
   const [congrats, setCongrats] = useState<{ coins: number; cashback: number } | null>(null);
   const [showCongratsOverlay, setShowCongratsOverlay] = useState(false);
   const awardCalled = useRef(false);
@@ -46,120 +32,51 @@ export default function PaymentReturn() {
       return;
     }
 
-    const isPremium = orderId.startsWith("prem_");
-
     const run = async () => {
-      if (isPremium) {
-        setIsPremiumPayment(true);
-        // Premium flow: verify Cashfree, finalize premium
-        let verify = await verifyCashfreePayment(orderId);
-        const maxAttempts = 8;
-        const pollIntervalMs = 3500;
-        for (let attempt = 1; attempt <= maxAttempts && !verify.paid; attempt++) {
-          if (!verify.ok) {
-            setStatus("error");
-            return;
-          }
-          if (verify.paid) break;
-          if (attempt < maxAttempts) {
-            setStatus("pending");
-            await new Promise((r) => setTimeout(r, pollIntervalMs));
-            verify = await verifyCashfreePayment(orderId);
-          }
-        }
-        if (!verify.ok || !verify.paid) {
-          setStatus(verify.ok ? "pending" : "error");
-          return;
-        }
-        const pending = getPendingPremium();
-        if (!pending || pending.orderId !== orderId) {
-          setStatus("error");
-          return;
-        }
-        const finalize = await finalizePremiumAfterPayment(pending);
-        if (!finalize.ok) {
-          setStatus("error");
-          return;
-        }
-        clearPendingPremium();
-        finalizedByServer.current = true;
-        paidAmountRef.current = 99; // Premium fixed price
-        setStatus("paid");
-        return;
-      }
+      const isPremium = orderId.startsWith("prem_");
+      setIsPremiumPayment(isPremium);
 
       // Catalog order flow or customer_orders (PublicMenu/PayDirect)
-      const tracked = await getOrderForTracking(orderId);
-      if (tracked) {
-        if (tracked.status === "paid") {
-          paidAmountRef.current = undefined; // No amount from tracking
-          setStatus("paid");
-          return;
-        }
-        // Status pending: verify Cashfree (webhook may not have run yet)
-        const verify = await verifyCashfreePayment(orderId);
-        if (verify.ok && verify.paid) {
-          paidAmountRef.current = undefined;
-          setStatus("paid");
-          return;
-        }
-        setStatus("pending");
-        return;
-      }
-      const { data: dbOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).single();
-      if (dbOrder?.status) {
-        if (dbOrder.status === "paid") paidAmountRef.current = undefined;
-        setStatus(dbOrder.status === "paid" ? "paid" : "pending");
-        return;
-      }
-
-      let verify = await verifyCashfreePayment(orderId);
       const maxAttempts = 8;
       const pollIntervalMs = 3500;
-      for (let attempt = 1; attempt <= maxAttempts && !verify.paid; attempt++) {
-        if (!verify.ok) {
-          setStatus("error");
-          return;
-        }
-        if (verify.paid) break;
-        if (attempt < maxAttempts) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Premium: server updates profile; here we just wait a bit then show paid (best-effort)
+        if (isPremium) {
           setStatus("pending");
           await new Promise((r) => setTimeout(r, pollIntervalMs));
-          verify = await verifyCashfreePayment(orderId);
-        }
-      }
-      if (!verify.ok || !verify.paid) {
-        setStatus(verify.ok ? "pending" : "error");
-        return;
-      }
-
-      const pending = getPendingOrder();
-      if (!pending || pending.orderId !== orderId) {
-        // No pending order = customer_orders flow (PublicMenu). Payment verified, show success.
-        paidAmountRef.current = undefined;
-        const retracked = await getOrderForTracking(orderId);
-        if (retracked) {
+          paidAmountRef.current = 99;
           setStatus("paid");
           return;
         }
-        setStatus("paid"); // Optimistic: Cashfree says paid
-        return;
+
+        const tracked = await getOrderForTracking(orderId);
+        if (tracked) {
+          if (tracked.status === "paid") {
+            paidAmountRef.current = undefined;
+            setStatus("paid");
+            return;
+          }
+          setStatus("pending");
+        } else {
+          const { data: dbOrder } = await supabase
+            .from("orders")
+            .select("id, status, total")
+            .eq("id", orderId)
+            .maybeSingle();
+          if (dbOrder?.status === "paid") {
+            paidAmountRef.current = dbOrder?.total != null ? Number(dbOrder.total) : undefined;
+            setStatus("paid");
+            return;
+          }
+          setStatus(dbOrder?.status ? "pending" : "pending");
+        }
+
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, pollIntervalMs));
+        }
       }
 
-      const finalize = await finalizeOrderAfterPayment(pending);
-      if (!finalize.ok) {
-        setStatus("error");
-        return;
-      }
-
-      clearPendingOrder();
-      finalizedByServer.current = true;
-      paidAmountRef.current = pending.total;
-      setStatus("paid");
-      if (finalize.coins != null || finalize.cashback != null) {
-        setCongrats({ coins: finalize.coins ?? 2, cashback: finalize.cashback ?? 2 });
-        setShowCongratsOverlay(true);
-      }
+      setStatus("pending");
     };
 
     run().catch(() => setStatus("error"));
@@ -278,51 +195,12 @@ export default function PaymentReturn() {
                 ? "We couldn't find this order or verify payment. If you paid, the dukaanwaala will still receive it."
                 : "No order ID in the link. Use the link you got after placing the order."}
             </p>
-            {!orderId && !isCashfreeConfigured() && (
+            {!orderId && !isCcavenueConfigured() && (
               <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Cashfree is not configured</p>
-                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">Missing: <strong>{getCashfreeConfigStatus().missing ?? "VITE_CASHFREE_APP_ID"}</strong>. Add it (and VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) in <strong>Vercel → Environment Variables</strong>, then <strong>redeploy</strong>. Without this, checkout will not redirect to Cashfree.</p>
-              </div>
-            )}
-            {!orderId && isCashfreeConfigured() && (
-              <div className="mb-6 p-4 rounded-lg border border-border bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-2">Verify Cashfree gateway</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={testingGateway}
-                  onClick={async () => {
-                    setTestingGateway(true);
-                    try {
-                      const origin = window.location.origin;
-                      const returnUrl = origin.startsWith("https://")
-                        ? `${origin}/payment/return`
-                        : "https://example.com/payment/return";
-                      const res = await createCashfreeSession({
-                        order_id: `test-${Date.now()}`,
-                        order_amount: 1,
-                        return_url: returnUrl,
-                      });
-                      if (res.ok) {
-                        toast.success("Cashfree is working. You received a payment session ID.");
-                      } else {
-                        toast.error(res.error ?? "Cashfree gateway error");
-                      }
-                    } catch (err) {
-                      const msg = err instanceof Error ? err.message : "Connection failed";
-                      const isFailedFetch = /failed to fetch|network error/i.test(msg);
-                      toast.error(
-                        isFailedFetch
-                          ? "Could not reach the payment server. Deploy the Edge Function 'create-cashfree-order' to your Supabase project and ensure the app URL is allowed."
-                          : msg
-                      );
-                    } finally {
-                      setTestingGateway(false);
-                    }
-                  }}
-                >
-                  {testingGateway ? "Testing…" : "Test Cashfree connection"}
-                </Button>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Payment gateway is not configured</p>
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                  Configure Supabase secrets for CCAvenue and deploy the Edge Functions <strong>create-cca-order</strong> and <strong>verify-cca-payment</strong>.
+                </p>
               </div>
             )}
             <Link to="/">

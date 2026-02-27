@@ -25,7 +25,7 @@ A detailed walkthrough of all features, roles, and flows in the application.
 | **Find dukaan** | `/search` | Search by keyword, zone, stall type; see vendor cards |
 | **Click dukaan** | `/menu/:vendorId` (VendorEntry) | See dukaan name, “Browse menu”, “Pay directly” |
 | **Browse menu** | `/menu/:vendorId/browse` | View menu, add to cart, place order (guest or customer) |
-| **Pay directly** | `/menu/:vendorId/pay` | Enter amount, pay (Cashfree or pay at counter) |
+| **Pay directly** | `/menu/:vendorId/pay` | Enter amount, pay (CCAvenue or pay at counter) |
 | **Browse supplies** | `/catalog` | Browse catalog (vendors buy supplies; visitor can browse) |
 | **Vendor sign-in** | `/auth` | Email/phone OTP → creates Vendor session |
 | **Customer sign-in** | `/customer-login` | Phone OTP + MPIN → creates Customer session |
@@ -37,7 +37,7 @@ A detailed walkthrough of all features, roles, and flows in the application.
 | **Sign in** | `/auth` | Email/phone OTP → `profiles` row; redirect to Dashboard or `next` |
 | **Dashboard** | `/dashboard` | Overview, quick links |
 | **My Shop (Sales)** | `/sales` | Menu items, activate default menu, edit prices, add custom items, customer orders, incentives, ONDC, **Premium Upgrade** (₹99/month) |
-| **Quick POS** | `/pos` | Cash Paid or Generate UPI QR (Cashfree) |
+| **Quick POS** | `/pos` | Cash Paid or Generate UPI QR (CCAvenue) |
 | **Orders** | `/orders` | Supply orders (from Catalog) |
 | **Loyalty** | `/loyalty` | Points, streak, tier, draws |
 | **Profile** | `/profile` | Name, stall type, language, alerts, logout |
@@ -45,7 +45,7 @@ A detailed walkthrough of all features, roles, and flows in the application.
 | **Swap** | `/swap` | Post excess stock (barter); Admin approves |
 | **Courses** | `/courses` | Learning content |
 | **Catalog** | `/catalog` | Buy supplies; add to cart → `/cart` |
-| **Cart** | `/cart` | Place supply order (Cashfree) |
+| **Cart** | `/cart` | Place supply order (CCAvenue) |
 | **Admin** | `/admin` | Only if `role=admin` in profiles |
 
 Protected: All above (except Search, Catalog, Contact) require Vendor auth. If not signed in → redirect to `/auth` with `next`.
@@ -112,9 +112,9 @@ Protected: All above (except Search, Catalog, Contact) require Vendor auth. If n
 | 2 | Load menu | `getActiveVendorMenuForPublic` |
 | 3 | Add to cart | Per-item +/- ; cart state |
 | 4 | Delivery | Pickup or Self-delivery (address) |
-| 5 | Payment | Wallet (if customer) + Pay online (Cashfree) or Pay at dukaan |
+| 5 | Payment | Wallet (if customer) + Pay online (CCAvenue) or Pay at dukaan |
 | 6 | Place order | `createCustomerOrder` → `customer_orders` |
-| 7 | If online | Cashfree checkout → `/payment/return?order_id=...` |
+| 7 | If online | CCAvenue checkout → `/payment/return?order_id=...` |
 | 8 | Success | Order placed; track at `/order/:orderId` |
 | 9 | Ads | `AdBanner` page="menu", "menu_mobile", "cart", "confirmation" |
 
@@ -130,7 +130,7 @@ Protected: All above (except Search, Catalog, Contact) require Vendor auth. If n
 | 2 | Enter amount | Numpad + quick amounts |
 | 3 | Optional note | Text input |
 | 4 | Pay | `createDirectPaymentOrder` → `customer_orders` |
-| 5 | If Cashfree | Opens Cashfree → redirect to `/payment/return?order_id=...` |
+| 5 | If online | Opens CCAvenue → redirect to `/payment/return?order_id=...` |
 | 6 | If not | “Payment request sent! Pay at the counter.” |
 | 7 | Ad (if enabled) | `AdBanner` page="pay" variant="compact" |
 
@@ -167,20 +167,20 @@ Protected: All above (except Search, Catalog, Contact) require Vendor auth. If n
 
 ---
 
-### 3.7 Payment (Cashfree)
+### 3.7 Payment (CCAvenue)
 
 | Payment Point | Route | Flow |
 |---------------|-------|------|
-| **Public Menu** | `/menu/:id/browse` | Place order → `createCashfreeSession` → `openCashfreeCheckout` |
-| **Pay Direct** | `/menu/:id/pay` | Pay → `createCashfreeSession` → `openCashfreeCheckout` |
+| **Public Menu** | `/menu/:id/browse` | Place order → `createCcaOrder` → redirect to CCAvenue |
+| **Pay Direct** | `/menu/:id/pay` | Pay → `createCcaOrder` → redirect to CCAvenue |
 | **POS (Vendor)** | `/pos` | Generate UPI QR → same flow |
 | **Cart (Supply)** | `/cart` | Place order → same flow |
-| **Premium Upgrade** | `/sales` | Upgrade → `createPremiumCheckout` → Cashfree |
+| **Premium Upgrade** | `/sales` | Upgrade → `createPremiumCheckout` → CCAvenue |
 
 **Return:** `/payment/return?order_id=...` (or `prem_...` for premium).  
-**Webhook:** Cashfree → `cashfree-webhook` Edge Function → updates `customer_orders.status = 'paid'`.
+**Return handler:** CCAvenue → `verify-cca-payment` Edge Function → updates `customer_orders/orders.status = 'paid'`.
 
-**Env:** `VITE_CASHFREE_APP_ID`, `VITE_CASHFREE_MODE`, Supabase secrets.
+**Secrets:** `CCAVENUE_MERCHANT_ID`, `CCAVENUE_ACCESS_CODE`, `CCAVENUE_WORKING_KEY`, `CCAVENUE_MODE`.
 
 ---
 
@@ -190,12 +190,12 @@ Protected: All above (except Search, Catalog, Contact) require Vendor auth. If n
 |------|--------|------------------|
 | 1 | Vendor on Sales | `/sales` |
 | 2 | Click Upgrade | `createPremiumCheckout` (₹99/month) |
-| 3 | Cashfree | Redirect to Cashfree |
+| 3 | CCAvenue | Redirect to CCAvenue |
 | 4 | Success | Redirect to `/payment/return?order_id=prem_...` |
-| 5 | Finalize | Edge Function `finalize-premium-after-payment` sets `premium_tier`, `premium_expires_at` |
+| 5 | Finalize | Edge Function `verify-cca-payment` upgrades `premium_tier`, `premium_expires_at` |
 | 6 | UI | Premium badge, boosted search ranking |
 
-**Note:** JWT is OFF for `finalize-premium-after-payment` (client calls with anon key after redirect).
+**Note:** JWT is OFF for `verify-cca-payment` (CCAvenue posts to it).
 
 ---
 
@@ -274,7 +274,7 @@ Protected: All above (except Search, Catalog, Contact) require Vendor auth. If n
 | `/menu/:vendorId/browse` | No | All | Browse menu, order |
 | `/menu/:vendorId/pay` | No | All | Pay direct |
 | `/order/:orderId` | No | All | Track order |
-| `/payment/return` | No | All | Cashfree return |
+| `/payment/return` | No | All | Payment return |
 | `/dashboard` | Yes | Vendor | Dashboard |
 | `/sales` | Yes | Vendor | My Shop |
 | `/pos` | Yes | Vendor | Quick POS |
@@ -314,13 +314,10 @@ Protected: All above (except Search, Catalog, Contact) require Vendor auth. If n
 | Env | Purpose |
 |-----|---------|
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Supabase client |
-| `VITE_CASHFREE_APP_ID`, `VITE_CASHFREE_MODE` | Cashfree |
+| `CCAVENUE_MERCHANT_ID`, `CCAVENUE_ACCESS_CODE`, `CCAVENUE_WORKING_KEY`, `CCAVENUE_MODE` | CCAvenue (Edge Function secrets) |
 | `VITE_WHATSAPP_API_KEY` | Optional: payment alerts |
 
 | Edge Function | Purpose |
 |---------------|---------|
-| `create-cashfree-order` | Create payment session |
-| `verify-cashfree-payment` | Verify payment |
-| `finalize-order-after-payment` | Supply order finalize |
-| `finalize-premium-after-payment` | Premium upgrade finalize |
-| `cashfree-webhook` | Cashfree webhook (PAYMENT_SUCCESS) |
+| `create-cca-order` | Create encrypted payment request |
+| `verify-cca-payment` | Return handler: decrypt + update DB |

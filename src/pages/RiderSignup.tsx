@@ -192,7 +192,7 @@ export default function RiderSignup() {
               <Shield className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
               <div className="text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">Aadhaar/PAN (optional)</p>
-                <p>Link Cashfree Secure ID for verification later from your dashboard.</p>
+                <p>Link your verification ID later from your dashboard.</p>
               </div>
             </div>
             <Button className="w-full" onClick={handleSubmitDetails} disabled={!vehicleType || loading}>

@@ -75,7 +75,6 @@ import {
 } from "@/lib/shopDetails";
 import VendorCashWalletSection from "@/components/VendorCashWalletSection";
 import { ensureVendorWalletWithSignupBonus } from "@/lib/vendorCashWallet";
-import { verifyBank, verifyPan, verifyGstin } from "@/lib/cashfreeVerification";
 
 const fadeUp = (i: number) => ({
   initial: { opacity: 0, y: 14 },
@@ -392,78 +391,6 @@ export default function Profile() {
       if (!error) await refreshProfile();
     } catch {
       /* ignore */
-    }
-  };
-
-  const handleVerifyBank = async () => {
-    const acc = (editForm.bankAccountNumber || "").trim();
-    const ifsc = (editForm.ifscCode || "").trim();
-    if (!acc || !ifsc) {
-      toast.error("Enter bank account and IFSC");
-      return;
-    }
-    setVerifying("bank");
-    try {
-      const res = await verifyBank({
-        bank_account: acc,
-        ifsc,
-        name: name || undefined,
-        phone: phone || undefined,
-      });
-      if (res.ok && res.valid) {
-        await updateProfileVerified("bank_verified", true);
-        toast.success("Bank verified successfully!");
-      } else {
-        toast.error(res.error || res.message || "Bank verification failed");
-      }
-    } catch {
-      toast.error("Bank verification failed");
-    } finally {
-      setVerifying(null);
-    }
-  };
-
-  const handleVerifyPan = async () => {
-    const pan = (editForm.panNumber || "").trim();
-    if (!pan || pan.length !== 10) {
-      toast.error("Enter valid 10-character PAN");
-      return;
-    }
-    setVerifying("pan");
-    try {
-      const res = await verifyPan({ pan, name: name || undefined });
-      if (res.ok && res.valid) {
-        await updateProfileVerified("pan_verified", true);
-        toast.success("PAN verified successfully!");
-      } else {
-        toast.error(res.error || res.message || "PAN verification failed");
-      }
-    } catch {
-      toast.error("PAN verification failed");
-    } finally {
-      setVerifying(null);
-    }
-  };
-
-  const handleVerifyGstin = async () => {
-    const gstin = (editForm.gstNumber || "").trim();
-    if (!gstin || gstin.length !== 15) {
-      toast.error("Enter valid 15-character GSTIN");
-      return;
-    }
-    setVerifying("gstin");
-    try {
-      const res = await verifyGstin({ GSTIN: gstin, business_name: name || undefined });
-      if (res.ok && res.valid) {
-        await updateProfileVerified("gstin_verified", true);
-        toast.success("GSTIN verified successfully!");
-      } else {
-        toast.error(res.error || res.message || "GSTIN verification failed");
-      }
-    } catch {
-      toast.error("GSTIN verification failed");
-    } finally {
-      setVerifying(null);
     }
   };
 
@@ -1123,9 +1050,8 @@ export default function Profile() {
                   placeholder="e.g. 36AABCU9603R1ZM"
                   className="flex-1 min-w-[160px]"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleVerifyGstin} disabled>
-                  {verifying === "gstin" ? <Loader2 size={14} className="animate-spin" /> : null}
-                  {verifying === "gstin" ? " Verifying…" : " Verify GSTIN"}
+                <Button type="button" variant="outline" size="sm" disabled>
+                  Verify GSTIN
                 </Button>
                 {gstinVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
               </div>
@@ -1140,9 +1066,8 @@ export default function Profile() {
                   placeholder="e.g. ABCDE1234F"
                   className="flex-1 min-w-[120px]"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleVerifyPan} disabled>
-                  {verifying === "pan" ? <Loader2 size={14} className="animate-spin" /> : null}
-                  {verifying === "pan" ? " Verifying…" : " Verify PAN"}
+                <Button type="button" variant="outline" size="sm" disabled>
+                  Verify PAN
                 </Button>
                 {panVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
               </div>
@@ -1167,9 +1092,8 @@ export default function Profile() {
                   placeholder="e.g. HDFC0001234"
                   className="flex-1 min-w-[120px]"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleVerifyBank} disabled>
-                  {verifying === "bank" ? <Loader2 size={14} className="animate-spin" /> : null}
-                  {verifying === "bank" ? " Verifying…" : " Verify Bank"}
+                <Button type="button" variant="outline" size="sm" disabled>
+                  Verify Bank
                 </Button>
                 {bankVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
               </div>

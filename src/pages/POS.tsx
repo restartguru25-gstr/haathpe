@@ -7,7 +7,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useProfile } from "@/hooks/useProfile";
 import { usePaymentNotification } from "@/contexts/PaymentNotificationContext";
 import { getVendorMenuItems, createCustomerOrder, type VendorMenuItem, type CustomerOrderItem } from "@/lib/sales";
-import { createCashfreeSession, openCashfreeCheckout, isCashfreeConfigured } from "@/lib/cashfree";
+import { createCcaOrder, redirectToCcavenue, isCcavenueConfigured } from "@/lib/ccavenue";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -133,8 +133,8 @@ export default function POS() {
       toast.error("Add items first");
       return;
     }
-    if (!isCashfreeConfigured()) {
-      toast.error("Cashfree is not configured. Add VITE_CASHFREE_APP_ID and deploy create-cashfree-order. Use Cash for now.");
+    if (!isCcavenueConfigured()) {
+      toast.error("Payment gateway is not configured. Use Cash for now.");
       return;
     }
     setPlacing(true);
@@ -153,20 +153,26 @@ export default function POS() {
         toast.error(result.error ?? "Failed to create order");
         return;
       }
-      const returnUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/payment/return?order_id=${result.id}`;
-      const sessionRes = await createCashfreeSession({
+
+      const ccaRes = await createCcaOrder({
         order_id: result.id,
         order_amount: Math.round(total),
-        return_url: returnUrl,
+        return_to: `${typeof window !== "undefined" ? window.location.origin : ""}/payment/return`,
         order_note: `POS sale ₹${total.toFixed(0)} – ${profile.name ?? "Dukaan"}`,
       });
-      if (!sessionRes.ok) {
-        toast.error(sessionRes.error ?? "Payment gateway error");
+      if (!ccaRes.ok) {
+        toast.error(ccaRes.error ?? "Payment gateway error");
         return;
       }
+
       setCart([]);
       toast.success("Payment page opened in new tab. Customer can pay via UPI, card, etc.");
-      await openCashfreeCheckout(sessionRes.payment_session_id, { redirectTarget: "_blank" });
+      redirectToCcavenue({
+        gateway_url: ccaRes.gateway_url,
+        access_code: ccaRes.access_code,
+        enc_request: ccaRes.enc_request,
+        target: "_blank",
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to open payment");
     } finally {

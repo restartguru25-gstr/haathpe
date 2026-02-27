@@ -5,7 +5,7 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gst_total INTEGER;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS subtotal_before_tax INTEGER;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS eco_flag BOOLEAN NOT NULL DEFAULT false;
 
--- Allow status 'paid' (for Cashfree/payment success). Include common statuses so we don't break existing DBs.
+-- Allow status 'paid' (for payment success). Include common statuses so we don't break existing DBs.
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
   CHECK (status IN ('pending', 'in-transit', 'delivered', 'paid', 'prepared', 'ready'));
