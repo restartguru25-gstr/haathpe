@@ -67,6 +67,18 @@ serve(async (req) => {
       cancel_url?: string;
       order_note?: string;
       billing_name?: string;
+      billing_address?: string;
+      billing_city?: string;
+      billing_state?: string;
+      billing_zip?: string;
+      billing_country?: string;
+      delivery_name?: string;
+      delivery_address?: string;
+      delivery_city?: string;
+      delivery_state?: string;
+      delivery_zip?: string;
+      delivery_country?: string;
+      delivery_tel?: string;
     };
     try {
       body = (await req.json()) as typeof body;
@@ -93,6 +105,19 @@ serve(async (req) => {
       ? body.customer_phone.replace(/\D/g, "").slice(-10) || "9999999999"
       : "9999999999";
     const billingEmail = typeof body.customer_email === "string" ? body.customer_email.trim().slice(0, 100) || "" : "";
+    const billingAddress = typeof body.billing_address === "string" ? body.billing_address.trim().slice(0, 250) : "";
+    const billingCity = typeof body.billing_city === "string" ? body.billing_city.trim().slice(0, 50) : "";
+    const billingState = typeof body.billing_state === "string" ? body.billing_state.trim().slice(0, 50) : "";
+    const billingZip = typeof body.billing_zip === "string" ? body.billing_zip.trim().slice(0, 10) : "";
+    const billingCountry = typeof body.billing_country === "string" ? body.billing_country.trim().slice(0, 50) : "";
+
+    const deliveryName = typeof body.delivery_name === "string" ? body.delivery_name.trim().slice(0, 100) : "";
+    const deliveryAddress = typeof body.delivery_address === "string" ? body.delivery_address.trim().slice(0, 250) : "";
+    const deliveryCity = typeof body.delivery_city === "string" ? body.delivery_city.trim().slice(0, 50) : "";
+    const deliveryState = typeof body.delivery_state === "string" ? body.delivery_state.trim().slice(0, 50) : "";
+    const deliveryZip = typeof body.delivery_zip === "string" ? body.delivery_zip.trim().slice(0, 10) : "";
+    const deliveryCountry = typeof body.delivery_country === "string" ? body.delivery_country.trim().slice(0, 50) : "";
+    const deliveryTel = typeof body.delivery_tel === "string" ? body.delivery_tel.replace(/\D/g, "").slice(-10) : "";
 
     // CCAvenue request string: key=value&key2=value2 (URL-encoded values)
     const params = new URLSearchParams();
@@ -105,6 +130,19 @@ serve(async (req) => {
     params.set("billing_name", billingName);
     params.set("billing_tel", billingTel);
     if (billingEmail) params.set("billing_email", billingEmail);
+    if (billingAddress) params.set("billing_address", billingAddress);
+    if (billingCity) params.set("billing_city", billingCity);
+    if (billingState) params.set("billing_state", billingState);
+    if (billingZip) params.set("billing_zip", billingZip);
+    if (billingCountry) params.set("billing_country", billingCountry);
+
+    if (deliveryName) params.set("delivery_name", deliveryName);
+    if (deliveryAddress) params.set("delivery_address", deliveryAddress);
+    if (deliveryCity) params.set("delivery_city", deliveryCity);
+    if (deliveryState) params.set("delivery_state", deliveryState);
+    if (deliveryZip) params.set("delivery_zip", deliveryZip);
+    if (deliveryCountry) params.set("delivery_country", deliveryCountry);
+    if (deliveryTel) params.set("delivery_tel", deliveryTel);
     if (body.order_note) params.set("merchant_param1", String(body.order_note).slice(0, 100));
 
     const plainRequest = params.toString();

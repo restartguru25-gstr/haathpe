@@ -25,6 +25,18 @@ export interface CreateCcaOrderParams {
   return_to?: string; // where user should land after payment (SPA route)
   order_note?: string;
   billing_name?: string;
+  billing_address?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_zip?: string;
+  billing_country?: string;
+  delivery_name?: string;
+  delivery_address?: string;
+  delivery_city?: string;
+  delivery_state?: string;
+  delivery_zip?: string;
+  delivery_country?: string;
+  delivery_tel?: string;
 }
 
 export async function createCcaOrder(
@@ -57,7 +69,20 @@ export async function createCcaOrder(
         return_url: redirectUrl,
         cancel_url: redirectUrl,
         order_note: params.order_note,
-        billing_name: params.billing_name,
+        billing_name: params.billing_name ?? "Customer",
+        // Prefill billing/shipping to avoid bad UX on CCAvenue hosted checkout.
+        billing_address: params.billing_address ?? "NA",
+        billing_city: params.billing_city ?? "NA",
+        billing_state: params.billing_state ?? "NA",
+        billing_zip: params.billing_zip ?? "000000",
+        billing_country: params.billing_country ?? "India",
+        delivery_name: params.delivery_name,
+        delivery_address: params.delivery_address,
+        delivery_city: params.delivery_city,
+        delivery_state: params.delivery_state,
+        delivery_zip: params.delivery_zip,
+        delivery_country: params.delivery_country,
+        delivery_tel: params.delivery_tel,
       }),
     });
 
