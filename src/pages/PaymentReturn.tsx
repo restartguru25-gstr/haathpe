@@ -16,6 +16,7 @@ import { isCcavenueConfigured } from "@/lib/ccavenue";
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
+  const gatewayStatus = (searchParams.get("status") ?? "").toLowerCase();
   const { lang } = useApp();
   const [status, setStatus] = useState<"loading" | "paid" | "pending" | "error">("loading");
   const [isPremiumPayment, setIsPremiumPayment] = useState(false);
@@ -36,17 +37,34 @@ export default function PaymentReturn() {
       const isPremium = orderId.startsWith("prem_");
       setIsPremiumPayment(isPremium);
 
+      // If gateway explicitly says failed/aborted, do not keep polling.
+      if (gatewayStatus === "failed" || gatewayStatus === "failure" || gatewayStatus === "aborted") {
+        setStatus("error");
+        return;
+      }
+
       // Catalog order flow or customer_orders (PublicMenu/PayDirect)
       const maxAttempts = 8;
       const pollIntervalMs = 3500;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         // Premium: server updates profile; here we just wait a bit then show paid (best-effort)
         if (isPremium) {
+          // If gateway explicitly says success, show paid sooner.
+          if (gatewayStatus === "success") {
+            paidAmountRef.current = 99;
+            setStatus("paid");
+            return;
+          }
           setStatus("pending");
           await new Promise((r) => setTimeout(r, pollIntervalMs));
           paidAmountRef.current = 99;
           setStatus("paid");
           return;
+        }
+
+        // If gateway says success, start in pending but poll for DB update.
+        if (gatewayStatus === "success" && attempt === 1) {
+          setStatus("pending");
         }
 
         const tracked = await getOrderForTracking(orderId);
