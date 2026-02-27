@@ -86,7 +86,10 @@ serve(async (req) => {
     // Razorpay fee ~2% (approximate) — platform absorbs
     const razorpayFeePercent = 2;
     const razorpayFee = Math.round((total * razorpayFeePercent) / 100 * 100) / 100;
-    const vendorAmount = Number(order.vendor_amount) ?? Math.round((total - Number(order.platform_fee ?? 0)) * 100) / 100;
+    const vendorAmountFromDb = (order as { vendor_amount?: unknown }).vendor_amount != null ? Number((order as { vendor_amount?: unknown }).vendor_amount) : NaN;
+    const vendorAmount = Number.isFinite(vendorAmountFromDb)
+      ? vendorAmountFromDb
+      : Math.round((total - Number((order as { platform_fee?: unknown }).platform_fee ?? 0)) * 100) / 100;
 
     await supabase
       .from("ondc_orders")

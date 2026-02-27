@@ -5,7 +5,7 @@ import { Wallet, ArrowLeft, LogOut, ChevronRight, Plus, Minus, Gift, Coins } fro
 import { Button } from "@/components/ui/button";
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
-import { getWalletBalanceAndCoins, getWalletTransactions, type WalletTransaction } from "@/lib/wallet";
+import { getCustomerSignupBonusStatus, getWalletBalanceAndCoins, getWalletTransactions, type WalletTransaction } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -45,6 +45,8 @@ export default function CustomerWallet() {
   const [coins, setCoins] = useState(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bonusRemaining, setBonusRemaining] = useState(0);
+  const [bonusExpiresAt, setBonusExpiresAt] = useState<string | null>(null);
   const displayBalance = useCountUp(balance, !loading);
   const displayCoins = useCountUp(coins, !loading);
 
@@ -60,6 +62,14 @@ export default function CustomerWallet() {
     setBalance(wallet.balance);
     setCoins(wallet.coins);
     setTransactions(tx);
+    try {
+      const bonus = await getCustomerSignupBonusStatus(customer.id);
+      setBonusRemaining(bonus.bonus_remaining);
+      setBonusExpiresAt(bonus.expires_at);
+    } catch {
+      setBonusRemaining(0);
+      setBonusExpiresAt(null);
+    }
     setLoading(false);
   }, [customer?.id]);
 
@@ -120,6 +130,7 @@ export default function CustomerWallet() {
 
   const maxBalance = Math.max(balance, 500);
   const progressPercent = Math.min(100, (balance / maxBalance) * 100);
+  const bonusValid = bonusRemaining > 0 && !!bonusExpiresAt && new Date(bonusExpiresAt) > new Date();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1E40AF]/10 via-background to-[#F97316]/10">
@@ -179,6 +190,35 @@ export default function CustomerWallet() {
                   {t("redeemNow")}
                 </Button>
               </Link>
+            </div>
+          </motion.div>
+        )}
+
+        {!loading && (bonusValid || bonusRemaining > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 rounded-2xl border border-[#FFD700]/30 bg-gradient-to-br from-[#FFD700]/10 to-[#F97316]/5 p-4 backdrop-blur-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#B8860B]">Signup Bonus Remaining</p>
+                <p className="text-sm text-foreground mt-1">
+                  ₹5 × <span className="font-bold">{bonusRemaining}</span> orders
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {bonusExpiresAt
+                    ? `Valid till ${new Date(bonusExpiresAt).toLocaleDateString()}`
+                    : "Validity: 30 days from credit"}
+                </p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  bonusValid ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {bonusValid ? "Active" : "Expired"}
+              </span>
             </div>
           </motion.div>
         )}

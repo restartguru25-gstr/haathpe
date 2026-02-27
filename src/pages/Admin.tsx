@@ -93,6 +93,7 @@ import {
   rejectRedemption,
   getCoinsConfig,
   updateCoinsConfig,
+  getAdminCustomerBonuses,
 } from "@/lib/wallet";
 import {
   getSectorsAdmin,
@@ -219,6 +220,8 @@ export default function Admin() {
   const [customerRedemptions, setCustomerRedemptions] = useState<Awaited<ReturnType<typeof getAdminRedemptions>>>([]);
   const [loadingCustomerRedemptions, setLoadingCustomerRedemptions] = useState(false);
   const [approvingRedemptionId, setApprovingRedemptionId] = useState<string | null>(null);
+  const [customerBonuses, setCustomerBonuses] = useState<Awaited<ReturnType<typeof getAdminCustomerBonuses>>>([]);
+  const [loadingCustomerBonuses, setLoadingCustomerBonuses] = useState(false);
   const [coinsConfig, setCoinsConfig] = useState<Awaited<ReturnType<typeof getCoinsConfig>>>([]);
   const [loadingCoinsConfig, setLoadingCoinsConfig] = useState(false);
   const [savingCoinsConfig, setSavingCoinsConfig] = useState(false);
@@ -360,6 +363,18 @@ export default function Admin() {
     const list = await getCoinsConfig();
     setCoinsConfig(list);
     setLoadingCoinsConfig(false);
+  };
+
+  const loadCustomerBonuses = async () => {
+    setLoadingCustomerBonuses(true);
+    try {
+      const list = await getAdminCustomerBonuses(300);
+      setCustomerBonuses(list);
+    } catch {
+      setCustomerBonuses([]);
+    } finally {
+      setLoadingCustomerBonuses(false);
+    }
   };
 
   const loadVendorWalletSettings = async () => {
@@ -584,6 +599,7 @@ export default function Admin() {
       loadAdPlacements();
       loadOndc();
       loadCustomerRedemptions();
+      loadCustomerBonuses();
       loadCoinsConfig();
       loadVendorWalletSettings();
       loadRiders();
@@ -1112,6 +1128,9 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="customerRedemptions" className="flex items-center gap-2">
             <CreditCard size={16} /> Cx Redemptions
+          </TabsTrigger>
+          <TabsTrigger value="customerBonuses" className="flex items-center gap-2">
+            <Gift size={16} /> Cx Bonus
           </TabsTrigger>
           <TabsTrigger value="coinsConfig" className="flex items-center gap-2">
             <Coins size={16} /> Coins
@@ -1790,6 +1809,70 @@ export default function Admin() {
               </div>
               {customerRedemptions.length === 0 && (
                 <p className="p-6 text-center text-muted-foreground">No customer redemptions yet.</p>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="customerBonuses" className="space-y-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={loadCustomerBonuses} disabled={loadingCustomerBonuses}>
+              <RefreshCw size={14} className={loadingCustomerBonuses ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">Customer signup bonus status (₹55 credit, ₹5 × 11 uses, valid 30 days).</p>
+          {loadingCustomerBonuses ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[55vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Customer</th>
+                      <th className="text-right p-3 font-semibold">Balance</th>
+                      <th className="text-right p-3 font-semibold">Bonus left</th>
+                      <th className="text-left p-3 font-semibold">Credited</th>
+                      <th className="text-left p-3 font-semibold">Valid till</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerBonuses.map((r) => {
+                      const creditedAt = r.signup_bonus_credited_at ? new Date(r.signup_bonus_credited_at) : null;
+                      const expiresAt = creditedAt ? new Date(creditedAt.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
+                      const active = !!expiresAt && expiresAt > new Date() && r.bonus_remaining > 0;
+                      return (
+                        <tr key={r.customer_id} className="border-t border-border">
+                          <td className="p-3">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{r.customer_phone ?? r.customer_id}</span>
+                              {r.customer_name ? <span className="text-xs text-muted-foreground">{r.customer_name}</span> : null}
+                            </div>
+                          </td>
+                          <td className="p-3 text-right">₹{Number(r.balance).toFixed(0)}</td>
+                          <td className="p-3 text-right">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${active ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-muted text-muted-foreground"}`}>
+                              {Number(r.bonus_remaining)}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {r.signup_bonus_credited ? (
+                              <span className="text-green-700 dark:text-green-300 font-semibold">Yes</span>
+                            ) : (
+                              <span className="text-muted-foreground">No</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-muted-foreground">
+                            {expiresAt ? expiresAt.toLocaleDateString() : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {customerBonuses.length === 0 && (
+                <p className="p-6 text-center text-muted-foreground">No wallet rows found.</p>
               )}
             </div>
           )}

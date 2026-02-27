@@ -12,7 +12,15 @@ import { isShopOpen, formatTimeForDisplay, type ShopDetails } from "@/lib/shopDe
 import { useCustomerAuth } from "@/contexts/CustomerAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { toggleFavorite, appendOrderToHistory } from "@/lib/customer";
-import { getWalletBalance, awardCoinsForOrder, debitWalletForOrder, getCoinsPerPayment } from "@/lib/wallet";
+import {
+  getWalletBalance,
+  awardCoinsForOrder,
+  debitWalletForOrder,
+  getCoinsPerPayment,
+  ensureCustomerSignupBonus,
+  getCustomerSignupBonusStatus,
+  applyCustomerSignupBonusForOrder,
+} from "@/lib/wallet";
 import { createCcaOrder, redirectToCcavenue, isCcavenueConfigured } from "@/lib/ccavenue";
 import { toast } from "sonner";
 
@@ -60,6 +68,9 @@ export default function PublicMenu() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [useWalletAmount, setUseWalletAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"online" | "at_dukaan">("online");
+  const [bonusRemaining, setBonusRemaining] = useState(0);
+  const [bonusExpiresAt, setBonusExpiresAt] = useState<string | null>(null);
+  const [useSignupBonus, setUseSignupBonus] = useState(false);
 
   useEffect(() => {
     if (!vendorId) {
@@ -110,7 +121,21 @@ export default function PublicMenu() {
 
   useEffect(() => {
     if (!customer?.id) return;
-    getWalletBalance(customer.id).then(setWalletBalance);
+    (async () => {
+      try {
+        // Ensure bonus is credited once (idempotent), then refresh wallet + bonus meta.
+        await ensureCustomerSignupBonus(customer.id);
+      } catch {
+        /* ignore */
+      }
+      const [bal, bonus] = await Promise.all([
+        getWalletBalance(customer.id),
+        getCustomerSignupBonusStatus(customer.id),
+      ]);
+      setWalletBalance(bal);
+      setBonusRemaining(bonus.bonus_remaining);
+      setBonusExpiresAt(bonus.expires_at);
+    })();
   }, [customer?.id]);
 
   const handleToggleFavorite = async (itemId: string) => {
@@ -150,13 +175,29 @@ export default function PublicMenu() {
   };
 
   const { total } = cartTotals(cart);
-  const walletToUse = Math.min(useWalletAmount, walletBalance, total);
-  const payAtDukaan = Math.max(0, total - walletToUse);
+  const bonusValid = isCustomer && bonusRemaining > 0 && !!bonusExpiresAt && new Date(bonusExpiresAt) > new Date();
+  const bonusEligible = bonusValid && total >= 55 && walletBalance >= 5;
+  const bonusToUse = isCustomer && useSignupBonus && bonusEligible ? 5 : 0;
+  const maxWalletUsable = Math.max(0, total - bonusToUse);
+  const walletToUse = Math.min(useWalletAmount, walletBalance, maxWalletUsable);
+  const payAtDukaan = Math.max(0, total - bonusToUse - walletToUse);
+
+  useEffect(() => {
+    setUseWalletAmount((prev) => Math.min(prev, walletBalance, maxWalletUsable));
+  }, [walletBalance, maxWalletUsable]);
+
+  useEffect(() => {
+    if (!bonusEligible) setUseSignupBonus(false);
+  }, [bonusEligible]);
 
   const handlePayOnline = async () => {
     if (!vendorId || cart.length === 0 || !canOrder) return;
     if (customer && walletToUse > walletBalance) {
       toast.error("Insufficient wallet balance");
+      return;
+    }
+    if (customer && bonusToUse > 0 && !bonusEligible) {
+      toast.error("Signup bonus is not eligible for this order");
       return;
     }
     setPlacing(true);
@@ -178,13 +219,25 @@ export default function PublicMenu() {
         customer_id: customer?.id ?? null,
         delivery_option: deliveryOption,
         delivery_address: deliveryOption === "self_delivery" && deliveryAddress.trim() ? deliveryAddress.trim() : null,
-        wallet_used: walletToUse,
+        wallet_used: walletToUse + bonusToUse,
         coins_awarded: 0,
         rider_id: riderId,
       });
       if (!result.ok || !result.id) {
         toast.error(result.error ?? "Failed");
         return;
+      }
+      if (customer && bonusToUse > 0) {
+        const bonusRes = await applyCustomerSignupBonusForOrder(result.id);
+        if (!bonusRes.ok) {
+          toast.error(bonusRes.error ?? "Could not apply signup bonus");
+          setPlacing(false);
+          return;
+        }
+        if (bonusRes.used) {
+          setBonusRemaining(bonusRes.bonus_remaining ?? Math.max(0, bonusRemaining - 1));
+          toast.success("₹5 Signup Bonus applied");
+        }
       }
       if (customer && walletToUse > 0) {
         const debitRes = await debitWalletForOrder(customer.id, result.id, walletToUse);
@@ -246,6 +299,7 @@ export default function PublicMenu() {
       setOrderPlaced(true);
       setCart([]);
       setUseWalletAmount(0);
+      setUseSignupBonus(false);
     } catch {
       toast.error("Failed to place order");
     } finally {
@@ -395,12 +449,39 @@ export default function PublicMenu() {
         )}
       </div>
       {isCustomer && walletBalance > 0 && (
-        <div className="mb-4 p-4 rounded-xl border border-primary/20 bg-primary/5">
+        <div className="mb-4 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+          {bonusValid && (
+            <label className={`flex items-start gap-3 cursor-pointer ${bonusEligible ? "" : "opacity-60"}`}>
+              <input
+                type="checkbox"
+                checked={useSignupBonus}
+                disabled={!bonusEligible}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setUseSignupBonus(next);
+                  if (next) {
+                    const nextMax = Math.max(0, total - 5);
+                    setUseWalletAmount((prev) => Math.min(prev, nextMax, walletBalance));
+                  }
+                }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-[#B8860B]">Use ₹5 Signup Bonus?</span>
+                  <span className="text-xs text-muted-foreground">{bonusRemaining} left</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Eligible on orders ≥ ₹55 · Valid till{" "}
+                  {bonusExpiresAt ? new Date(bonusExpiresAt).toLocaleDateString() : "—"}
+                </p>
+              </div>
+            </label>
+          )}
           <label className="flex items-center gap-2 cursor-pointer mb-2">
             <input
               type="checkbox"
               checked={useWalletAmount > 0}
-              onChange={(e) => setUseWalletAmount(e.target.checked ? Math.min(walletBalance, total) : 0)}
+              onChange={(e) => setUseWalletAmount(e.target.checked ? Math.min(walletBalance, maxWalletUsable) : 0)}
             />
             <span className="text-sm font-medium">{t("useWallet")}</span>
             <span className="text-sm text-muted-foreground">({t("walletAvailable").replace("{amount}", walletBalance.toFixed(0))})</span>
@@ -410,7 +491,7 @@ export default function PublicMenu() {
               <input
                 type="range"
                 min={0}
-                max={Math.min(walletBalance, total)}
+                max={Math.min(walletBalance, maxWalletUsable)}
                 step={1}
                 value={useWalletAmount}
                 onChange={(e) => setUseWalletAmount(Number(e.target.value))}
@@ -573,10 +654,14 @@ export default function PublicMenu() {
                 <div className="lg:sticky lg:top-24 space-y-4 rounded-xl border border-border bg-card p-5">
                   <h3 className="font-semibold text-lg">Your order</h3>
                   <p className="text-xs text-muted-foreground">{t("gstNote")}</p>
-                  {walletToUse > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span>Total</span>
-                      <span>₹{total.toFixed(0)}</span>
+                  <div className="flex justify-between text-sm">
+                    <span>Total</span>
+                    <span>₹{total.toFixed(0)}</span>
+                  </div>
+                  {bonusToUse > 0 && (
+                    <div className="flex justify-between text-sm text-[#B8860B]">
+                      <span>Signup Bonus</span>
+                      <span>-₹{bonusToUse.toFixed(0)}</span>
                     </div>
                   )}
                   {walletToUse > 0 && (

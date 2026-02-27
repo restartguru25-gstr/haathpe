@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label";
 import { MPINInput } from "@/components/ui/mpin-input";
 import { sendCustomerOtp, verifyCustomerOtp } from "@/lib/customer";
 import { setMpinAfterOtp, signInWithMpin } from "@/lib/mpin";
+import SignupBonusOverlay from "@/components/SignupBonusOverlay";
+import { ensureCustomerSignupBonus } from "@/lib/wallet";
+import { supabase } from "@/lib/supabase";
 import { useApp } from "@/contexts/AppContext";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
 import { toast } from "sonner";
@@ -31,6 +34,9 @@ export default function CustomerLogin() {
   const [mpinConfirm, setMpinConfirm] = useState("");
   const [step, setStep] = useState<"choice" | "phone" | "otp" | "mpin-create" | "mpin-signin">("choice");
   const [loading, setLoading] = useState(false);
+  const [showSignupBonus, setShowSignupBonus] = useState(false);
+  const [signupBonusAmount, setSignupBonusAmount] = useState(55);
+  const [pendingNavigateTo, setPendingNavigateTo] = useState<string | null>(null);
 
   const handlePhoneChange = (value: string) => {
     let v = value.replace(/\D/g, "");
@@ -99,6 +105,23 @@ export default function CustomerLogin() {
       const result = await setMpinAfterOtp(digits, phone);
       if (result.ok) {
         toast.success(t("mpinSetSuccess"));
+        try {
+          // Credit signup bonus once (idempotent); MPIN flow means the user is now authenticated.
+          const { data: authData } = await supabase.auth.getUser();
+          const userId = authData.user?.id;
+          if (userId) {
+            const bonusRes = await ensureCustomerSignupBonus(userId);
+            if (bonusRes.ok && bonusRes.credited) {
+              setSignupBonusAmount(bonusRes.amount ?? 55);
+              setShowSignupBonus(true);
+              setPendingNavigateTo(returnTo);
+              toast.success("Welcome! ₹55 Signup Bonus added to your wallet");
+              return;
+            }
+          }
+        } catch {
+          /* ignore bonus issues */
+        }
         navigate(returnTo, { replace: true });
       } else {
         toast.error(result.error ?? t("customerLoginError"));
@@ -127,6 +150,22 @@ export default function CustomerLogin() {
       const result = await signInWithMpin(full, mpinDigits);
       if (result.ok) {
         toast.success(t("customerLoginSuccess"));
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          const userId = authData.user?.id;
+          if (userId) {
+            const bonusRes = await ensureCustomerSignupBonus(userId);
+            if (bonusRes.ok && bonusRes.credited) {
+              setSignupBonusAmount(bonusRes.amount ?? 55);
+              setShowSignupBonus(true);
+              setPendingNavigateTo(returnTo);
+              toast.success("Welcome! ₹55 Signup Bonus added to your wallet");
+              return;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
         navigate(returnTo, { replace: true });
       } else {
         toast.error(t("mpinInvalid"));
@@ -140,6 +179,18 @@ export default function CustomerLogin() {
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
+      {showSignupBonus && (
+        <SignupBonusOverlay
+          amount={signupBonusAmount}
+          onComplete={() => {
+            setShowSignupBonus(false);
+            if (pendingNavigateTo) {
+              navigate(pendingNavigateTo, { replace: true });
+              setPendingNavigateTo(null);
+            }
+          }}
+        />
+      )}
       <header className="sticky top-0 z-50 flex h-14 items-center border-b border-border/50 bg-background/95 backdrop-blur-md px-4">
         <BackButton fallbackTo={returnTo} />
       </header>

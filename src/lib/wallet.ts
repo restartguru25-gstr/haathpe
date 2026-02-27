@@ -11,9 +11,17 @@ export interface WalletTransaction {
   type: "credit" | "debit" | "redemption";
   amount: number;
   coins?: number;
+  is_bonus?: boolean;
   description: string | null;
   order_id: string | null;
   created_at: string;
+}
+
+export interface SignupBonusStatus {
+  credited: boolean;
+  credited_at: string | null;
+  expires_at: string | null;
+  bonus_remaining: number;
 }
 
 export interface Redemption {
@@ -51,6 +59,84 @@ export async function getWalletBalanceAndCoins(customerId: string): Promise<{ ba
   return {
     balance: row?.balance != null ? Number(row.balance) : 0,
     coins: row?.coins != null ? Number(row.coins) : 0,
+  };
+}
+
+/** Ensure signup bonus is credited (idempotent). Returns status + whether it was newly credited. */
+export async function ensureCustomerSignupBonus(customerId: string): Promise<{
+  ok: boolean;
+  credited?: boolean;
+  amount?: number;
+  balance?: number;
+  bonus_remaining?: number;
+  credited_at?: string | null;
+  expires_at?: string | null;
+  error?: string;
+}> {
+  const { data, error } = await supabase.rpc("ensure_customer_signup_bonus", { p_customer_id: customerId });
+  if (error) return { ok: false, error: error.message };
+  const res = data as
+    | {
+        ok?: boolean;
+        credited?: boolean;
+        amount?: number;
+        balance?: number;
+        bonus_remaining?: number;
+        credited_at?: string | null;
+        expires_at?: string | null;
+        error?: string;
+      }
+    | null;
+  if (!res?.ok) return { ok: false, error: res?.error ?? "Failed" };
+  return {
+    ok: true,
+    credited: !!res.credited,
+    amount: res.amount != null ? Number(res.amount) : undefined,
+    balance: res.balance != null ? Number(res.balance) : undefined,
+    bonus_remaining: res.bonus_remaining != null ? Number(res.bonus_remaining) : undefined,
+    credited_at: res.credited_at ?? null,
+    expires_at: res.expires_at ?? null,
+  };
+}
+
+/** Read signup bonus fields from wallet (best-effort; requires SELECT on own wallet). */
+export async function getCustomerSignupBonusStatus(customerId: string): Promise<SignupBonusStatus> {
+  const { data, error } = await supabase
+    .from("customer_wallets")
+    .select("signup_bonus_credited, signup_bonus_credited_at, bonus_remaining")
+    .eq("customer_id", customerId)
+    .maybeSingle();
+  if (error || !data) {
+    return { credited: false, credited_at: null, expires_at: null, bonus_remaining: 0 };
+  }
+  const credited = !!(data as { signup_bonus_credited?: boolean }).signup_bonus_credited;
+  const credited_at = (data as { signup_bonus_credited_at?: string | null }).signup_bonus_credited_at ?? null;
+  const bonus_remaining = Number((data as { bonus_remaining?: number }).bonus_remaining ?? 0);
+  const expires_at = credited_at ? new Date(new Date(credited_at).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+  return { credited, credited_at, expires_at, bonus_remaining };
+}
+
+/** Use ₹5 signup bonus for an order (server enforces eligibility + 30-day validity + remaining uses). */
+export async function applyCustomerSignupBonusForOrder(orderId: string): Promise<{
+  ok: boolean;
+  used?: boolean;
+  balance?: number;
+  bonus_remaining?: number;
+  expires_at?: string | null;
+  error?: string;
+}> {
+  const { data, error } = await supabase.rpc("use_customer_signup_bonus_for_order", { p_order_id: orderId });
+  if (error) return { ok: false, error: error.message };
+  const res = data as
+    | { ok?: boolean; used?: boolean; balance?: number; bonus_remaining?: number; expires_at?: string | null; error?: string }
+    | null;
+  if (!res?.ok) return { ok: false, error: res?.error ?? "Failed" };
+  return {
+    ok: true,
+    used: !!res.used,
+    balance: res.balance != null ? Number(res.balance) : undefined,
+    bonus_remaining: res.bonus_remaining != null ? Number(res.bonus_remaining) : undefined,
+    expires_at: res.expires_at ?? null,
   };
 }
 
@@ -222,4 +308,51 @@ export async function updateCoinsConfig(
     .update(payload)
     .eq("scenario", scenario);
   return { ok: !error };
+}
+
+export async function getAdminCustomerBonuses(limit = 200): Promise<
+  {
+    customer_id: string;
+    customer_phone?: string;
+    customer_name?: string | null;
+    balance: number;
+    coins: number;
+    signup_bonus_credited: boolean;
+    signup_bonus_credited_at: string | null;
+    bonus_remaining: number;
+  }[]
+> {
+  const { data, error } = await supabase
+    .from("customer_wallets")
+    .select("customer_id, balance, coins, signup_bonus_credited, signup_bonus_credited_at, bonus_remaining, updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  const list = (data ?? []) as {
+    customer_id: string;
+    balance: number;
+    coins: number;
+    signup_bonus_credited: boolean;
+    signup_bonus_credited_at: string | null;
+    bonus_remaining: number;
+  }[];
+  const ids = [...new Set(list.map((r) => r.customer_id))];
+  const { data: profiles } = await supabase
+    .from("customer_profiles")
+    .select("id, phone, name")
+    .in("id", ids);
+  const phoneMap: Record<string, { phone?: string; name?: string | null }> = {};
+  (profiles ?? []).forEach((p: { id: string; phone: string; name?: string | null }) => {
+    phoneMap[p.id] = { phone: p.phone, name: p.name ?? null };
+  });
+  return list.map((r) => ({
+    ...r,
+    balance: Number(r.balance ?? 0),
+    coins: Number(r.coins ?? 0),
+    bonus_remaining: Number(r.bonus_remaining ?? 0),
+    signup_bonus_credited: !!r.signup_bonus_credited,
+    signup_bonus_credited_at: r.signup_bonus_credited_at ?? null,
+    customer_phone: phoneMap[r.customer_id]?.phone,
+    customer_name: phoneMap[r.customer_id]?.name ?? null,
+  }));
 }
