@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bolt, ArrowLeft, RefreshCw, Loader2, CheckCircle2, XCircle, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/AuthContext";
@@ -42,6 +43,7 @@ export default function VendorPayouts() {
   const [balance, setBalance] = useState(0);
   const [requests, setRequests] = useState<VendorInstantPayoutRequest[]>([]);
   const [requesting, setRequesting] = useState(false);
+  const [amountStr, setAmountStr] = useState<string>("0");
 
   const [cycleTick, setCycleTick] = useState(0);
   useEffect(() => {
@@ -75,6 +77,14 @@ export default function VendorPayouts() {
   }, [vendorId]);
 
   useEffect(() => {
+    setAmountStr((prev) => {
+      const n = Number(prev);
+      if (!Number.isFinite(n) || n <= 0) return balance > 0 ? String(Math.floor(balance)) : "0";
+      return String(Math.min(n, balance));
+    });
+  }, [balance]);
+
+  useEffect(() => {
     if (!vendorId) return;
     const channel = supabase
       .channel(`vendor_instant_payouts_${vendorId}`)
@@ -98,7 +108,10 @@ export default function VendorPayouts() {
     };
   }, [vendorId]);
 
-  const canRequest = liveCycle.enabled && balance > 0;
+  const pendingExists = requests.some((r) => r.status === "pending");
+  const amount = Number(amountStr);
+  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= balance;
+  const canRequest = liveCycle.enabled && balance > 0 && validAmount && !pendingExists;
 
   const handleRequest = async () => {
     if (!vendorId) return;
@@ -110,9 +123,17 @@ export default function VendorPayouts() {
       toast.info("No balance available for instant payout");
       return;
     }
+    if (!validAmount) {
+      toast.error("Enter a valid amount (≤ wallet balance)");
+      return;
+    }
+    if (pendingExists) {
+      toast.info("You already have a pending instant payout request");
+      return;
+    }
     setRequesting(true);
     try {
-      const res = await requestVendorInstantPayout(vendorId);
+      const res = await requestVendorInstantPayout(vendorId, amount);
       if (res.ok) {
         toast.success("Instant payout requested – funds will be settled in next cycle");
         await load({ silent: true });
@@ -172,6 +193,55 @@ export default function VendorPayouts() {
             <div className="relative">
               <p className="text-sm text-white/80">Available to settle instantly</p>
               <p className="mt-1 text-4xl font-extrabold tracking-tight">₹{balance.toFixed(2)}</p>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+                <div>
+                  <p className="text-sm text-white/85 mb-1">Enter amount</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 backdrop-blur px-3 h-11 flex-1">
+                      <span className="text-white/80 font-semibold">₹</span>
+                      <Input
+                        value={amountStr}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/[^\d.]/g, "");
+                          setAmountStr(v);
+                        }}
+                        inputMode="decimal"
+                        className="border-0 bg-transparent text-white placeholder:text-white/50 focus-visible:ring-0 p-0 h-auto"
+                        placeholder="0"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 border-white/25 bg-white/10 text-white hover:bg-white/15"
+                      onClick={() => setAmountStr(String(Math.floor(balance)))}
+                      disabled={balance <= 0}
+                    >
+                      Max
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                      {[25, 50, 75].map((p) => (
+                      <Button
+                        key={p}
+                        type="button"
+                        variant="outline"
+                        className="h-8 px-3 text-xs border-white/25 bg-white/10 text-white hover:bg-white/15"
+                        onClick={() => setAmountStr(String(Math.max(1, Math.round((balance * p) / 100))))}
+                        disabled={balance <= 0}
+                      >
+                        {p}%
+                      </Button>
+                    ))}
+                  </div>
+                  {!validAmount && balance > 0 && (
+                    <p className="mt-2 text-xs text-white/75">Amount must be between ₹1 and ₹{balance.toFixed(0)}.</p>
+                  )}
+                  {pendingExists && (
+                    <p className="mt-2 text-xs text-white/75">You already have a pending request. Wait for admin approval.</p>
+                  )}
+                </div>
+              </div>
               <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="text-sm text-white/85">
                   {liveCycle.enabled ? (

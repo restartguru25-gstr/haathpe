@@ -171,10 +171,14 @@ export async function requestVendorWithdrawal(
 }
 
 export async function requestVendorInstantPayout(
-  vendorId: string
+  vendorId: string,
+  amount?: number
 ): Promise<{ ok: boolean; requestId?: string; amount?: number; nextCycleAt?: string; error?: string }> {
   try {
-    const { data, error } = await supabase.rpc("request_vendor_instant_payout", { p_vendor_id: vendorId });
+    const useAmount = typeof amount === "number" && Number.isFinite(amount) && amount > 0;
+    const { data, error } = useAmount
+      ? await supabase.rpc("request_vendor_instant_payout_amount", { p_vendor_id: vendorId, p_amount: amount })
+      : await supabase.rpc("request_vendor_instant_payout", { p_vendor_id: vendorId });
     if (error) return { ok: false, error: error.message };
     const res = data as { ok?: boolean; request_id?: string; amount?: number; next_cycle_at?: string; error?: string } | null;
     if (!res?.ok) return { ok: false, error: res?.error ?? "Failed" };
