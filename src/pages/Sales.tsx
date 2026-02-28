@@ -47,6 +47,7 @@ import { createPremiumCheckout, isPremiumCheckoutConfigured } from "@/lib/premiu
 import { isShopOpen } from "@/lib/shopDetails";
 import { Clock } from "lucide-react";
 import VendorCashWalletSection from "@/components/VendorCashWalletSection";
+import { getVendorWallet } from "@/lib/vendorCashWallet";
 
 export default function Sales() {
   const { t } = useApp();
@@ -94,6 +95,7 @@ export default function Sales() {
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
   const [ondcOrders, setOndcOrders] = useState<OndcOrder[]>([]);
   const [upgrading, setUpgrading] = useState(false);
+  const [eligibleReceiptBalance, setEligibleReceiptBalance] = useState(0);
   const sectorId = getSectorIdFromStallType(profile?.stallType ?? null);
   const isPremium = profile?.premiumTier === "premium";
 
@@ -129,6 +131,13 @@ export default function Sales() {
     };
     load();
   }, [vendorId, profile?.stallType]);
+
+  useEffect(() => {
+    if (!vendorId) return;
+    getVendorWallet(vendorId).then((w) => {
+      setEligibleReceiptBalance(Number((w as { eligible_receipt_balance?: number })?.eligible_receipt_balance ?? 0));
+    }).catch(() => {});
+  }, [vendorId]);
 
   useEffect(() => {
     if (!vendorId) return;
@@ -211,6 +220,15 @@ export default function Sales() {
           } catch (e) {
             if ((e as Error)?.name !== "AbortError") console.error(e);
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "vendor_cash_wallets", filter: `vendor_id=eq.${vendorId}` },
+        () => {
+          getVendorWallet(vendorId).then((w) => {
+            setEligibleReceiptBalance(Number((w as { eligible_receipt_balance?: number })?.eligible_receipt_balance ?? 0));
+          }).catch(() => {});
         }
       )
       .subscribe();
@@ -411,28 +429,31 @@ export default function Sales() {
           <VendorCashWalletSection vendorId={vendorId} />
         </div>
 
-        {/* Earnings: Instant Funds entry (not beside wallet balance) */}
-        <div className="mb-6 rounded-xl border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 font-semibold">
-                <Bolt size={18} className="text-[#F97316]" />
-                <span>Instant Funds</span>
+        {/* Earnings: Instant Funds – only when eligible (customer payment receipts) */}
+        {eligibleReceiptBalance > 0 && (
+          <div className="mb-6 rounded-xl border border-border bg-card p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 font-semibold">
+                  <Bolt size={18} className="text-[#F97316]" />
+                  <span>Instant Funds</span>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground" title={`Instant transfer available only for customer payments received (₹${eligibleReceiptBalance.toFixed(0)} eligible)`}>
+                  Instant transfer available only for customer payments received (₹{eligibleReceiptBalance.toFixed(0)} eligible).
+                </p>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Request immediate settlement of your cash wallet balance. Settled in the next cycle.
-              </p>
+              <Link to="/vendor/payouts">
+                <Button
+                  size="sm"
+                  className="shrink-0 bg-gradient-to-r from-[#F97316] to-[#FFD700] hover:from-[#FB923C] hover:to-[#FFE08A] text-white font-semibold shadow"
+                  title={eligibleReceiptBalance >= 1 ? "Get funds instantly now" : "Min ₹1 eligible required"}
+                >
+                  ⚡ Instant Funds
+                </Button>
+              </Link>
             </div>
-            <Link to="/vendor/payouts">
-              <Button
-                size="sm"
-                className="shrink-0 bg-gradient-to-r from-[#F97316] to-[#FFD700] hover:from-[#FB923C] hover:to-[#FFE08A] text-white font-semibold shadow"
-              >
-                ⚡ Instant Funds
-              </Button>
-            </Link>
           </div>
-        </div>
+        )}
 
         {!isPremium && (
           <div className="mb-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">

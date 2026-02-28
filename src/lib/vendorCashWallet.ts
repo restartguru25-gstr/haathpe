@@ -9,6 +9,8 @@ export interface VendorCashWallet {
   id: string;
   vendor_id: string;
   balance: number;
+  /** Only customer payment receipts (after platform fee); eligible for instant transfer. */
+  eligible_receipt_balance?: number;
   updated_at: string;
 }
 
@@ -238,5 +240,29 @@ export async function adminDecideInstantPayoutRequest(
     return { ok: true, status: res.status };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export interface VendorWalletBreakdownRow {
+  vendor_id: string;
+  balance: number;
+  eligible_receipt_balance: number;
+}
+
+/** Admin: fetch all vendor wallets (balance + eligible_receipt_balance) for breakdown. */
+export async function getAdminVendorWalletBreakdown(): Promise<VendorWalletBreakdownRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from("vendor_cash_wallets")
+      .select("vendor_id, balance, eligible_receipt_balance")
+      .order("balance", { ascending: false });
+    if (error) return [];
+    return (data ?? []).map((r) => ({
+      vendor_id: r.vendor_id,
+      balance: Number(r.balance ?? 0),
+      eligible_receipt_balance: Number((r as { eligible_receipt_balance?: number }).eligible_receipt_balance ?? 0),
+    }));
+  } catch {
+    return [];
   }
 }

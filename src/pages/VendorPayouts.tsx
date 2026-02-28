@@ -41,6 +41,7 @@ export default function VendorPayouts() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [balance, setBalance] = useState(0);
+  const [eligibleReceiptBalance, setEligibleReceiptBalance] = useState(0);
   const [requests, setRequests] = useState<VendorInstantPayoutRequest[]>([]);
   const [requesting, setRequesting] = useState(false);
   const [amountStr, setAmountStr] = useState<string>("0");
@@ -64,6 +65,7 @@ export default function VendorPayouts() {
         getVendorInstantPayoutRequests(vendorId, 10),
       ]);
       setBalance(Number(w?.balance ?? 0));
+      setEligibleReceiptBalance(Number((w as { eligible_receipt_balance?: number })?.eligible_receipt_balance ?? 0));
       setRequests(r);
     } finally {
       if (!opts?.silent) setLoading(false);
@@ -77,12 +79,13 @@ export default function VendorPayouts() {
   }, [vendorId]);
 
   useEffect(() => {
+    const cap = eligibleReceiptBalance;
     setAmountStr((prev) => {
       const n = Number(prev);
-      if (!Number.isFinite(n) || n <= 0) return balance > 0 ? String(Math.floor(balance)) : "0";
-      return String(Math.min(n, balance));
+      if (!Number.isFinite(n) || n <= 0) return cap > 0 ? String(Math.floor(cap)) : "0";
+      return String(Math.min(n, cap));
     });
-  }, [balance]);
+  }, [eligibleReceiptBalance]);
 
   useEffect(() => {
     if (!vendorId) return;
@@ -92,7 +95,10 @@ export default function VendorPayouts() {
         "postgres_changes",
         { event: "*", schema: "public", table: "vendor_cash_wallets", filter: `vendor_id=eq.${vendorId}` },
         () => {
-          getVendorWallet(vendorId).then((w) => setBalance(Number(w?.balance ?? 0))).catch(() => {});
+          getVendorWallet(vendorId).then((w) => {
+            setBalance(Number(w?.balance ?? 0));
+            setEligibleReceiptBalance(Number((w as { eligible_receipt_balance?: number })?.eligible_receipt_balance ?? 0));
+          }).catch(() => {});
         }
       )
       .on(
@@ -110,8 +116,8 @@ export default function VendorPayouts() {
 
   const pendingExists = requests.some((r) => r.status === "pending");
   const amount = Number(amountStr);
-  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= balance;
-  const canRequest = liveCycle.enabled && balance > 0 && validAmount && !pendingExists;
+  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= eligibleReceiptBalance;
+  const canRequest = liveCycle.enabled && eligibleReceiptBalance >= 1 && validAmount && !pendingExists;
 
   const handleRequest = async () => {
     if (!vendorId) return;
@@ -119,12 +125,12 @@ export default function VendorPayouts() {
       toast.info(`Next cycle at ${liveCycle.nextCycleLabel}`);
       return;
     }
-    if (balance <= 0) {
-      toast.info("No balance available for instant payout");
+    if (eligibleReceiptBalance < 1) {
+      toast.info("No eligible receipt balance for instant transfer (min ₹1)");
       return;
     }
     if (!validAmount) {
-      toast.error("Enter a valid amount (≤ wallet balance)");
+      toast.error("Enter a valid amount (≤ eligible receipt balance ₹" + eligibleReceiptBalance.toFixed(0) + ")");
       return;
     }
     if (pendingExists) {
@@ -191,11 +197,14 @@ export default function VendorPayouts() {
           <div className="rounded-3xl border border-white/30 bg-gradient-to-br from-[#111827] via-[#1E40AF] to-[#F97316] p-6 text-white shadow-xl overflow-hidden relative">
             <div className="absolute inset-0 bg-[radial-gradient(1000px_circle_at_20%_10%,rgba(255,215,0,0.18),transparent_55%),radial-gradient(800px_circle_at_80%_30%,rgba(249,115,22,0.22),transparent_55%)]" />
             <div className="relative">
-              <p className="text-sm text-white/80">Available to settle instantly</p>
-              <p className="mt-1 text-4xl font-extrabold tracking-tight">₹{balance.toFixed(2)}</p>
+              <p className="text-sm text-white/80">Eligible for instant transfer (customer payments only)</p>
+              <p className="mt-1 text-4xl font-extrabold tracking-tight">₹{eligibleReceiptBalance.toFixed(2)}</p>
+              {balance > eligibleReceiptBalance && (
+                <p className="mt-1 text-xs text-white/70">Total wallet balance: ₹{balance.toFixed(2)} (bonuses require normal withdrawal)</p>
+              )}
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
                 <div>
-                  <p className="text-sm text-white/85 mb-1">Enter amount</p>
+                  <p className="text-sm text-white/85 mb-1">Enter amount (max ₹{eligibleReceiptBalance.toFixed(0)} eligible)</p>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 backdrop-blur px-3 h-11 flex-1">
                       <span className="text-white/80 font-semibold">₹</span>
@@ -214,8 +223,8 @@ export default function VendorPayouts() {
                       type="button"
                       variant="outline"
                       className="h-11 border-white/25 bg-white/10 text-white hover:bg-white/15"
-                      onClick={() => setAmountStr(String(Math.floor(balance)))}
-                      disabled={balance <= 0}
+                      onClick={() => setAmountStr(String(Math.floor(eligibleReceiptBalance)))}
+                      disabled={eligibleReceiptBalance <= 0}
                     >
                       Max
                     </Button>
@@ -227,15 +236,15 @@ export default function VendorPayouts() {
                         type="button"
                         variant="outline"
                         className="h-8 px-3 text-xs border-white/25 bg-white/10 text-white hover:bg-white/15"
-                        onClick={() => setAmountStr(String(Math.max(1, Math.round((balance * p) / 100))))}
-                        disabled={balance <= 0}
+                        onClick={() => setAmountStr(String(Math.max(1, Math.round((eligibleReceiptBalance * p) / 100))))}
+                        disabled={eligibleReceiptBalance <= 0}
                       >
                         {p}%
                       </Button>
                     ))}
                   </div>
-                  {!validAmount && balance > 0 && (
-                    <p className="mt-2 text-xs text-white/75">Amount must be between ₹1 and ₹{balance.toFixed(0)}.</p>
+                  {!validAmount && eligibleReceiptBalance > 0 && (
+                    <p className="mt-2 text-xs text-white/75">Amount must be between ₹1 and ₹{eligibleReceiptBalance.toFixed(0)} (eligible only).</p>
                   )}
                   {pendingExists && (
                     <p className="mt-2 text-xs text-white/75">You already have a pending request. Wait for admin approval.</p>

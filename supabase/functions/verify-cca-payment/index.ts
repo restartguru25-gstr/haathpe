@@ -126,6 +126,7 @@ serve(async (req) => {
             })
             .eq("id", orderId);
           await supabase.rpc("award_coins_for_paid_order", { p_order_id: orderId });
+          await supabase.rpc("credit_vendor_receipt_from_order", { p_order_id: orderId });
         }
 
         const location = buildRedirectUrl(returnTo, {

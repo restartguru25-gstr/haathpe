@@ -122,7 +122,9 @@ import {
 import {
   getAdminInstantPayoutRequests,
   adminDecideInstantPayoutRequest,
+  getAdminVendorWalletBreakdown,
   type VendorInstantPayoutRequest,
+  type VendorWalletBreakdownRow,
 } from "@/lib/vendorCashWallet";
 import {
   getAdminRiders,
@@ -274,6 +276,7 @@ export default function Admin() {
   const [loadingRiderSettings, setLoadingRiderSettings] = useState(false);
   const [riderPayoutRunning, setRiderPayoutRunning] = useState(false);
   const [instantPayouts, setInstantPayouts] = useState<VendorInstantPayoutRequest[]>([]);
+  const [walletBreakdown, setWalletBreakdown] = useState<VendorWalletBreakdownRow[]>([]);
   const [loadingInstantPayouts, setLoadingInstantPayouts] = useState(false);
   const [processingInstantPayoutId, setProcessingInstantPayoutId] = useState<string | null>(null);
   const [productForm, setProductForm] = useState({
@@ -608,6 +611,15 @@ export default function Admin() {
     }
   };
 
+  const loadWalletBreakdown = async () => {
+    try {
+      const rows = await getAdminVendorWalletBreakdown();
+      setWalletBreakdown(rows);
+    } catch {
+      setWalletBreakdown([]);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       loadVendors();
@@ -626,6 +638,7 @@ export default function Admin() {
       loadRiders();
       loadRiderSettings();
       loadInstantPayouts();
+      loadWalletBreakdown();
       loadSectors();
       loadCategories();
       loadDefaultMenu();
@@ -2077,14 +2090,39 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="instantPayouts" className="space-y-4">
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={loadInstantPayouts} disabled={loadingInstantPayouts}>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => { loadInstantPayouts(); loadWalletBreakdown(); }} disabled={loadingInstantPayouts}>
               <RefreshCw size={14} className={loadingInstantPayouts ? "animate-spin" : ""} /> Refresh
             </Button>
           </div>
           <p className="text-sm text-muted-foreground">
-            Vendor instant payout requests. Approve debits vendor wallet and marks request processed (payout trigger stub).
+            Vendor instant payout requests. Only eligible receipt balance (customer payments after platform fee) can be requested for instant transfer. Approve debits both balance and eligible_receipt_balance.
           </p>
+          {walletBreakdown.length > 0 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <h3 className="p-3 font-semibold text-sm border-b border-border">Vendor wallet breakdown (eligible vs total)</h3>
+              <div className="overflow-x-auto max-h-[30vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Vendor ID</th>
+                      <th className="text-right p-3 font-semibold">Total balance</th>
+                      <th className="text-right p-3 font-semibold">Eligible (instant)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {walletBreakdown.map((w) => (
+                      <tr key={w.vendor_id} className="border-t border-border">
+                        <td className="p-3 font-mono text-xs">{w.vendor_id}</td>
+                        <td className="p-3 text-right">₹{w.balance.toFixed(2)}</td>
+                        <td className="p-3 text-right font-medium">₹{w.eligible_receipt_balance.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {loadingInstantPayouts ? (
             <Skeleton className="h-48 w-full rounded-xl" />
           ) : (
