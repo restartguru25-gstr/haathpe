@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -219,6 +219,12 @@ export default function Admin() {
   const [selectedRentalPayoutIds, setSelectedRentalPayoutIds] = useState<string[]>([]);
   const [selectedRewardRedemptionIds, setSelectedRewardRedemptionIds] = useState<string[]>([]);
   const [bulkActionRunning, setBulkActionRunning] = useState(false);
+  const selectedOrderIdsRef = useRef<string[]>([]);
+  const selectedRedemptionIdsRef = useRef<string[]>([]);
+  const selectedSwapIdsRef = useRef<string[]>([]);
+  const selectedInstantPayoutIdsRef = useRef<string[]>([]);
+  const selectedRentalPayoutIdsRef = useRef<string[]>([]);
+  const selectedRewardRedemptionIdsRef = useRef<string[]>([]);
   const [redemptions, setRedemptions] = useState<RewardRedemptionRow[]>([]);
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
   const [svanidhiRequests, setSvanidhiRequests] = useState<SvanidhiSupportRow[]>([]);
@@ -334,6 +340,25 @@ export default function Admin() {
       navigate("/dashboard", { replace: true });
     }
   }, [authLoading, isAdmin, navigate]);
+
+  useEffect(() => {
+    selectedOrderIdsRef.current = selectedOrderIds;
+  }, [selectedOrderIds]);
+  useEffect(() => {
+    selectedRedemptionIdsRef.current = selectedRedemptionIds;
+  }, [selectedRedemptionIds]);
+  useEffect(() => {
+    selectedSwapIdsRef.current = selectedSwapIds;
+  }, [selectedSwapIds]);
+  useEffect(() => {
+    selectedInstantPayoutIdsRef.current = selectedInstantPayoutIds;
+  }, [selectedInstantPayoutIds]);
+  useEffect(() => {
+    selectedRentalPayoutIdsRef.current = selectedRentalPayoutIds;
+  }, [selectedRentalPayoutIds]);
+  useEffect(() => {
+    selectedRewardRedemptionIdsRef.current = selectedRewardRedemptionIds;
+  }, [selectedRewardRedemptionIds]);
 
   const loadVendors = async () => {
     setLoadingVendors(true);
@@ -1008,15 +1033,16 @@ export default function Admin() {
   };
 
   const handleBulkOrderStatusUpdate = async (newStatus: string) => {
-    if (selectedOrderIds.length === 0) return;
+    const ids = selectedOrderIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
       const { error } = await supabase
         .from("orders")
         .update({ status: newStatus })
-        .in("id", selectedOrderIds);
+        .in("id", ids);
       if (error) throw error;
-      toast.success(`Updated ${selectedOrderIds.length} order(s) to ${newStatus}`);
+      toast.success(`Updated ${ids.length} order(s) to ${newStatus}`);
       setSelectedOrderIds([]);
       loadOrders();
     } catch {
@@ -1027,14 +1053,15 @@ export default function Admin() {
   };
 
   const handleBulkOrderDelete = async () => {
-    if (selectedOrderIds.length === 0) return;
+    const ids = selectedOrderIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
-      for (const orderId of selectedOrderIds) {
+      for (const orderId of ids) {
         await supabase.from("order_items").delete().eq("order_id", orderId);
         await supabase.from("orders").delete().eq("id", orderId);
       }
-      toast.success(`Deleted ${selectedOrderIds.length} order(s)`);
+      toast.success(`Deleted ${ids.length} order(s)`);
       setSelectedOrderIds([]);
       loadOrders();
     } catch {
@@ -1045,11 +1072,12 @@ export default function Admin() {
   };
 
   const handleBulkRedemptionAction = async (action: "approve" | "reject") => {
-    if (selectedRedemptionIds.length === 0) return;
+    const ids = selectedRedemptionIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
       const results = await Promise.all(
-        selectedRedemptionIds.map((id) => (action === "approve" ? approveRedemption(id) : rejectRedemption(id)))
+        ids.map((id) => (action === "approve" ? approveRedemption(id) : rejectRedemption(id)))
       );
       const ok = results.filter((r) => r?.ok).length;
       const fail = results.length - ok;
@@ -1065,10 +1093,11 @@ export default function Admin() {
   };
 
   const handleBulkSwapModerate = async (status: "approved" | "rejected") => {
-    if (selectedSwapIds.length === 0) return;
+    const ids = selectedSwapIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
-      const results = await Promise.all(selectedSwapIds.map((id) => moderateSwap(id, status)));
+      const results = await Promise.all(ids.map((id) => moderateSwap(id, status)));
       const ok = results.filter((r) => r?.ok).length;
       if (ok) toast.success(`${status === "approved" ? "Approved" : "Rejected"} ${ok} swap(s)`);
       setSelectedSwapIds([]);
@@ -1081,11 +1110,12 @@ export default function Admin() {
   };
 
   const handleBulkInstantPayoutAction = async (action: "approve" | "reject") => {
-    if (selectedInstantPayoutIds.length === 0) return;
+    const ids = selectedInstantPayoutIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
       const results = await Promise.all(
-        selectedInstantPayoutIds.map((id) => adminDecideInstantPayoutRequest(id, action === "approve" ? "approve" : "reject"))
+        ids.map((id) => adminDecideInstantPayoutRequest(id, action === "approve" ? "approve" : "reject"))
       );
       const ok = results.filter((r) => r?.ok).length;
       if (ok) toast.success(`${action === "approve" ? "Approved" : "Rejected"} ${ok} request(s)`);
@@ -1099,11 +1129,12 @@ export default function Admin() {
   };
 
   const handleBulkRentalCredit = async () => {
-    if (selectedRentalPayoutIds.length === 0) return;
+    const ids = selectedRentalPayoutIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
       let ok = 0;
-      for (const id of selectedRentalPayoutIds) {
+      for (const id of ids) {
         const res = await markRentalPayoutPaid(id);
         if (res.ok) ok++;
       }
@@ -1118,15 +1149,16 @@ export default function Admin() {
   };
 
   const handleBulkRewardRedemptionStatus = async (status: string) => {
-    if (selectedRewardRedemptionIds.length === 0) return;
+    const ids = selectedRewardRedemptionIdsRef.current;
+    if (ids.length === 0) return;
     setBulkActionRunning(true);
     try {
       const { error } = await supabase
         .from("reward_redemptions")
         .update({ status })
-        .in("id", selectedRewardRedemptionIds);
+        .in("id", ids);
       if (error) throw error;
-      toast.success(`Updated ${selectedRewardRedemptionIds.length} redemption(s) to ${status}`);
+      toast.success(`Updated ${ids.length} redemption(s) to ${status}`);
       setSelectedRewardRedemptionIds([]);
       loadRedemptions();
     } catch {
