@@ -28,6 +28,8 @@ import {
   UtensilsCrossed,
   Bike,
   Bolt,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +78,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   getAdminVendorIncentives,
   getAllIncentiveSlabs,
@@ -186,6 +189,12 @@ interface SvanidhiSupportRow {
   user_name: string | null;
 }
 
+const ADMIN_TAB_ORDER = [
+  "vendors", "orders", "swaps", "redemptions", "svanidhi", "incentives", "ads", "ondc",
+  "customerRedemptions", "customerBonuses", "coinsConfig", "vendorWallet", "instantPayouts",
+  "riders", "sectors", "categories", "defaultMenu", "products", "actions",
+];
+
 export default function Admin() {
   const navigate = useNavigate();
   const { isAdmin, isLoading: authLoading } = useAdmin();
@@ -203,6 +212,13 @@ export default function Admin() {
   const [editVendor, setEditVendor] = useState<AdminProfile | null>(null);
   const [savingVendor, setSavingVendor] = useState(false);
   const [orderStatusUpdating, setOrderStatusUpdating] = useState<string | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [selectedRedemptionIds, setSelectedRedemptionIds] = useState<string[]>([]);
+  const [selectedSwapIds, setSelectedSwapIds] = useState<string[]>([]);
+  const [selectedInstantPayoutIds, setSelectedInstantPayoutIds] = useState<string[]>([]);
+  const [selectedRentalPayoutIds, setSelectedRentalPayoutIds] = useState<string[]>([]);
+  const [selectedRewardRedemptionIds, setSelectedRewardRedemptionIds] = useState<string[]>([]);
+  const [bulkActionRunning, setBulkActionRunning] = useState(false);
   const [redemptions, setRedemptions] = useState<RewardRedemptionRow[]>([]);
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
   const [svanidhiRequests, setSvanidhiRequests] = useState<SvanidhiSupportRow[]>([]);
@@ -991,6 +1007,135 @@ export default function Admin() {
     }
   };
 
+  const handleBulkOrderStatusUpdate = async (newStatus: string) => {
+    if (selectedOrderIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: newStatus })
+        .in("id", selectedOrderIds);
+      if (error) throw error;
+      toast.success(`Updated ${selectedOrderIds.length} order(s) to ${newStatus}`);
+      setSelectedOrderIds([]);
+      loadOrders();
+    } catch {
+      toast.error("Could not update orders");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkOrderDelete = async () => {
+    if (selectedOrderIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      for (const orderId of selectedOrderIds) {
+        await supabase.from("order_items").delete().eq("order_id", orderId);
+        await supabase.from("orders").delete().eq("id", orderId);
+      }
+      toast.success(`Deleted ${selectedOrderIds.length} order(s)`);
+      setSelectedOrderIds([]);
+      loadOrders();
+    } catch {
+      toast.error("Could not delete some orders");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkRedemptionAction = async (action: "approve" | "reject") => {
+    if (selectedRedemptionIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      const results = await Promise.all(
+        selectedRedemptionIds.map((id) => (action === "approve" ? approveRedemption(id) : rejectRedemption(id)))
+      );
+      const ok = results.filter((r) => r?.ok).length;
+      const fail = results.length - ok;
+      if (ok) toast.success(`${action === "approve" ? "Approved" : "Rejected"} ${ok} redemption(s)`);
+      if (fail) toast.error(`${fail} failed`);
+      setSelectedRedemptionIds([]);
+      loadCustomerRedemptions();
+    } catch {
+      toast.error("Bulk action failed");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkSwapModerate = async (status: "approved" | "rejected") => {
+    if (selectedSwapIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      const results = await Promise.all(selectedSwapIds.map((id) => moderateSwap(id, status)));
+      const ok = results.filter((r) => r?.ok).length;
+      if (ok) toast.success(`${status === "approved" ? "Approved" : "Rejected"} ${ok} swap(s)`);
+      setSelectedSwapIds([]);
+      loadAllSwaps();
+    } catch {
+      toast.error("Bulk action failed");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkInstantPayoutAction = async (action: "approve" | "reject") => {
+    if (selectedInstantPayoutIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      const results = await Promise.all(
+        selectedInstantPayoutIds.map((id) => adminDecideInstantPayoutRequest(id, action === "approve" ? "approve" : "reject"))
+      );
+      const ok = results.filter((r) => r?.ok).length;
+      if (ok) toast.success(`${action === "approve" ? "Approved" : "Rejected"} ${ok} request(s)`);
+      setSelectedInstantPayoutIds([]);
+      loadInstantPayouts();
+    } catch {
+      toast.error("Bulk action failed");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkRentalCredit = async () => {
+    if (selectedRentalPayoutIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      let ok = 0;
+      for (const id of selectedRentalPayoutIds) {
+        const res = await markRentalPayoutPaid(id);
+        if (res.ok) ok++;
+      }
+      if (ok) toast.success(`Credited ${ok} rental payout(s) to wallet`);
+      setSelectedRentalPayoutIds([]);
+      loadIncentives();
+    } catch {
+      toast.error("Bulk credit failed");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkRewardRedemptionStatus = async (status: string) => {
+    if (selectedRewardRedemptionIds.length === 0) return;
+    setBulkActionRunning(true);
+    try {
+      const { error } = await supabase
+        .from("reward_redemptions")
+        .update({ status })
+        .in("id", selectedRewardRedemptionIds);
+      if (error) throw error;
+      toast.success(`Updated ${selectedRewardRedemptionIds.length} redemption(s) to ${status}`);
+      setSelectedRewardRedemptionIds([]);
+      loadRedemptions();
+    } catch {
+      toast.error("Could not update redemptions");
+    } finally {
+      setBulkActionRunning(false);
+    }
+  };
+
   const handleDeleteVendor = async (vendorId: string) => {
     try {
       const { error } = await supabase.from("profiles").delete().eq("id", vendorId);
@@ -1142,6 +1287,23 @@ export default function Admin() {
   const tabTriggerClass =
     "flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-[#F97316]/10 data-[state=active]:text-[#F97316] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#F97316] shrink-0 transition-all hover:scale-[1.02] min-h-[44px]";
 
+  const [adminTab, setAdminTab] = useState("vendors");
+  const currentTabIndex = ADMIN_TAB_ORDER.indexOf(adminTab);
+  const canGoPrev = currentTabIndex > 0;
+  const canGoNext = currentTabIndex >= 0 && currentTabIndex < ADMIN_TAB_ORDER.length - 1;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft" && canGoPrev) {
+        setAdminTab(ADMIN_TAB_ORDER[currentTabIndex - 1]);
+      } else if (e.key === "ArrowRight" && canGoNext) {
+        setAdminTab(ADMIN_TAB_ORDER[currentTabIndex + 1]);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [currentTabIndex, canGoPrev, canGoNext]);
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-[#F9FAFB]">
@@ -1158,8 +1320,20 @@ export default function Admin() {
             </div>
           </div>
 
-          <Tabs defaultValue="vendors" className="space-y-4">
-            <TabsList className="inline-flex h-12 w-full max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm justify-start gap-0 flex-nowrap [&::-webkit-scrollbar]:h-1">
+          <Tabs value={adminTab} onValueChange={setAdminTab} className="space-y-4">
+            <div className="flex items-center gap-1 w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0 rounded-lg border-gray-200 h-12 w-10"
+                disabled={!canGoPrev}
+                onClick={() => canGoPrev && setAdminTab(ADMIN_TAB_ORDER[currentTabIndex - 1])}
+                aria-label="Previous tab"
+              >
+                <ChevronLeft size={20} />
+              </Button>
+              <TabsList className="inline-flex h-12 flex-1 min-w-0 overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm justify-start gap-0 flex-nowrap [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="vendors" className={tabTriggerClass}>
             <Users size={16} /> Vendors
           </TabsTrigger>
@@ -1218,6 +1392,18 @@ export default function Admin() {
             <Trophy size={16} /> Actions
           </TabsTrigger>
         </TabsList>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0 rounded-lg border-gray-200 h-12 w-10"
+                disabled={!canGoNext}
+                onClick={() => canGoNext && setAdminTab(ADMIN_TAB_ORDER[currentTabIndex + 1])}
+                aria-label="Next tab"
+              >
+                <ChevronRight size={20} />
+              </Button>
+            </div>
 
         <TabsContent value="vendors" className="space-y-4 mt-4">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
@@ -1288,10 +1474,31 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="orders" className="space-y-4 mt-4">
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={loadOrders} disabled={loadingOrders}>
-              <RefreshCw size={14} className={loadingOrders ? "animate-spin" : ""} /> Refresh
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={loadOrders} disabled={loadingOrders}>
+                <RefreshCw size={14} className={loadingOrders ? "animate-spin" : ""} /> Refresh
+              </Button>
+              {selectedOrderIds.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                  <span className="text-sm font-medium">{selectedOrderIds.length} selected</span>
+                  <Select onValueChange={(val) => handleBulkOrderStatusUpdate(val)} disabled={bulkActionRunning}>
+                    <SelectTrigger className="h-8 w-[130px]">
+                      <SelectValue placeholder="Bulk status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">pending</SelectItem>
+                      <SelectItem value="in-transit">in-transit</SelectItem>
+                      <SelectItem value="delivered">delivered</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="destructive" onClick={handleBulkOrderDelete} disabled={bulkActionRunning}>
+                    {bulkActionRunning ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete selected
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedOrderIds([])}>Clear</Button>
+                </div>
+              )}
+            </div>
           </div>
           {loadingOrders ? (
             <Skeleton className="h-64 w-full rounded-xl" />
@@ -1301,6 +1508,13 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
+                      <th className="w-10 p-3 text-left">
+                        <Checkbox
+                          checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                          onCheckedChange={(checked) => setSelectedOrderIds(checked ? orders.map((o) => o.id) : [])}
+                          aria-label="Select all orders"
+                        />
+                      </th>
                       <th className="text-left p-3 font-semibold">Order</th>
                       <th className="text-left p-3 font-semibold">Date</th>
                       <th className="text-right p-3 font-semibold">Total</th>
@@ -1311,6 +1525,13 @@ export default function Admin() {
                   <tbody>
                     {orders.map((o) => (
                       <tr key={o.id} className="border-t border-border">
+                        <td className="p-3">
+                          <Checkbox
+                            checked={selectedOrderIds.includes(o.id)}
+                            onCheckedChange={(checked) => setSelectedOrderIds((prev) => checked ? [...prev, o.id] : prev.filter((id) => id !== o.id))}
+                            aria-label={`Select order ${o.id.slice(0, 8)}`}
+                          />
+                        </td>
                         <td className="p-3 font-mono text-xs">#{o.id.slice(0, 8)}</td>
                         <td className="p-3 text-muted-foreground">
                           {new Date(o.created_at).toLocaleDateString("en-IN", {
@@ -1354,73 +1575,129 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="swaps" className="space-y-4">
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={loadAllSwaps} disabled={loadingSwaps}>
-              <RefreshCw size={14} className={loadingSwaps ? "animate-spin" : ""} /> Refresh
-            </Button>
-          </div>
-          {loadingSwaps ? (
-            <Skeleton className="h-48 w-full rounded-xl" />
-          ) : allSwaps.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
-              No Vendor Swap listings.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {allSwaps.map((swap) => (
-                <div
-                  key={swap.id}
-                  className="rounded-xl border border-border bg-card p-4"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{swap.title}</p>
-                      <p className="text-sm text-primary">{swap.price_notes}</p>
-                      {swap.location && (
-                        <p className="text-xs text-muted-foreground">{swap.location}</p>
-                      )}
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {swap.vendor_name ?? "Vendor"} · {new Date(swap.created_at).toLocaleDateString()}
-                      </p>
+          {(() => {
+            const pendingSwaps = allSwaps.filter((s) => s.status === "pending");
+            const allPendingSwapSelected = pendingSwaps.length > 0 && selectedSwapIds.length === pendingSwaps.length;
+            return (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Button variant="outline" size="sm" onClick={loadAllSwaps} disabled={loadingSwaps}>
+                    <RefreshCw size={14} className={loadingSwaps ? "animate-spin" : ""} /> Refresh
+                  </Button>
+                  {selectedSwapIds.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <span className="text-sm font-medium">{selectedSwapIds.length} selected</span>
+                      <Button size="sm" onClick={() => handleBulkSwapModerate("approved")} disabled={bulkActionRunning}>
+                        {bulkActionRunning ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve selected
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleBulkSwapModerate("rejected")} disabled={bulkActionRunning}>
+                        <X size={14} /> Reject selected
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedSwapIds([])}>Clear</Button>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      swap.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
-                      swap.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
-                      "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-                    }`}>
-                      {swap.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {swap.status === "pending" && (
-                      <>
-                        <Button size="sm" className="gap-1" onClick={() => handleModerateSwap(swap.id, "approved")} disabled={moderatingId === swap.id}>
-                          {moderatingId === swap.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                          Approve
-                        </Button>
-                        <Button size="sm" variant="secondary" className="gap-1" onClick={() => handleModerateSwap(swap.id, "rejected")} disabled={moderatingId === swap.id}>
-                          <X size={14} /> Reject
-                        </Button>
-                      </>
-                    )}
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => openSwapEdit(swap)} disabled={moderatingId === swap.id}>
-                      <Pencil size={14} /> Edit
-                    </Button>
-                    <Button size="sm" variant="destructive" className="gap-1" onClick={() => setDeleteConfirm({ type: "swap", id: swap.id, label: swap.title })} disabled={moderatingId === swap.id}>
-                      <Trash2 size={14} /> Delete
-                    </Button>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+                {loadingSwaps ? (
+                  <Skeleton className="h-48 w-full rounded-xl" />
+                ) : allSwaps.length === 0 ? (
+                  <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+                    No Vendor Swap listings.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingSwaps.length > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          checked={allPendingSwapSelected}
+                          onCheckedChange={(checked) => setSelectedSwapIds(checked ? pendingSwaps.map((s) => s.id) : [])}
+                          aria-label="Select all pending swaps"
+                        />
+                        <span>Select all pending ({pendingSwaps.length})</span>
+                      </div>
+                    )}
+                    {allSwaps.map((swap) => (
+                      <div
+                        key={swap.id}
+                        className="rounded-xl border border-border bg-card p-4 flex items-start gap-3"
+                      >
+                        {swap.status === "pending" && (
+                          <div className="pt-0.5">
+                            <Checkbox
+                              checked={selectedSwapIds.includes(swap.id)}
+                              onCheckedChange={(checked) => setSelectedSwapIds((prev) => checked ? [...prev, swap.id] : prev.filter((id) => id !== swap.id))}
+                              aria-label={`Select swap ${swap.title}`}
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-semibold">{swap.title}</p>
+                              <p className="text-sm text-primary">{swap.price_notes}</p>
+                              {swap.location && (
+                                <p className="text-xs text-muted-foreground">{swap.location}</p>
+                              )}
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {swap.vendor_name ?? "Vendor"} · {new Date(swap.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                              swap.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
+                              swap.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
+                              "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                            }`}>
+                              {swap.status}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {swap.status === "pending" && (
+                              <>
+                                <Button size="sm" className="gap-1" onClick={() => handleModerateSwap(swap.id, "approved")} disabled={moderatingId === swap.id}>
+                                  {moderatingId === swap.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                  Approve
+                                </Button>
+                                <Button size="sm" variant="secondary" className="gap-1" onClick={() => handleModerateSwap(swap.id, "rejected")} disabled={moderatingId === swap.id}>
+                                  <X size={14} /> Reject
+                                </Button>
+                              </>
+                            )}
+                            <Button size="sm" variant="outline" className="gap-1" onClick={() => openSwapEdit(swap)} disabled={moderatingId === swap.id}>
+                              <Pencil size={14} /> Edit
+                            </Button>
+                            <Button size="sm" variant="destructive" className="gap-1" onClick={() => setDeleteConfirm({ type: "swap", id: swap.id, label: swap.title })} disabled={moderatingId === swap.id}>
+                              <Trash2 size={14} /> Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="redemptions" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <Button variant="outline" size="sm" onClick={loadRedemptions} disabled={loadingRedemptions}>
               <RefreshCw size={14} className={loadingRedemptions ? "animate-spin" : ""} /> Refresh
             </Button>
+            {selectedRewardRedemptionIds.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm font-medium">{selectedRewardRedemptionIds.length} selected</span>
+                <Select onValueChange={handleBulkRewardRedemptionStatus} disabled={bulkActionRunning}>
+                  <SelectTrigger className="h-8 w-[130px]">
+                    <SelectValue placeholder="Bulk status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">pending</SelectItem>
+                    <SelectItem value="fulfilled">fulfilled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedRewardRedemptionIds([])}>Clear</Button>
+              </div>
+            )}
           </div>
           {loadingRedemptions ? (
             <Skeleton className="h-48 w-full rounded-xl" />
@@ -1430,6 +1707,13 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
+                      <th className="w-10 p-3 text-left">
+                        <Checkbox
+                          checked={redemptions.length > 0 && selectedRewardRedemptionIds.length === redemptions.length}
+                          onCheckedChange={(checked) => setSelectedRewardRedemptionIds(checked ? redemptions.map((r) => r.id) : [])}
+                          aria-label="Select all reward redemptions"
+                        />
+                      </th>
                       <th className="text-left p-3 font-semibold">Date</th>
                       <th className="text-left p-3 font-semibold">User</th>
                       <th className="text-left p-3 font-semibold">Reward</th>
@@ -1441,6 +1725,13 @@ export default function Admin() {
                   <tbody>
                     {redemptions.map((r) => (
                       <tr key={r.id} className="border-t border-border">
+                        <td className="p-3">
+                          <Checkbox
+                            checked={selectedRewardRedemptionIds.includes(r.id)}
+                            onCheckedChange={(checked) => setSelectedRewardRedemptionIds((prev) => checked ? [...prev, r.id] : prev.filter((id) => id !== r.id))}
+                            aria-label={`Select redemption ${r.id.slice(0, 8)}`}
+                          />
+                        </td>
                         <td className="p-3 text-muted-foreground">
                           {new Date(r.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                         </td>
@@ -1712,6 +2003,15 @@ export default function Admin() {
                     </div>
                   )}
                 </div>
+                {selectedRentalPayoutIds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                    <span className="text-sm font-medium">{selectedRentalPayoutIds.length} selected</span>
+                    <Button size="sm" onClick={handleBulkRentalCredit} disabled={bulkActionRunning}>
+                      {bulkActionRunning ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />} Credit selected to wallet
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setSelectedRentalPayoutIds([])}>Clear</Button>
+                  </div>
+                )}
                 {loadingRentalPayouts ? (
                   <Skeleton className="h-24 w-full" />
                 ) : (
@@ -1719,6 +2019,15 @@ export default function Admin() {
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50 sticky top-0">
                         <tr>
+                          <th className="w-10 p-3 text-left">
+                            {rentalPayouts.filter((r) => r.status === "pending").length > 0 && (
+                              <Checkbox
+                                checked={rentalPayouts.filter((r) => r.status === "pending").length > 0 && selectedRentalPayoutIds.length === rentalPayouts.filter((r) => r.status === "pending").length}
+                                onCheckedChange={(checked) => setSelectedRentalPayoutIds(checked ? rentalPayouts.filter((r) => r.status === "pending").map((r) => r.id) : [])}
+                                aria-label="Select all pending rental payouts"
+                              />
+                            )}
+                          </th>
                           <th className="text-left p-3">Month</th>
                           <th className="text-left p-3">Vendor</th>
                           <th className="text-right p-3">Volume</th>
@@ -1731,6 +2040,15 @@ export default function Admin() {
                       <tbody>
                         {rentalPayouts.map((r) => (
                           <tr key={r.id} className="border-t border-border">
+                            <td className="p-3">
+                              {r.status === "pending" && (
+                                <Checkbox
+                                  checked={selectedRentalPayoutIds.includes(r.id)}
+                                  onCheckedChange={(checked) => setSelectedRentalPayoutIds((prev) => checked ? [...prev, r.id] : prev.filter((id) => id !== r.id))}
+                                  aria-label={`Select rental payout ${r.id.slice(0, 8)}`}
+                                />
+                              )}
+                            </td>
                             <td className="p-3 text-muted-foreground">{r.month}</td>
                             <td className="p-3 font-mono text-xs">{r.vendor_id.slice(0, 8)}…</td>
                             <td className="p-3 text-right">₹{Number(r.transaction_volume).toLocaleString("en-IN")}</td>
@@ -1869,93 +2187,131 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="customerRedemptions" className="space-y-4">
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={loadCustomerRedemptions} disabled={loadingCustomerRedemptions}>
-              <RefreshCw size={14} className={loadingCustomerRedemptions ? "animate-spin" : ""} /> Refresh
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">Customer wallet redemptions (cash, coupon, cashback). Approve to debit wallet.</p>
-          {loadingCustomerRedemptions ? (
-            <Skeleton className="h-48 w-full rounded-xl" />
-          ) : (
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="overflow-x-auto max-h-[50vh]">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 sticky top-0">
-                    <tr>
-                      <th className="text-left p-3 font-semibold">Customer</th>
-                      <th className="text-left p-3 font-semibold">Type</th>
-                      <th className="text-right p-3 font-semibold">Amount</th>
-                      <th className="text-left p-3 font-semibold">Status</th>
-                      <th className="text-left p-3 font-semibold">Date</th>
-                      <th className="w-32 p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {customerRedemptions.map((r) => (
-                      <tr key={r.id} className="border-t border-border">
-                        <td className="p-3">{r.customer_phone ?? r.customer_id}</td>
-                        <td className="p-3">{r.type}</td>
-                        <td className="p-3 text-right">₹{Number(r.amount).toFixed(0)}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            r.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
-                            r.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
-                            "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-                          }`}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
-                        <td className="p-3 text-right">
-                          {r.status === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="mr-1"
-                                disabled={approvingRedemptionId === r.id}
-                                onClick={async () => {
-                                  setApprovingRedemptionId(r.id);
-                                  const ok = await approveRedemption(r.id);
-                                  setApprovingRedemptionId(null);
-                                  if (ok.ok) {
-                                    toast.success("Redemption approved");
-                                    loadCustomerRedemptions();
-                                  } else {
-                                    toast.error(ok.error ?? "Failed");
-                                  }
-                                }}
-                              >
-                                {approvingRedemptionId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-destructive"
-                                onClick={async () => {
-                                  const ok = await rejectRedemption(r.id);
-                                  if (ok.ok) {
-                                    toast.success("Redemption rejected");
-                                    loadCustomerRedemptions();
-                                  }
-                                }}
-                              >
-                                <X size={14} /> Reject
-                              </Button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {customerRedemptions.length === 0 && (
-                <p className="p-6 text-center text-muted-foreground">No customer redemptions yet.</p>
-              )}
-            </div>
-          )}
+          {(() => {
+            const pendingRedemptions = customerRedemptions.filter((r) => r.status === "pending");
+            const allPendingSelected = pendingRedemptions.length > 0 && selectedRedemptionIds.length === pendingRedemptions.length;
+            return (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Button variant="outline" size="sm" onClick={loadCustomerRedemptions} disabled={loadingCustomerRedemptions}>
+                    <RefreshCw size={14} className={loadingCustomerRedemptions ? "animate-spin" : ""} /> Refresh
+                  </Button>
+                  {selectedRedemptionIds.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <span className="text-sm font-medium">{selectedRedemptionIds.length} selected</span>
+                      <Button size="sm" onClick={() => handleBulkRedemptionAction("approve")} disabled={bulkActionRunning}>
+                        {bulkActionRunning ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve selected
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleBulkRedemptionAction("reject")} disabled={bulkActionRunning}>
+                        <X size={14} /> Reject selected
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedRedemptionIds([])}>Clear</Button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">Customer wallet redemptions (cash, coupon, cashback). Approve to debit wallet.</p>
+                {loadingCustomerRedemptions ? (
+                  <Skeleton className="h-48 w-full rounded-xl" />
+                ) : (
+                  <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="overflow-x-auto max-h-[50vh]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="w-10 p-3 text-left">
+                              {pendingRedemptions.length > 0 && (
+                                <Checkbox
+                                  checked={allPendingSelected}
+                                  onCheckedChange={(checked) => setSelectedRedemptionIds(checked ? pendingRedemptions.map((r) => r.id) : [])}
+                                  aria-label="Select all pending"
+                                />
+                              )}
+                            </th>
+                            <th className="text-left p-3 font-semibold">Customer</th>
+                            <th className="text-left p-3 font-semibold">Type</th>
+                            <th className="text-right p-3 font-semibold">Amount</th>
+                            <th className="text-left p-3 font-semibold">Status</th>
+                            <th className="text-left p-3 font-semibold">Date</th>
+                            <th className="w-32 p-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerRedemptions.map((r) => (
+                            <tr key={r.id} className="border-t border-border">
+                              <td className="p-3">
+                                {r.status === "pending" && (
+                                  <Checkbox
+                                    checked={selectedRedemptionIds.includes(r.id)}
+                                    onCheckedChange={(checked) => setSelectedRedemptionIds((prev) => checked ? [...prev, r.id] : prev.filter((id) => id !== r.id))}
+                                    aria-label={`Select redemption ${r.id.slice(0, 8)}`}
+                                  />
+                                )}
+                              </td>
+                              <td className="p-3">{r.customer_phone ?? r.customer_id}</td>
+                              <td className="p-3">{r.type}</td>
+                              <td className="p-3 text-right">₹{Number(r.amount).toFixed(0)}</td>
+                              <td className="p-3">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                  r.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
+                                  r.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
+                                  "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
+                              <td className="p-3 text-right">
+                                {r.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      className="mr-1"
+                                      disabled={approvingRedemptionId === r.id}
+                                      onClick={async () => {
+                                        setApprovingRedemptionId(r.id);
+                                        const ok = await approveRedemption(r.id);
+                                        setApprovingRedemptionId(null);
+                                        if (ok.ok) {
+                                          toast.success("Redemption approved");
+                                          loadCustomerRedemptions();
+                                        } else {
+                                          toast.error(ok.error ?? "Failed");
+                                        }
+                                      }}
+                                    >
+                                      {approvingRedemptionId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-destructive"
+                                      onClick={async () => {
+                                        const ok = await rejectRedemption(r.id);
+                                        if (ok.ok) {
+                                          toast.success("Redemption rejected");
+                                          loadCustomerRedemptions();
+                                        }
+                                      }}
+                                    >
+                                      <X size={14} /> Reject
+                                    </Button>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {customerRedemptions.length === 0 && (
+                      <p className="p-6 text-center text-muted-foreground">No customer redemptions yet.</p>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="customerBonuses" className="space-y-4">
@@ -2263,15 +2619,32 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="instantPayouts" className="space-y-4">
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => { loadInstantPayouts(); loadWalletBreakdown(); }} disabled={loadingInstantPayouts}>
-              <RefreshCw size={14} className={loadingInstantPayouts ? "animate-spin" : ""} /> Refresh
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Vendor instant payout requests. Only eligible receipt balance (customer payments after platform fee) can be requested for instant transfer. Approve debits both balance and eligible_receipt_balance.
-          </p>
-          {walletBreakdown.length > 0 && (
+          {(() => {
+            const pendingInstantPayouts = instantPayouts.filter((r) => r.status === "pending");
+            const allPendingInstantSelected = pendingInstantPayouts.length > 0 && selectedInstantPayoutIds.length === pendingInstantPayouts.length;
+            return (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Button variant="outline" size="sm" onClick={() => { loadInstantPayouts(); loadWalletBreakdown(); }} disabled={loadingInstantPayouts}>
+                    <RefreshCw size={14} className={loadingInstantPayouts ? "animate-spin" : ""} /> Refresh
+                  </Button>
+                  {selectedInstantPayoutIds.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <span className="text-sm font-medium">{selectedInstantPayoutIds.length} selected</span>
+                      <Button size="sm" onClick={() => handleBulkInstantPayoutAction("approve")} disabled={bulkActionRunning}>
+                        {bulkActionRunning ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve selected
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleBulkInstantPayoutAction("reject")} disabled={bulkActionRunning}>
+                        <X size={14} /> Reject selected
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedInstantPayoutIds([])}>Clear</Button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Vendor instant payout requests. Only eligible receipt balance (customer payments after platform fee) can be requested for instant transfer. Approve debits both balance and eligible_receipt_balance.
+                </p>
+                {walletBreakdown.length > 0 && (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               <h3 className="p-3 font-semibold text-sm border-b border-border">Vendor wallet breakdown (eligible vs total)</h3>
               <div className="overflow-x-auto max-h-[30vh]">
@@ -2304,6 +2677,15 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
+                      <th className="w-10 p-3 text-left">
+                        {pendingInstantPayouts.length > 0 && (
+                          <Checkbox
+                            checked={allPendingInstantSelected}
+                            onCheckedChange={(checked) => setSelectedInstantPayoutIds(checked ? pendingInstantPayouts.map((r) => r.id) : [])}
+                            aria-label="Select all pending"
+                          />
+                        )}
+                      </th>
                       <th className="text-left p-3 font-semibold">Vendor</th>
                       <th className="text-right p-3 font-semibold">Amount</th>
                       <th className="text-left p-3 font-semibold">Status</th>
@@ -2315,6 +2697,15 @@ export default function Admin() {
                   <tbody>
                     {instantPayouts.map((r) => (
                       <tr key={r.id} className="border-t border-border">
+                        <td className="p-3">
+                          {r.status === "pending" && (
+                            <Checkbox
+                              checked={selectedInstantPayoutIds.includes(r.id)}
+                              onCheckedChange={(checked) => setSelectedInstantPayoutIds((prev) => checked ? [...prev, r.id] : prev.filter((id) => id !== r.id))}
+                              aria-label={`Select request ${r.id.slice(0, 8)}`}
+                            />
+                          )}
+                        </td>
                         <td className="p-3 font-mono text-xs">{r.vendor_id}</td>
                         <td className="p-3 text-right font-semibold">₹{Number(r.amount).toFixed(2)}</td>
                         <td className="p-3">
@@ -2384,6 +2775,9 @@ export default function Admin() {
               )}
             </div>
           )}
+              </>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="riders" className="space-y-4">
