@@ -27,6 +27,7 @@ import {
   Tags,
   UtensilsCrossed,
   Bike,
+  Bolt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +118,11 @@ import { updateSwap } from "@/lib/swaps";
 import {
   getVendorSettings,
   updateVendorSettings,
+} from "@/lib/vendorCashWallet";
+import {
+  getAdminInstantPayoutRequests,
+  adminDecideInstantPayoutRequest,
+  type VendorInstantPayoutRequest,
 } from "@/lib/vendorCashWallet";
 import {
   getAdminRiders,
@@ -267,6 +273,9 @@ export default function Admin() {
   const [riderSettings, setRiderSettings] = useState<RiderSettingsRow[]>([]);
   const [loadingRiderSettings, setLoadingRiderSettings] = useState(false);
   const [riderPayoutRunning, setRiderPayoutRunning] = useState(false);
+  const [instantPayouts, setInstantPayouts] = useState<VendorInstantPayoutRequest[]>([]);
+  const [loadingInstantPayouts, setLoadingInstantPayouts] = useState(false);
+  const [processingInstantPayoutId, setProcessingInstantPayoutId] = useState<string | null>(null);
   const [productForm, setProductForm] = useState({
     name: "",
     name_hi: "",
@@ -587,6 +596,18 @@ export default function Admin() {
     else loadSvanidhiRequests();
   };
 
+  const loadInstantPayouts = async () => {
+    setLoadingInstantPayouts(true);
+    try {
+      const list = await getAdminInstantPayoutRequests(300);
+      setInstantPayouts(list);
+    } catch {
+      setInstantPayouts([]);
+    } finally {
+      setLoadingInstantPayouts(false);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       loadVendors();
@@ -604,6 +625,7 @@ export default function Admin() {
       loadVendorWalletSettings();
       loadRiders();
       loadRiderSettings();
+      loadInstantPayouts();
       loadSectors();
       loadCategories();
       loadDefaultMenu();
@@ -1137,6 +1159,9 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="vendorWallet" className="flex items-center gap-2">
             <Wallet size={16} /> Vendor Wallet
+          </TabsTrigger>
+          <TabsTrigger value="instantPayouts" className="flex items-center gap-2">
+            <Bolt size={16} /> Instant Payouts
           </TabsTrigger>
           <TabsTrigger value="riders" className="flex items-center gap-2">
             <Bike size={16} /> Riders
@@ -2047,6 +2072,105 @@ export default function Admin() {
           ) : (
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-destructive">
               Run migration 20260220800000_vendor_cash_wallet.sql first to create vendor_settings table.
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="instantPayouts" className="space-y-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={loadInstantPayouts} disabled={loadingInstantPayouts}>
+              <RefreshCw size={14} className={loadingInstantPayouts ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Vendor instant payout requests. Approve debits vendor wallet and marks request processed (payout trigger stub).
+          </p>
+          {loadingInstantPayouts ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto max-h-[55vh]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Vendor</th>
+                      <th className="text-right p-3 font-semibold">Amount</th>
+                      <th className="text-left p-3 font-semibold">Status</th>
+                      <th className="text-left p-3 font-semibold">Requested</th>
+                      <th className="text-left p-3 font-semibold">Processed</th>
+                      <th className="w-48 p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {instantPayouts.map((r) => (
+                      <tr key={r.id} className="border-t border-border">
+                        <td className="p-3 font-mono text-xs">{r.vendor_id}</td>
+                        <td className="p-3 text-right font-semibold">₹{Number(r.amount).toFixed(2)}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            r.status === "processed" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
+                            r.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
+                            "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                          }`}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{new Date(r.requested_at).toLocaleString()}</td>
+                        <td className="p-3 text-muted-foreground">{r.processed_at ? new Date(r.processed_at).toLocaleString() : "—"}</td>
+                        <td className="p-3 text-right">
+                          {r.status === "pending" ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="mr-1"
+                                disabled={processingInstantPayoutId === r.id}
+                                onClick={async () => {
+                                  setProcessingInstantPayoutId(r.id);
+                                  const res = await adminDecideInstantPayoutRequest(r.id, "approve");
+                                  setProcessingInstantPayoutId(null);
+                                  if (res.ok) {
+                                    toast.success("Approved");
+                                    loadInstantPayouts();
+                                  } else {
+                                    toast.error(res.error ?? "Failed");
+                                  }
+                                }}
+                              >
+                                {processingInstantPayoutId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive"
+                                disabled={processingInstantPayoutId === r.id}
+                                onClick={async () => {
+                                  setProcessingInstantPayoutId(r.id);
+                                  const res = await adminDecideInstantPayoutRequest(r.id, "reject");
+                                  setProcessingInstantPayoutId(null);
+                                  if (res.ok) {
+                                    toast.success("Rejected");
+                                    loadInstantPayouts();
+                                  } else {
+                                    toast.error(res.error ?? "Failed");
+                                  }
+                                }}
+                              >
+                                <X size={14} /> Reject
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {instantPayouts.length === 0 && (
+                <p className="p-6 text-center text-muted-foreground">No instant payout requests yet.</p>
+              )}
             </div>
           )}
         </TabsContent>

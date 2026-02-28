@@ -29,6 +29,15 @@ export interface VendorSettings {
   updated_at: string;
 }
 
+export interface VendorInstantPayoutRequest {
+  id: string;
+  vendor_id: string;
+  amount: number;
+  status: "pending" | "processed" | "rejected";
+  requested_at: string;
+  processed_at: string | null;
+}
+
 const VENDOR_SETTINGS_ID = "00000000-0000-0000-0000-000000000001";
 
 /** Get vendor wallet (balance). */
@@ -156,6 +165,73 @@ export async function requestVendorWithdrawal(
     const res = data as { ok?: boolean; amount?: number; error?: string };
     if (!res?.ok) return { ok: false, error: res?.error ?? "Failed" };
     return { ok: true, amount: res.amount };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function requestVendorInstantPayout(
+  vendorId: string
+): Promise<{ ok: boolean; requestId?: string; amount?: number; nextCycleAt?: string; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc("request_vendor_instant_payout", { p_vendor_id: vendorId });
+    if (error) return { ok: false, error: error.message };
+    const res = data as { ok?: boolean; request_id?: string; amount?: number; next_cycle_at?: string; error?: string } | null;
+    if (!res?.ok) return { ok: false, error: res?.error ?? "Failed" };
+    return {
+      ok: true,
+      requestId: res.request_id,
+      amount: res.amount != null ? Number(res.amount) : undefined,
+      nextCycleAt: res.next_cycle_at,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function getVendorInstantPayoutRequests(vendorId: string, limit = 10): Promise<VendorInstantPayoutRequest[]> {
+  try {
+    const { data, error } = await supabase
+      .from("vendor_instant_payout_requests")
+      .select("*")
+      .eq("vendor_id", vendorId)
+      .order("requested_at", { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return (data ?? []) as VendorInstantPayoutRequest[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getAdminInstantPayoutRequests(limit = 200): Promise<VendorInstantPayoutRequest[]> {
+  try {
+    const { data, error } = await supabase
+      .from("vendor_instant_payout_requests")
+      .select("*")
+      .order("status")
+      .order("requested_at", { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return (data ?? []) as VendorInstantPayoutRequest[];
+  } catch {
+    return [];
+  }
+}
+
+export async function adminDecideInstantPayoutRequest(
+  requestId: string,
+  action: "approve" | "reject"
+): Promise<{ ok: boolean; status?: string; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc("admin_decide_vendor_instant_payout", {
+      p_request_id: requestId,
+      p_action: action,
+    });
+    if (error) return { ok: false, error: error.message };
+    const res = data as { ok?: boolean; status?: string; error?: string } | null;
+    if (!res?.ok) return { ok: false, error: res?.error ?? "Failed" };
+    return { ok: true, status: res.status };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }

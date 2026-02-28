@@ -44,6 +44,7 @@ const OrderTracking = lazy(() => import("./pages/OrderTracking"));
 const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
 const Search = lazy(() => import("./pages/Search"));
 const OndcExport = lazy(() => import("./pages/OndcExport"));
+const VendorPayouts = lazy(() => import("./pages/VendorPayouts"));
 const MenuLanding = lazy(() => import("./pages/MenuLanding"));
 const Contact = lazy(() => import("./pages/Contact"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
@@ -111,6 +112,7 @@ const App = () => (
                 <Route path="/pos" element={<POS />} />
                 <Route path="/rental-income" element={<RentalIncome />} />
                 <Route path="/vendor/ondc-export" element={<OndcExport />} />
+                <Route path="/vendor/payouts" element={<VendorPayouts />} />
               </Route>
               <Route path="/search" element={<Search />} />
               <Route path="/catalog" element={<Catalog />} />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Store, Plus, Pencil, QrCode, ChevronRight, Banknote, Gift, Star, Sparkles, FileJson } from "lucide-react";
+import { Store, Plus, Pencil, QrCode, ChevronRight, Banknote, Gift, Star, Sparkles, FileJson, Bolt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -409,6 +409,29 @@ export default function Sales() {
         {/* Cash Wallet (signup bonus, rewards, withdraw) */}
         <div className="mb-6">
           <VendorCashWalletSection vendorId={vendorId} />
+        </div>
+
+        {/* Earnings: Instant Funds entry (not beside wallet balance) */}
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">
+                <Bolt size={18} className="text-[#F97316]" />
+                <span>Instant Funds</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Request immediate settlement of your cash wallet balance. Settled in the next cycle.
+              </p>
+            </div>
+            <Link to="/vendor/payouts">
+              <Button
+                size="sm"
+                className="shrink-0 bg-gradient-to-r from-[#F97316] to-[#FFD700] hover:from-[#FB923C] hover:to-[#FFE08A] text-white font-semibold shadow"
+              >
+                ⚡ Instant Funds
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {!isPremium && (
