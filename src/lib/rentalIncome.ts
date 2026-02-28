@@ -13,9 +13,15 @@ export interface RentalPayoutRow {
   month: string;
   transaction_volume: number;
   incentive_amount: number;
+  successful_days?: number | null;
   status: "pending" | "paid";
   paid_at: string | null;
   created_at: string;
+}
+
+/** Today's date in IST (YYYY-MM-DD). */
+export function getTodayIST(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
 /** Current calendar month as YYYY-MM. */
@@ -70,7 +76,7 @@ export async function getRentalPayoutHistory(
 ): Promise<RentalPayoutRow[]> {
   const { data, error } = await supabase
     .from("vendor_rental_payouts")
-    .select("id, vendor_id, month, transaction_volume, incentive_amount, status, paid_at, created_at")
+    .select("id, vendor_id, month, transaction_volume, incentive_amount, successful_days, status, paid_at, created_at")
     .eq("vendor_id", vendorId)
     .order("month", { ascending: false })
     .limit(limit);
@@ -83,25 +89,76 @@ export interface RentalIncomeSummary {
   month: string;
   volume: number;
   tierLabel: string;
+  /** Full slab payout if 30 successful days. */
   payout: number;
+  /** Prorated: slab × (successful_days / 30) floored. */
+  projectedPayout: number;
+  successfulDays: number;
+  todayTxCount: number;
   nextTierAt: number | null;
   nextTierPayout: number | null;
 }
 
+export interface VendorDailyActivityRow {
+  vendor_id: string;
+  date: string;
+  tx_count: number;
+  is_successful: boolean;
+}
+
 /**
- * Get current month volume and computed tier/payout (no DB table needed for current month).
+ * Get successful days count and today's tx count for a vendor in a calendar month (IST).
+ */
+export async function getVendorSuccessfulDaysAndToday(
+  vendorId: string,
+  yearMonth?: string
+): Promise<{ successfulDays: number; todayTxCount: number }> {
+  const month = yearMonth ?? getCurrentMonthKey();
+  const [y, m] = month.split("-").map(Number);
+  const start = `${month}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${month}-${String(lastDay).padStart(2, "0")}`;
+  const today = getTodayIST();
+
+  const { data, error } = await supabase
+    .from("vendor_daily_activity")
+    .select("date, tx_count, is_successful")
+    .eq("vendor_id", vendorId)
+    .gte("date", start)
+    .lte("date", end);
+
+  if (error) return { successfulDays: 0, todayTxCount: 0 };
+
+  const rows = (data ?? []) as { date: string; tx_count: number; is_successful: boolean }[];
+  const successfulDays = rows.filter((r) => r.is_successful).length;
+  const todayRow = rows.find((r) => r.date === today);
+  const todayTxCount = todayRow?.tx_count ?? 0;
+
+  return { successfulDays, todayTxCount };
+}
+
+/**
+ * Get current month volume, tier, successful days, and prorated projected payout.
+ * projectedPayout = slab × (successful_days / 30) floored.
  */
 export async function getRentalIncomeSummary(
   vendorId: string
 ): Promise<RentalIncomeSummary> {
   const month = getCurrentMonthKey();
-  const volume = await getVendorMonthlyVolume(vendorId, month);
-  const { tierLabel, payout, nextTierAt, nextTierPayout } = getIncentive(volume);
+  const [volume, { successfulDays, todayTxCount }] = await Promise.all([
+    getVendorMonthlyVolume(vendorId, month),
+    getVendorSuccessfulDaysAndToday(vendorId, month),
+  ]);
+  const { tierLabel, payout: slabPayout, nextTierAt, nextTierPayout } = getIncentive(volume);
+  const projectedPayout = Math.floor((slabPayout * successfulDays) / 30);
   return {
     month,
     volume,
     tierLabel,
-    payout,
+    payout: slabPayout,
+    projectedPayout,
+    successfulDays,
+    todayTxCount,
     nextTierAt,
     nextTierPayout,
   };
@@ -111,11 +168,51 @@ export async function getRentalIncomeSummary(
 export async function getAdminRentalPayouts(limit = 50): Promise<RentalPayoutRow[]> {
   const { data, error } = await supabase
     .from("vendor_rental_payouts")
-    .select("id, vendor_id, month, transaction_volume, incentive_amount, status, paid_at, created_at")
+    .select("id, vendor_id, month, transaction_volume, incentive_amount, successful_days, status, paid_at, created_at")
     .order("month", { ascending: false })
     .limit(limit);
   if (error) return [];
   return (data ?? []) as RentalPayoutRow[];
+}
+
+/** Admin: list daily activity for a vendor or all (for admin UI). */
+export async function getAdminVendorDailyActivity(
+  month: string,
+  vendorId?: string
+): Promise<VendorDailyActivityRow[]> {
+  const [y, m] = month.split("-").map(Number);
+  const start = `${month}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+  let q = supabase
+    .from("vendor_daily_activity")
+    .select("vendor_id, date, tx_count, is_successful")
+    .gte("date", start)
+    .lte("date", end)
+    .order("vendor_id")
+    .order("date", { ascending: false });
+
+  if (vendorId) q = q.eq("vendor_id", vendorId);
+  const { data, error } = await q;
+  if (error) return [];
+  return (data ?? []) as VendorDailyActivityRow[];
+}
+
+/** Admin: run monthly rental income calc (prorated by successful days). */
+export async function runRentalIncomeMonthlyCalc(
+  month: string
+): Promise<{ ok: boolean; error?: string; vendorsProcessed?: number }> {
+  const { data, error } = await supabase.rpc("run_rental_income_monthly_calc", {
+    p_month: month,
+  });
+  if (error) return { ok: false, error: error.message };
+  const result = data as { ok?: boolean; error?: string; vendors_processed?: number } | null;
+  if (result && result.ok === false) return { ok: false, error: result.error };
+  return {
+    ok: true,
+    vendorsProcessed: result?.vendors_processed ?? 0,
+  };
 }
 
 /**

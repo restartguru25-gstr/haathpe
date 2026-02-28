@@ -366,13 +366,16 @@ export default function Orders() {
     );
   }
 
+  const title = t("orders") || "Buying Spot";
+  const subtitle = t("ordersPageSubtitle") || "Orders you placed for supplies";
+
   return (
-    <div className="min-h-screen bg-muted/20 pb-6">
+    <div className="min-h-screen bg-muted/20 pb-6" data-page="orders">
       <div className="container max-w-2xl px-4 py-6">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-extrabold tracking-tight">{t("orders")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t("ordersPageSubtitle")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           {filtered.length > 0 ? (
             <p className="text-sm text-muted-foreground mt-1">
               {filtered.length} {filtered.length === 1 ? "order" : "orders"}

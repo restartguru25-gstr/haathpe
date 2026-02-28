@@ -40,6 +40,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Sheet,
   SheetContent,
@@ -86,7 +93,10 @@ import { getOndcOrdersForAdmin, type OndcOrder } from "@/lib/ondcOrders";
 import {
   getAdminRentalPayouts,
   markRentalPayoutPaid,
+  runRentalIncomeMonthlyCalc,
+  getAdminVendorDailyActivity,
   type RentalPayoutRow,
+  type VendorDailyActivityRow,
 } from "@/lib/rentalIncome";
 import {
   getAdminRedemptions,
@@ -215,6 +225,12 @@ export default function Admin() {
   const [eligibleForDraw, setEligibleForDraw] = useState<VendorIncentive[]>([]);
   const [rentalPayouts, setRentalPayouts] = useState<RentalPayoutRow[]>([]);
   const [loadingRentalPayouts, setLoadingRentalPayouts] = useState(false);
+  const [rentalCalcMonth, setRentalCalcMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [rentalCalcRunning, setRentalCalcRunning] = useState(false);
+  const [dailyActivityMonth, setDailyActivityMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [dailyActivityVendorId, setDailyActivityVendorId] = useState("");
+  const [dailyActivityRows, setDailyActivityRows] = useState<VendorDailyActivityRow[]>([]);
+  const [loadingDailyActivity, setLoadingDailyActivity] = useState(false);
   const [slabFormOpen, setSlabFormOpen] = useState(false);
   const [editingSlab, setEditingSlab] = useState<IncentiveSlab | null>(null);
   const [savingSlab, setSavingSlab] = useState(false);
@@ -1123,91 +1139,97 @@ export default function Admin() {
     return null;
   }
 
-  return (
-    <div className="container max-w-4xl py-6 px-4 pb-24">
-      <div className="mb-6 flex items-center gap-3">
-        <Link to="/dashboard">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft size={18} />
-          </Button>
-        </Link>
-        <div className="flex items-center gap-2">
-          <Shield size={22} className="text-primary" />
-          <h1 className="text-xl font-extrabold">Admin</h1>
-        </div>
-      </div>
+  const tabTriggerClass =
+    "flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-[#F97316]/10 data-[state=active]:text-[#F97316] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#F97316] shrink-0 transition-all hover:scale-[1.02] min-h-[44px]";
 
-      <Tabs defaultValue="vendors" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1">
-          <TabsTrigger value="vendors" className="flex items-center gap-2">
+  return (
+    <TooltipProvider>
+      <div className="min-h-screen bg-[#F9FAFB]">
+        <div className="container max-w-5xl py-6 px-4 pb-24">
+          <div className="mb-6 flex items-center gap-3">
+            <Link to="/dashboard">
+              <Button variant="ghost" size="icon" className="rounded-lg hover:bg-white/80 min-h-[44px] min-w-[44px]">
+                <ArrowLeft size={18} />
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2">
+              <Shield size={22} className="text-[#F97316]" />
+              <h1 className="text-xl font-extrabold text-gray-900">Admin</h1>
+            </div>
+          </div>
+
+          <Tabs defaultValue="vendors" className="space-y-4">
+            <TabsList className="inline-flex h-12 w-full max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm justify-start gap-0 flex-nowrap [&::-webkit-scrollbar]:h-1">
+          <TabsTrigger value="vendors" className={tabTriggerClass}>
             <Users size={16} /> Vendors
           </TabsTrigger>
-          <TabsTrigger value="orders" className="flex items-center gap-2">
+          <TabsTrigger value="orders" className={tabTriggerClass}>
             <ShoppingBag size={16} /> Orders
           </TabsTrigger>
-          <TabsTrigger value="swaps" className="flex items-center gap-2">
+          <TabsTrigger value="swaps" className={tabTriggerClass}>
             <Package size={16} /> Swaps
           </TabsTrigger>
-          <TabsTrigger value="redemptions" className="flex items-center gap-2">
+          <TabsTrigger value="redemptions" className={tabTriggerClass}>
             <Gift size={16} /> Redemptions
           </TabsTrigger>
-          <TabsTrigger value="svanidhi" className="flex items-center gap-2">
+          <TabsTrigger value="svanidhi" className={tabTriggerClass}>
             <HelpCircle size={16} /> SVANidhi
           </TabsTrigger>
-          <TabsTrigger value="incentives" className="flex items-center gap-2">
+          <TabsTrigger value="incentives" className={tabTriggerClass}>
             <Banknote size={16} /> Incentives
           </TabsTrigger>
-          <TabsTrigger value="ads" className="flex items-center gap-2">
+          <TabsTrigger value="ads" className={tabTriggerClass}>
             <Image size={16} /> Ads
           </TabsTrigger>
-          <TabsTrigger value="ondc" className="flex items-center gap-2">
+          <TabsTrigger value="ondc" className={tabTriggerClass}>
             <Zap size={16} /> ONDC
           </TabsTrigger>
-          <TabsTrigger value="customerRedemptions" className="flex items-center gap-2">
-            <CreditCard size={16} /> Cx Redemptions
+          <TabsTrigger value="customerRedemptions" className={tabTriggerClass}>
+            <CreditCard size={16} /> Customer Redemptions
           </TabsTrigger>
-          <TabsTrigger value="customerBonuses" className="flex items-center gap-2">
-            <Gift size={16} /> Cx Bonus
+          <TabsTrigger value="customerBonuses" className={tabTriggerClass}>
+            <Gift size={16} /> Customer Bonuses
           </TabsTrigger>
-          <TabsTrigger value="coinsConfig" className="flex items-center gap-2">
+          <TabsTrigger value="coinsConfig" className={tabTriggerClass}>
             <Coins size={16} /> Coins
           </TabsTrigger>
-          <TabsTrigger value="vendorWallet" className="flex items-center gap-2">
+          <TabsTrigger value="vendorWallet" className={tabTriggerClass}>
             <Wallet size={16} /> Vendor Wallet
           </TabsTrigger>
-          <TabsTrigger value="instantPayouts" className="flex items-center gap-2">
+          <TabsTrigger value="instantPayouts" className={tabTriggerClass}>
             <Bolt size={16} /> Instant Payouts
           </TabsTrigger>
-          <TabsTrigger value="riders" className="flex items-center gap-2">
+          <TabsTrigger value="riders" className={tabTriggerClass}>
             <Bike size={16} /> Riders
           </TabsTrigger>
-          <TabsTrigger value="sectors" className="flex items-center gap-2">
+          <TabsTrigger value="sectors" className={tabTriggerClass}>
             <LayoutGrid size={16} /> Sectors
           </TabsTrigger>
-          <TabsTrigger value="categories" className="flex items-center gap-2">
+          <TabsTrigger value="categories" className={tabTriggerClass}>
             <Tags size={16} /> Categories
           </TabsTrigger>
-          <TabsTrigger value="defaultMenu" className="flex items-center gap-2">
+          <TabsTrigger value="defaultMenu" className={tabTriggerClass}>
             <UtensilsCrossed size={16} /> Menu
           </TabsTrigger>
-          <TabsTrigger value="products" className="flex items-center gap-2">
+          <TabsTrigger value="products" className={tabTriggerClass}>
             <Package size={16} /> Products
           </TabsTrigger>
-          <TabsTrigger value="actions" className="flex items-center gap-2">
+          <TabsTrigger value="actions" className={tabTriggerClass}>
             <Trophy size={16} /> Actions
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="vendors" className="space-y-4">
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={loadVendors} disabled={loadingVendors}>
-              <RefreshCw size={14} className={loadingVendors ? "animate-spin" : ""} /> Refresh
-            </Button>
-          </div>
-          {loadingVendors ? (
-            <Skeleton className="h-64 w-full rounded-xl" />
-          ) : (
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <TabsContent value="vendors" className="space-y-4 mt-4">
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <div className="flex justify-end mb-3">
+              <Button variant="outline" size="sm" onClick={loadVendors} disabled={loadingVendors} className="min-h-[44px]">
+                <RefreshCw size={14} className={loadingVendors ? "animate-spin" : ""} /> Refresh
+              </Button>
+            </div>
+            {loadingVendors ? (
+              <Skeleton className="h-64 w-full rounded-xl" />
+            ) : (
+            <Card className="shadow-md rounded-lg border-gray-200 overflow-hidden transition-transform hover:shadow-lg">
               <div className="overflow-x-auto max-h-[60vh]">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
@@ -1260,11 +1282,12 @@ export default function Admin() {
               {vendors.length === 0 && (
                 <p className="p-6 text-center text-muted-foreground">No vendors yet</p>
               )}
-            </div>
+            </Card>
           )}
+          </motion.div>
         </TabsContent>
 
-        <TabsContent value="orders" className="space-y-4">
+        <TabsContent value="orders" className="space-y-4 mt-4">
           <div className="flex justify-end">
             <Button variant="outline" size="sm" onClick={loadOrders} disabled={loadingOrders}>
               <RefreshCw size={14} className={loadingOrders ? "animate-spin" : ""} /> Refresh
@@ -1607,9 +1630,88 @@ export default function Admin() {
                 </div>
                 {adminIncentives.length === 0 && <p className="p-6 text-center text-muted-foreground">No incentives yet. Run Daily Calc in Actions.</p>}
               </div>
-              <div className="rounded-xl border border-border bg-card overflow-hidden">
-                <h3 className="p-4 font-bold">Rental income (volume-based)</h3>
-                <p className="px-4 pb-2 text-xs text-muted-foreground">Create rows via upsertRentalPayoutForVendor (e.g. at month-end). Mark paid to credit vendor&apos;s Cash Wallet.</p>
+              <div className="rounded-xl border border-border bg-card overflow-hidden p-4 space-y-4">
+                <h3 className="font-bold">Rental income (prorated by successful days)</h3>
+                <p className="text-xs text-muted-foreground">Credit = slab × (successful_days ÷ 30). Run monthly calc to compute and credit. Slabs by volume; successful day = 9+ paid tx that day.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-sm">Month (YYYY-MM):</label>
+                  <input
+                    type="month"
+                    className="rounded border border-input bg-background px-2 py-1 text-sm"
+                    value={rentalCalcMonth}
+                    onChange={(e) => setRentalCalcMonth(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={rentalCalcRunning}
+                    onClick={async () => {
+                      setRentalCalcRunning(true);
+                      const res = await runRentalIncomeMonthlyCalc(rentalCalcMonth);
+                      setRentalCalcRunning(false);
+                      if (res.ok) {
+                        toast.success(`Monthly calc done. Vendors processed: ${res.vendorsProcessed ?? 0}`);
+                        loadIncentives();
+                      } else toast.error(res.error ?? "Failed");
+                    }}
+                  >
+                    {rentalCalcRunning ? "Running…" : "Run monthly calc"}
+                  </Button>
+                </div>
+                <div className="rounded-lg border border-border p-3 space-y-2">
+                  <h4 className="text-sm font-semibold">Vendor daily activity</h4>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="month"
+                      className="rounded border border-input bg-background px-2 py-1 text-sm"
+                      value={dailyActivityMonth}
+                      onChange={(e) => setDailyActivityMonth(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Vendor ID (optional)"
+                      className="rounded border border-input bg-background px-2 py-1 text-sm w-48 font-mono text-xs"
+                      value={dailyActivityVendorId}
+                      onChange={(e) => setDailyActivityVendorId(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={loadingDailyActivity}
+                      onClick={async () => {
+                        setLoadingDailyActivity(true);
+                        const rows = await getAdminVendorDailyActivity(dailyActivityMonth, dailyActivityVendorId || undefined);
+                        setDailyActivityRows(rows);
+                        setLoadingDailyActivity(false);
+                      }}
+                    >
+                      {loadingDailyActivity ? "Loading…" : "Load"}
+                    </Button>
+                  </div>
+                  {dailyActivityRows.length > 0 && (
+                    <div className="overflow-x-auto max-h-[30vh] rounded border border-border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="text-left p-2">Vendor</th>
+                            <th className="text-left p-2">Date</th>
+                            <th className="text-right p-2">Tx count</th>
+                            <th className="text-left p-2">Successful</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dailyActivityRows.map((row, i) => (
+                            <tr key={i} className="border-t border-border">
+                              <td className="p-2 font-mono text-xs">{row.vendor_id.slice(0, 8)}…</td>
+                              <td className="p-2 text-muted-foreground">{row.date}</td>
+                              <td className="p-2 text-right">{row.tx_count}</td>
+                              <td className="p-2">{row.is_successful ? "Yes" : "No"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
                 {loadingRentalPayouts ? (
                   <Skeleton className="h-24 w-full" />
                 ) : (
@@ -1620,6 +1722,7 @@ export default function Admin() {
                           <th className="text-left p-3">Month</th>
                           <th className="text-left p-3">Vendor</th>
                           <th className="text-right p-3">Volume</th>
+                          <th className="text-right p-3">Success days</th>
                           <th className="text-right p-3">Amount</th>
                           <th className="text-left p-3">Status</th>
                           <th className="text-left p-3"></th>
@@ -1631,6 +1734,7 @@ export default function Admin() {
                             <td className="p-3 text-muted-foreground">{r.month}</td>
                             <td className="p-3 font-mono text-xs">{r.vendor_id.slice(0, 8)}…</td>
                             <td className="p-3 text-right">₹{Number(r.transaction_volume).toLocaleString("en-IN")}</td>
+                            <td className="p-3 text-right">{r.successful_days != null ? `${r.successful_days}/30` : "—"}</td>
                             <td className="p-3 text-right font-semibold">₹{Number(r.incentive_amount).toFixed(0)}</td>
                             <td className="p-3">{r.status}</td>
                             <td className="p-3">
@@ -1650,7 +1754,7 @@ export default function Admin() {
                   </div>
                 )}
                 {!loadingRentalPayouts && rentalPayouts.length === 0 && (
-                  <p className="p-6 text-center text-muted-foreground">No rental payouts yet. Run part24 SQL to create table; then create rows per vendor/month.</p>
+                  <p className="p-6 text-center text-muted-foreground">No rental payouts yet. Run monthly calc to create rows and credit vendors.</p>
                 )}
               </div>
             </>
@@ -1991,145 +2095,171 @@ export default function Admin() {
           )}
         </TabsContent>
 
-        <TabsContent value="vendorWallet" className="space-y-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Wallet size={20} /> Vendor Cash Wallet Settings
-              </h2>
-              <Button variant="outline" size="sm" onClick={loadVendorWalletSettings} disabled={loadingVendorWalletSettings}>
-                <RefreshCw size={14} className={loadingVendorWalletSettings ? "animate-spin" : ""} /> Refresh
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Signup bonus is credited when a vendor first activates their profile. Min withdrawal is the threshold vendors must reach before they can request a withdrawal.
-            </p>
-          </div>
-          {loadingVendorWalletSettings ? (
-            <Skeleton className="h-32 w-full rounded-xl" />
-          ) : vendorWalletSettings ? (
-            <div className="rounded-xl border border-border bg-card p-6 space-y-6 max-w-lg">
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">Signup Bonus (₹)</Label>
-                  <p className="text-xs text-muted-foreground">Amount credited to new vendors on first profile activation</p>
-                  <Select
-                    value={String(vendorWalletSettings.signup_bonus_amount)}
-                    onValueChange={async (v) => {
-                      const n = Number(v);
-                      if (Number.isNaN(n) || n < 0) return;
-                      setSavingVendorWalletSettings(true);
-                      const ok = await updateVendorSettings({ signup_bonus_amount: n });
-                      setSavingVendorWalletSettings(false);
-                      if (ok.ok) {
-                        setVendorWalletSettings((s) => (s ? { ...s, signup_bonus_amount: n } : null));
-                        toast.success("Signup bonus updated");
-                      } else {
-                        toast.error(ok.error ?? "Failed");
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="99">₹99</SelectItem>
-                      <SelectItem value="149">₹149</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">Min Instant Transfer (₹)</Label>
-                  <p className="text-xs text-muted-foreground">Min eligible receipt balance for instant transfer (customer payments only)</p>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={5000}
-                      step={1}
-                      value={vendorWalletSettings.min_instant_transfer_amount ?? 100}
-                      className="w-32"
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!Number.isNaN(v) && v >= 0) {
-                          setVendorWalletSettings((s) => (s ? { ...s, min_instant_transfer_amount: v } : null));
-                        }
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      disabled={savingVendorWalletSettings}
-                      onClick={async () => {
-                        const n = vendorWalletSettings.min_instant_transfer_amount ?? 100;
-                        if (n < 1) {
-                          toast.error("Min ₹1");
-                          return;
-                        }
+        <TabsContent value="vendorWallet" className="space-y-4 mt-4">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
+            {loadingVendorWalletSettings ? (
+              <Skeleton className="h-48 w-full rounded-xl" />
+            ) : vendorWalletSettings ? (
+              <Card className="shadow-md rounded-lg border-gray-200 overflow-hidden transition-transform hover:shadow-lg">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wallet size={20} className="text-[#F97316]" /> Vendor Cash Wallet Settings
+                    </CardTitle>
+                    <Button variant="outline" size="sm" onClick={loadVendorWalletSettings} disabled={loadingVendorWalletSettings} className="min-h-[44px]">
+                      <RefreshCw size={14} className={loadingVendorWalletSettings ? "animate-spin" : ""} /> Refresh
+                    </Button>
+                  </div>
+                  <CardDescription>
+                    Signup bonus is credited when a vendor first activates their profile. Min withdrawal is the threshold for total balance; min instant applies to eligible receipt balance only.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2 p-4 rounded-lg bg-gray-50/80 border border-gray-100">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label className="text-base font-medium cursor-help">Signup Bonus (₹)</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        Amount credited to new vendors on first profile activation
+                      </TooltipContent>
+                    </Tooltip>
+                    <Select
+                      value={String(vendorWalletSettings.signup_bonus_amount)}
+                      onValueChange={async (v) => {
+                        const n = Number(v);
+                        if (Number.isNaN(n) || n < 0) return;
                         setSavingVendorWalletSettings(true);
-                        const ok = await updateVendorSettings({ min_instant_transfer_amount: n });
+                        const ok = await updateVendorSettings({ signup_bonus_amount: n });
                         setSavingVendorWalletSettings(false);
                         if (ok.ok) {
-                          toast.success("Min instant transfer updated");
+                          setVendorWalletSettings((s) => (s ? { ...s, signup_bonus_amount: n } : null));
+                          toast.success("Signup bonus updated", { style: { background: "#10B981", color: "white" } });
                         } else {
                           toast.error(ok.error ?? "Failed");
                         }
                       }}
                     >
-                      {savingVendorWalletSettings ? "Saving…" : "Save"}
-                    </Button>
+                      <SelectTrigger className="w-full min-h-[44px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="99">₹99</SelectItem>
+                        <SelectItem value="149">₹149</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">Min Withdrawal (₹)</Label>
-                  <p className="text-xs text-muted-foreground">Vendors cannot withdraw total balance below this amount</p>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      min={100}
-                      max={10000}
-                      step={1}
-                      value={vendorWalletSettings.min_withdrawal_amount}
-                      className="w-32"
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!Number.isNaN(v) && v >= 0) {
-                          setVendorWalletSettings((s) => (s ? { ...s, min_withdrawal_amount: v } : null));
-                        }
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      disabled={savingVendorWalletSettings}
-                      onClick={async () => {
-                        const n = vendorWalletSettings.min_withdrawal_amount;
-                        if (n < 100) {
-                          toast.error("Min ₹100");
-                          return;
-                        }
-                        setSavingVendorWalletSettings(true);
-                        const ok = await updateVendorSettings({ min_withdrawal_amount: n });
-                        setSavingVendorWalletSettings(false);
-                        if (ok.ok) {
-                          toast.success("Min withdrawal updated");
-                        } else {
-                          toast.error(ok.error ?? "Failed");
-                        }
-                      }}
-                    >
-                      {savingVendorWalletSettings ? "Saving…" : "Save"}
-                    </Button>
+                  <div className="space-y-2 p-4 rounded-lg bg-gray-50/80 border border-gray-100">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label className="text-base font-medium cursor-help">Min Instant Transfer (₹)</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        Min eligible receipt balance for instant transfer (customer payments only)
+                      </TooltipContent>
+                    </Tooltip>
+                    <div className="flex gap-2 flex-wrap">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={5000}
+                        step={1}
+                        value={vendorWalletSettings.min_instant_transfer_amount ?? 100}
+                        className="w-full min-h-[44px] flex-1 min-w-[80px]"
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(v) && v >= 0) {
+                            setVendorWalletSettings((s) => (s ? { ...s, min_instant_transfer_amount: v } : null));
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={savingVendorWalletSettings}
+                        className="min-h-[44px] bg-[#F97316] hover:bg-[#EA580C] text-white"
+                        onClick={async () => {
+                          const n = vendorWalletSettings.min_instant_transfer_amount ?? 100;
+                          if (n < 1) {
+                            toast.error("Min ₹1");
+                            return;
+                          }
+                          setSavingVendorWalletSettings(true);
+                          const ok = await updateVendorSettings({ min_instant_transfer_amount: n });
+                          setSavingVendorWalletSettings(false);
+                          if (ok.ok) {
+                            toast.success("Min instant transfer updated", { style: { background: "#10B981", color: "white" } });
+                          } else {
+                            toast.error(ok.error ?? "Failed");
+                          }
+                        }}
+                      >
+                        {savingVendorWalletSettings ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </div>
-              {savingVendorWalletSettings && (
-                <p className="text-xs text-muted-foreground">Saving…</p>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-destructive">
-              Run migration 20260220800000_vendor_cash_wallet.sql first to create vendor_settings table.
-            </div>
-          )}
+                  <div className="space-y-2 p-4 rounded-lg bg-gray-50/80 border border-gray-100">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label className="text-base font-medium cursor-help">Min Withdrawal (₹)</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        Vendors cannot withdraw total balance below this amount
+                      </TooltipContent>
+                    </Tooltip>
+                    <div className="flex gap-2 flex-wrap">
+                      <Input
+                        type="number"
+                        min={100}
+                        max={10000}
+                        step={1}
+                        value={vendorWalletSettings.min_withdrawal_amount}
+                        className="w-full min-h-[44px] flex-1 min-w-[80px]"
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(v) && v >= 0) {
+                            setVendorWalletSettings((s) => (s ? { ...s, min_withdrawal_amount: v } : null));
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={savingVendorWalletSettings}
+                        className="min-h-[44px] bg-[#F97316] hover:bg-[#EA580C] text-white"
+                        onClick={async () => {
+                          const n = vendorWalletSettings.min_withdrawal_amount;
+                          if (n < 100) {
+                            toast.error("Min ₹100");
+                            return;
+                          }
+                          setSavingVendorWalletSettings(true);
+                          const ok = await updateVendorSettings({ min_withdrawal_amount: n });
+                          setSavingVendorWalletSettings(false);
+                          if (ok.ok) {
+                            toast.success("Min withdrawal updated", { style: { background: "#10B981", color: "white" } });
+                          } else {
+                            toast.error(ok.error ?? "Failed");
+                          }
+                        }}
+                      >
+                        {savingVendorWalletSettings ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-md rounded-lg border-destructive/30 bg-destructive/5">
+                <CardContent className="p-6 text-destructive">
+                  Run migration 20260220800000_vendor_cash_wallet.sql first to create vendor_settings table.
+                </CardContent>
+              </Card>
+            )}
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="instantPayouts" className="space-y-4">
@@ -3119,6 +3249,8 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+        </div>
+      </div>
+    </TooltipProvider>
   );
 }

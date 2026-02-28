@@ -1,8 +1,8 @@
 /**
  * Rental Income — vendor incentive dashboard (DOCILE ONLINE MART PRIVATE LIMITED / haathpe).
- * Shows current month volume, tier, projected payout, slab table, and payout history.
+ * Prorated by successful days (≥9 paid tx/day). Shows volume, tier, projected payout, slab table, payout history.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Banknote, TrendingUp, Calendar } from "lucide-react";
+import { Banknote, TrendingUp, Calendar, Target, Zap } from "lucide-react";
 import {
   getRentalIncomeSummary,
   getRentalPayoutHistory,
@@ -24,6 +24,7 @@ import {
   type RentalPayoutRow,
 } from "@/lib/rentalIncome";
 import { getSlabsForTable } from "@/lib/rentalIncomeSlabs";
+import { supabase } from "@/lib/supabase";
 
 function formatMonth(YYYYMM: string): string {
   const [y, m] = YYYYMM.split("-").map(Number);
@@ -39,11 +40,23 @@ function formatCurrency(n: number): string {
   }).format(n);
 }
 
+const SUCCESSFUL_DAY_MIN_TX = 9;
+
 export default function RentalIncome() {
   const { user } = useSession();
   const [summary, setSummary] = useState<RentalIncomeSummary | null>(null);
   const [history, setHistory] = useState<RentalPayoutRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    if (!user?.id) return;
+    const [s, h] = await Promise.all([
+      getRentalIncomeSummary(user.id),
+      getRentalPayoutHistory(user.id, 6),
+    ]);
+    setSummary(s);
+    setHistory(h);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -52,20 +65,35 @@ export default function RentalIncome() {
     }
     let cancelled = false;
     (async () => {
-      const [s, h] = await Promise.all([
-        getRentalIncomeSummary(user.id),
-        getRentalPayoutHistory(user.id, 6),
-      ]);
-      if (!cancelled) {
-        setSummary(s);
-        setHistory(h);
-      }
-      setLoading(false);
+      await fetchData();
+      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, fetchData]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel("rental-income-activity")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "vendor_daily_activity",
+          filter: `vendor_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchData]);
 
   const slabs = getSlabsForTable();
   const progressPercent =
@@ -96,7 +124,46 @@ export default function RentalIncome() {
         </p>
       </div>
 
-      {/* Current month summary */}
+      {/* Successful days + projected rental income */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="size-4 text-primary" />
+            Successful days & projected rental income
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Credit = slab × (successful days ÷ 30). A day counts if you have 9+ paid transactions.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <div>
+              <p className="text-2xl font-bold text-primary">
+                {summary ? `${summary.successfulDays} / 30` : "0 / 30"}
+              </p>
+              <p className="text-xs text-muted-foreground">Successful days so far</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-semibold">
+                {summary ? formatCurrency(summary.projectedPayout) : "₹0"}
+              </p>
+              <p className="text-xs text-muted-foreground">Projected Rental Income (to Cash Wallet)</p>
+            </div>
+          </div>
+          <Progress
+            value={summary ? (summary.successfulDays / 30) * 100 : 0}
+            className="h-3"
+          />
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 flex items-center gap-2">
+            <Target className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Hit {SUCCESSFUL_DAY_MIN_TX}+ paid transactions today to count this day. Today: {summary?.todayTxCount ?? 0} paid tx.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Current month volume + tier */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -113,10 +180,9 @@ export default function RentalIncome() {
               <p className="text-xs text-muted-foreground">Transaction volume (paid orders)</p>
             </div>
             <div className="text-right">
-              <p className="text-lg font-semibold">
-                {summary ? formatCurrency(summary.payout) : "₹0"}
+              <p className="text-sm font-medium text-muted-foreground">
+                {summary ? formatCurrency(summary.payout) : "₹0"} max if 30 successful days
               </p>
-              <p className="text-xs text-muted-foreground">Projected credit (to Cash Wallet)</p>
             </div>
           </div>
           {summary && summary.nextTierAt != null && summary.nextTierPayout != null && summary.payout < summary.nextTierPayout && (
@@ -143,7 +209,7 @@ export default function RentalIncome() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Rental income slabs</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Monthly transaction value (₹) determines the amount credited to your Cash Wallet.
+            Monthly transaction value (₹) sets your slab. Actual credit = slab × (successful days ÷ 30).
           </p>
         </CardHeader>
         <CardContent>
@@ -190,13 +256,14 @@ export default function RentalIncome() {
             <div className="overflow-x-auto rounded-md border border-border">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Month</TableHead>
-                    <TableHead className="text-xs text-right">Volume</TableHead>
-                    <TableHead className="text-xs text-right">Amount</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Month</TableHead>
+                  <TableHead className="text-xs text-right">Volume</TableHead>
+                  <TableHead className="text-xs text-right">Success days</TableHead>
+                  <TableHead className="text-xs text-right">Amount</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                </TableRow>
+              </TableHeader>
                 <TableBody>
                   {history.map((row) => (
                     <TableRow key={row.id}>
@@ -205,6 +272,9 @@ export default function RentalIncome() {
                       </TableCell>
                       <TableCell className="text-xs text-right py-2">
                         {formatCurrency(Number(row.transaction_volume))}
+                      </TableCell>
+                      <TableCell className="text-xs text-right py-2">
+                        {row.successful_days != null ? `${row.successful_days}/30` : "—"}
                       </TableCell>
                       <TableCell className="text-xs text-right py-2 font-medium">
                         {formatCurrency(Number(row.incentive_amount))}

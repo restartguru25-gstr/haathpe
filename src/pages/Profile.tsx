@@ -26,7 +26,6 @@ import {
   UserPlus,
   Clock,
   Gift,
-  CheckCircle2,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -139,17 +138,6 @@ export default function Profile() {
     otherBusinessDetails: "",
     upiId: "",
   });
-  const [verifying, setVerifying] = useState<"bank" | "pan" | "gstin" | null>(null);
-
-  // Safety: always clear "Verifying" after 40s so UI never gets stuck
-  useEffect(() => {
-    if (!verifying) return;
-    const t = setTimeout(() => {
-      setVerifying(null);
-      toast.error("Verification took too long. Please try again.");
-    }, 40000);
-    return () => clearTimeout(t);
-  }, [verifying]);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -187,9 +175,6 @@ export default function Profile() {
     panNumber,
     bankAccountNumber,
     ifscCode,
-    bankVerified,
-    panVerified,
-    gstinVerified,
     udyamNumber,
     fssaiLicense,
     otherBusinessDetails,
@@ -370,28 +355,6 @@ export default function Profile() {
       ...f,
       shopPhotoUrls: f.shopPhotoUrls.filter((_, i) => i !== index),
     }));
-  };
-
-  const updateProfileVerified = async (field: "bank_verified" | "pan_verified" | "gstin_verified", value: boolean) => {
-    if (!user?.id) return;
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session?.session?.access_token;
-      const opts = token ? { body: { [field]: value }, headers: { Authorization: `Bearer ${token}` } as Record<string, string> } : { body: { [field]: value } };
-      const { error } = await supabase.functions.invoke("update-profile", opts);
-      if (!error) {
-        await refreshProfile();
-        return;
-      }
-    } catch {
-      /* fallback to direct update */
-    }
-    try {
-      const { error } = await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
-      if (!error) await refreshProfile();
-    } catch {
-      /* ignore */
-    }
   };
 
   const handleNotifToggle = (key: keyof NotificationSettings, value: boolean) => {
@@ -1041,36 +1004,26 @@ export default function Profile() {
               </div>
             </div>
             <div>
-              <Label htmlFor="edit-gst">GSTIN (15 digits, optional)</Label>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <Input
-                  id="edit-gst"
-                  value={editForm.gstNumber}
-                  onChange={(e) => setEditForm((f) => ({ ...f, gstNumber: e.target.value.toUpperCase() }))}
-                  placeholder="e.g. 36AABCU9603R1ZM"
-                  className="flex-1 min-w-[160px]"
-                />
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Verify GSTIN
-                </Button>
-                {gstinVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
-              </div>
+              <Label htmlFor="edit-gst">GSTIN (optional)</Label>
+              <Input
+                id="edit-gst"
+                value={editForm.gstNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, gstNumber: e.target.value.toUpperCase() }))}
+                placeholder="e.g. 36AABCU9603R1ZM"
+                className="mt-1.5 flex-1 min-w-[160px]"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">15 characters. For records only; verification not available.</p>
             </div>
             <div>
-              <Label htmlFor="edit-pan">PAN (10 chars, optional)</Label>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <Input
-                  id="edit-pan"
-                  value={editForm.panNumber}
-                  onChange={(e) => setEditForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))}
-                  placeholder="e.g. ABCDE1234F"
-                  className="flex-1 min-w-[120px]"
-                />
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Verify PAN
-                </Button>
-                {panVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
-              </div>
+              <Label htmlFor="edit-pan">PAN (optional)</Label>
+              <Input
+                id="edit-pan"
+                value={editForm.panNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))}
+                placeholder="e.g. ABCDE1234F"
+                className="mt-1.5 flex-1 min-w-[120px]"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">10 characters. For records only; verification not available.</p>
             </div>
             <div>
               <Label htmlFor="edit-bank">Bank account (optional)</Label>
@@ -1083,20 +1036,15 @@ export default function Profile() {
               />
             </div>
             <div>
-              <Label htmlFor="edit-ifsc">IFSC code</Label>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <Input
-                  id="edit-ifsc"
-                  value={editForm.ifscCode}
-                  onChange={(e) => setEditForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))}
-                  placeholder="e.g. HDFC0001234"
-                  className="flex-1 min-w-[120px]"
-                />
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Verify Bank
-                </Button>
-                {bankVerified && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 size={14} /> Verified</span>}
-              </div>
+              <Label htmlFor="edit-ifsc">IFSC code (optional)</Label>
+              <Input
+                id="edit-ifsc"
+                value={editForm.ifscCode}
+                onChange={(e) => setEditForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))}
+                placeholder="e.g. HDFC0001234"
+                className="mt-1.5 flex-1 min-w-[120px]"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">For payouts; verification not available.</p>
             </div>
             <div>
               <Label htmlFor="edit-udyam">UDYAM number (optional)</Label>

@@ -48,6 +48,7 @@ import { isShopOpen } from "@/lib/shopDetails";
 import { Clock } from "lucide-react";
 import VendorCashWalletSection from "@/components/VendorCashWalletSection";
 import { getVendorWallet } from "@/lib/vendorCashWallet";
+import { getRentalIncomeSummary, type RentalIncomeSummary } from "@/lib/rentalIncome";
 
 export default function Sales() {
   const { t } = useApp();
@@ -96,6 +97,7 @@ export default function Sales() {
   const [ondcOrders, setOndcOrders] = useState<OndcOrder[]>([]);
   const [upgrading, setUpgrading] = useState(false);
   const [eligibleReceiptBalance, setEligibleReceiptBalance] = useState(0);
+  const [rentalSummary, setRentalSummary] = useState<RentalIncomeSummary | null>(null);
   const sectorId = getSectorIdFromStallType(profile?.stallType ?? null);
   const isPremium = profile?.premiumTier === "premium";
 
@@ -141,6 +143,11 @@ export default function Sales() {
 
   useEffect(() => {
     if (!vendorId) return;
+    getRentalIncomeSummary(vendorId).then(setRentalSummary).catch(() => {});
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (!vendorId) return;
     Promise.all([
       getVendorIncentives(vendorId),
       getTodayEntryCount(vendorId),
@@ -182,9 +189,22 @@ export default function Sales() {
           try {
             getCustomerOrders(vendorId, { limit: 20 }).then(setCustomerOrders);
             getVendorReviews(vendorId).then(setReviews);
+            getRentalIncomeSummary(vendorId).then(setRentalSummary);
           } catch (e) {
             if ((e as Error)?.name !== "AbortError") console.error(e);
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "vendor_daily_activity",
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        () => {
+          getRentalIncomeSummary(vendorId).then(setRentalSummary).catch(() => {});
         }
       )
       .on(
@@ -454,6 +474,32 @@ export default function Sales() {
             </div>
           </div>
         )}
+
+        {/* Rental Income: successful days + projected (prorated by 9+ tx/day) */}
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">
+                <Banknote size={18} className="text-primary" />
+                <span>Rental Income</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Successful days: <strong>{rentalSummary?.successfulDays ?? 0} / 30</strong>
+                {rentalSummary != null && (
+                  <> · Projected: <strong>₹{rentalSummary.projectedPayout}</strong></>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Hit 9+ paid transactions today to count this day. Today: {rentalSummary?.todayTxCount ?? 0} tx.
+              </p>
+            </div>
+            <Link to="/rental-income">
+              <Button variant="outline" size="sm" className="shrink-0 gap-1">
+                View details <ChevronRight size={14} />
+              </Button>
+            </Link>
+          </div>
+        </div>
 
         {!isPremium && (
           <div className="mb-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
