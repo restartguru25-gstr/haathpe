@@ -28,6 +28,7 @@ export interface VendorSettings {
   id: string;
   signup_bonus_amount: number;
   min_withdrawal_amount: number;
+  min_instant_transfer_amount?: number;
   updated_at: string;
 }
 
@@ -95,7 +96,7 @@ export async function getVendorSettings(): Promise<VendorSettings | null> {
 
 /** Update vendor_settings (admin). */
 export async function updateVendorSettings(
-  values: { signup_bonus_amount?: number; min_withdrawal_amount?: number }
+  values: { signup_bonus_amount?: number; min_withdrawal_amount?: number; min_instant_transfer_amount?: number }
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const payload: Record<string, number> = {};
@@ -104,6 +105,9 @@ export async function updateVendorSettings(
     }
     if (typeof values.min_withdrawal_amount === "number") {
       payload.min_withdrawal_amount = values.min_withdrawal_amount;
+    }
+    if (typeof values.min_instant_transfer_amount === "number") {
+      payload.min_instant_transfer_amount = values.min_instant_transfer_amount;
     }
     if (Object.keys(payload).length === 0) return { ok: true };
     const { error } = await supabase

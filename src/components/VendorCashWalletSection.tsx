@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Banknote, ArrowDownLeft, ArrowUpRight, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Banknote, ArrowDownLeft, ArrowUpRight, Loader2, Bolt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   getVendorWallet,
@@ -45,10 +46,14 @@ function getTransactionIcon(t: VendorCashTransaction) {
   return <Banknote size={14} className="text-muted-foreground" />;
 }
 
+const MIN_INSTANT_DEFAULT = 100;
+const MIN_WITHDRAWAL_DEFAULT = 499;
+
 export default function VendorCashWalletSection({ vendorId }: Props) {
-  const [wallet, setWallet] = useState<{ balance: number } | null>(null);
+  const [wallet, setWallet] = useState<{ balance: number; eligible_receipt_balance?: number } | null>(null);
   const [transactions, setTransactions] = useState<VendorCashTransaction[]>([]);
-  const [minWithdrawal, setMinWithdrawal] = useState(499);
+  const [minWithdrawal, setMinWithdrawal] = useState(MIN_WITHDRAWAL_DEFAULT);
+  const [minInstant, setMinInstant] = useState(MIN_INSTANT_DEFAULT);
   const [loading, setLoading] = useState(true);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
@@ -65,9 +70,12 @@ export default function VendorCashWalletSection({ vendorId }: Props) {
         getVendorCashTransactions(vendorId, 20),
         getVendorSettings(),
       ]);
-      setWallet(w ? { balance: Number(w.balance) } : null);
+      setWallet(w ? { balance: Number(w.balance), eligible_receipt_balance: Number((w as { eligible_receipt_balance?: number }).eligible_receipt_balance ?? 0) } : null);
       setTransactions(txs);
-      if (settings) setMinWithdrawal(Number(settings.min_withdrawal_amount));
+      if (settings) {
+        setMinWithdrawal(Number(settings.min_withdrawal_amount ?? MIN_WITHDRAWAL_DEFAULT));
+        setMinInstant(Number(settings.min_instant_transfer_amount ?? MIN_INSTANT_DEFAULT));
+      }
     } catch {
       /* ignore */
     } finally {
@@ -103,7 +111,7 @@ export default function VendorCashWalletSection({ vendorId }: Props) {
         () => {
           try {
             getVendorWallet(vendorId).then((w) => {
-              if (w) setWallet({ balance: Number(w.balance) });
+              if (w) setWallet({ balance: Number(w.balance), eligible_receipt_balance: Number((w as { eligible_receipt_balance?: number }).eligible_receipt_balance ?? 0) });
             });
           } catch {
             /* ignore */
@@ -133,7 +141,10 @@ export default function VendorCashWalletSection({ vendorId }: Props) {
   }, [vendorId]);
 
   const balance = wallet?.balance ?? 0;
+  const eligible = wallet?.eligible_receipt_balance ?? 0;
+  const lockedBonus = Math.max(0, balance - eligible);
   const canWithdraw = balance >= minWithdrawal;
+  const canInstant = eligible >= minInstant;
 
   const handleWithdrawClick = () => {
     if (!canWithdraw) {
@@ -179,21 +190,50 @@ export default function VendorCashWalletSection({ vendorId }: Props) {
           <Banknote size={20} className="text-primary" />
           <span>Cash Wallet</span>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold">₹{balance.toFixed(2)}</span>
-          <span className="text-sm text-muted-foreground">balance</span>
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-sm text-muted-foreground">Eligible for Instant Transfer</span>
+            <span className="text-lg font-bold">₹{eligible.toFixed(2)}</span>
+          </div>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-sm text-muted-foreground">Locked Bonus / Other</span>
+            <span className="text-lg font-medium">₹{lockedBonus.toFixed(2)}</span>
+          </div>
+          <div className="flex items-baseline justify-between gap-2 pt-1 border-t border-border">
+            <span className="text-sm font-medium">Total balance</span>
+            <span className="text-xl font-bold">₹{balance.toFixed(2)}</span>
+          </div>
         </div>
-        <Button
-          onClick={handleWithdrawClick}
-          disabled={!canWithdraw}
-          variant={canWithdraw ? "default" : "outline"}
-          className="w-full sm:w-auto"
-        >
-          {canWithdraw ? `Withdraw ₹${balance.toFixed(0)}` : `Min ₹${minWithdrawal} to withdraw`}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/vendor/payouts">
+            <Button
+              variant={canInstant ? "default" : "outline"}
+              size="sm"
+              className={canInstant ? "bg-gradient-to-r from-[#F97316] to-[#FFD700] hover:from-[#FB923C] hover:to-[#FFE08A] text-white" : ""}
+              disabled={!canInstant}
+              title="Instant transfer available only for customer payments received"
+            >
+              <Bolt size={14} className="mr-1" /> Instant Funds {canInstant ? `(₹${eligible.toFixed(0)})` : `(min ₹${minInstant})`}
+            </Button>
+          </Link>
+          <Button
+            onClick={handleWithdrawClick}
+            disabled={!canWithdraw}
+            variant={canWithdraw ? "default" : "outline"}
+            size="sm"
+            className="w-full sm:w-auto"
+          >
+            {canWithdraw ? `Withdraw ₹${balance.toFixed(0)}` : `Min ₹${minWithdrawal} to withdraw`}
+          </Button>
+        </div>
+        {!canInstant && eligible > 0 && (
+          <p className="text-xs text-muted-foreground" title="Instant transfer available only for customer payments received">
+            Instant transfer: min ₹{minInstant} eligible (customer payments only).
+          </p>
+        )}
         {!canWithdraw && balance > 0 && (
           <p className="text-xs text-muted-foreground">
-            You need ₹{(minWithdrawal - balance).toFixed(0)} more to withdraw.
+            You need ₹{(minWithdrawal - balance).toFixed(0)} more to withdraw (total balance).
           </p>
         )}
         <div>

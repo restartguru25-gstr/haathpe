@@ -429,8 +429,8 @@ export default function Sales() {
           <VendorCashWalletSection vendorId={vendorId} />
         </div>
 
-        {/* Earnings: Instant Funds – only when eligible (customer payment receipts) */}
-        {eligibleReceiptBalance > 0 && (
+        {/* Earnings: Instant Funds – only when eligible >= 100 (customer payment receipts) */}
+        {eligibleReceiptBalance >= 100 && (
           <div className="mb-6 rounded-xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -438,7 +438,7 @@ export default function Sales() {
                   <Bolt size={18} className="text-[#F97316]" />
                   <span>Instant Funds</span>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground" title={`Instant transfer available only for customer payments received (₹${eligibleReceiptBalance.toFixed(0)} eligible)`}>
+                <p className="mt-1 text-sm text-muted-foreground" title="Instant transfer available only for customer payments received">
                   Instant transfer available only for customer payments received (₹{eligibleReceiptBalance.toFixed(0)} eligible).
                 </p>
               </div>
@@ -446,7 +446,7 @@ export default function Sales() {
                 <Button
                   size="sm"
                   className="shrink-0 bg-gradient-to-r from-[#F97316] to-[#FFD700] hover:from-[#FB923C] hover:to-[#FFE08A] text-white font-semibold shadow"
-                  title={eligibleReceiptBalance >= 1 ? "Get funds instantly now" : "Min ₹1 eligible required"}
+                  title="Get funds instantly now"
                 >
                   ⚡ Instant Funds
                 </Button>

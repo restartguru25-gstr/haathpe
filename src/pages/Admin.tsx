@@ -267,6 +267,7 @@ export default function Admin() {
   const [vendorWalletSettings, setVendorWalletSettings] = useState<{
     signup_bonus_amount: number;
     min_withdrawal_amount: number;
+    min_instant_transfer_amount?: number;
   } | null>(null);
   const [loadingVendorWalletSettings, setLoadingVendorWalletSettings] = useState(false);
   const [savingVendorWalletSettings, setSavingVendorWalletSettings] = useState(false);
@@ -397,6 +398,7 @@ export default function Admin() {
         setVendorWalletSettings({
           signup_bonus_amount: Number(s.signup_bonus_amount),
           min_withdrawal_amount: Number(s.min_withdrawal_amount),
+          min_instant_transfer_amount: Number((s as { min_instant_transfer_amount?: number }).min_instant_transfer_amount ?? 100),
         });
       }
     } catch {
@@ -2037,8 +2039,49 @@ export default function Admin() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label className="text-base font-medium">Min Instant Transfer (₹)</Label>
+                  <p className="text-xs text-muted-foreground">Min eligible receipt balance for instant transfer (customer payments only)</p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={5000}
+                      step={1}
+                      value={vendorWalletSettings.min_instant_transfer_amount ?? 100}
+                      className="w-32"
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v) && v >= 0) {
+                          setVendorWalletSettings((s) => (s ? { ...s, min_instant_transfer_amount: v } : null));
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      disabled={savingVendorWalletSettings}
+                      onClick={async () => {
+                        const n = vendorWalletSettings.min_instant_transfer_amount ?? 100;
+                        if (n < 1) {
+                          toast.error("Min ₹1");
+                          return;
+                        }
+                        setSavingVendorWalletSettings(true);
+                        const ok = await updateVendorSettings({ min_instant_transfer_amount: n });
+                        setSavingVendorWalletSettings(false);
+                        if (ok.ok) {
+                          toast.success("Min instant transfer updated");
+                        } else {
+                          toast.error(ok.error ?? "Failed");
+                        }
+                      }}
+                    >
+                      {savingVendorWalletSettings ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label className="text-base font-medium">Min Withdrawal (₹)</Label>
-                  <p className="text-xs text-muted-foreground">Vendors cannot withdraw below this amount</p>
+                  <p className="text-xs text-muted-foreground">Vendors cannot withdraw total balance below this amount</p>
                   <div className="flex gap-2">
                     <Input
                       type="number"

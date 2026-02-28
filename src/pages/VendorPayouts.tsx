@@ -114,10 +114,11 @@ export default function VendorPayouts() {
     };
   }, [vendorId]);
 
+  const minInstant = 100;
   const pendingExists = requests.some((r) => r.status === "pending");
   const amount = Number(amountStr);
-  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= eligibleReceiptBalance;
-  const canRequest = liveCycle.enabled && eligibleReceiptBalance >= 1 && validAmount && !pendingExists;
+  const validAmount = Number.isFinite(amount) && amount >= minInstant && amount <= eligibleReceiptBalance;
+  const canRequest = liveCycle.enabled && eligibleReceiptBalance >= minInstant && validAmount && !pendingExists;
 
   const handleRequest = async () => {
     if (!vendorId) return;
@@ -125,8 +126,8 @@ export default function VendorPayouts() {
       toast.info(`Next cycle at ${liveCycle.nextCycleLabel}`);
       return;
     }
-    if (eligibleReceiptBalance < 1) {
-      toast.info("No eligible receipt balance for instant transfer (min ₹1)");
+    if (eligibleReceiptBalance < minInstant) {
+      toast.info("No eligible receipt balance for instant transfer (min ₹100)");
       return;
     }
     if (!validAmount) {
@@ -243,8 +244,11 @@ export default function VendorPayouts() {
                       </Button>
                     ))}
                   </div>
-                  {!validAmount && eligibleReceiptBalance > 0 && (
-                    <p className="mt-2 text-xs text-white/75">Amount must be between ₹1 and ₹{eligibleReceiptBalance.toFixed(0)} (eligible only).</p>
+                  {!validAmount && eligibleReceiptBalance >= minInstant && (
+                    <p className="mt-2 text-xs text-white/75">Amount must be between ₹{minInstant} and ₹{eligibleReceiptBalance.toFixed(0)} (eligible only).</p>
+                  )}
+                  {eligibleReceiptBalance > 0 && eligibleReceiptBalance < minInstant && (
+                    <p className="mt-2 text-xs text-white/75">Min ₹{minInstant} eligible required for instant transfer.</p>
                   )}
                   {pendingExists && (
                     <p className="mt-2 text-xs text-white/75">You already have a pending request. Wait for admin approval.</p>
