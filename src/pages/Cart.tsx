@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Minus, Plus, Trash2, ArrowLeft, PartyPopper, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/contexts/AppContext";
-import { useCartStore, selectTotal } from "@/store/cartStore";
+import { useCartStore, selectTotal, selectSavings } from "@/store/cartStore";
 import { useSession } from "@/contexts/AuthContext";
 import { useCartPricing } from "@/hooks/useCartPricing";
 import { type Product } from "@/lib/data";
@@ -43,9 +43,12 @@ export default function Cart() {
   const removeItem = useCartStore((s) => s.removeItem);
   const clearCart = useCartStore((s) => s.clearCart);
   const cartTotal = useCartStore(selectTotal);
+  const savings = useCartStore(selectSavings);
   const { t, lang } = useApp();
   const { user, refreshProfile } = useSession();
   const pricing = useCartPricing(cart);
+  const totalSavingsRupees = savings.totalSavingsPaise / 100;
+  const netSavingsAfterFees = totalSavingsRupees - (DELIVERY_HAMALI_FEE + PLATFORM_FEE_ONLINE);
   const [placing, setPlacing] = useState(false);
   const [redirectingToPayment, setRedirectingToPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -205,8 +208,13 @@ export default function Cart() {
                       <span className="font-normal text-muted-foreground"> — {item.variantLabel}</span>
                     )}
                   </p>
-                  <p className="text-sm font-bold text-primary">
-                    ₹{getLinePrice(item).toFixed(item.pricePaise != null ? 2 : 0)} × {item.qty}
+                  <p className="text-sm font-bold text-primary flex items-center gap-2 flex-wrap">
+                    {item.referencePricePaise != null && item.referencePricePaise > (item.pricePaise ?? item.product.price * 100) && (
+                      <span className="text-muted-foreground font-normal line-through text-xs">
+                        ₹{((item.referencePricePaise || 0) / 100).toFixed(0)}
+                      </span>
+                    )}
+                    <span>₹{getLinePrice(item).toFixed(item.pricePaise != null ? 2 : 0)} × {item.qty}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -230,6 +238,22 @@ export default function Cart() {
               <span className="text-muted-foreground">{t("subtotal")}</span>
               <span className="font-semibold">₹{pricing.subtotalInclusive.toFixed(2)}</span>
             </div>
+            {totalSavingsRupees > 0 && (
+              <div className="mb-2 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 p-2.5 flex justify-between items-center">
+                <span className="text-green-700 dark:text-green-300 font-semibold text-sm flex items-center gap-1" title="Savings vs. average local market rates. Haathpe helps you buy smarter with economies of scale!">
+                  You Save
+                  <HelpCircle size={12} className="opacity-70" />
+                </span>
+                <span className="font-bold text-green-700 dark:text-green-300">
+                  ₹{totalSavingsRupees.toFixed(0)} ({savings.percent.toFixed(0)}%)
+                </span>
+              </div>
+            )}
+            {netSavingsAfterFees > 0 && (
+              <p className="mb-2 text-xs font-medium text-green-600 dark:text-green-400">
+                Net savings after fees: ₹{netSavingsAfterFees.toFixed(0)}
+              </p>
+            )}
             {pricing.slabDiscount > 0 && (
               <div className="mb-2 flex justify-between text-sm">
                 <span className="text-success font-medium">{t("discount")} ({pricing.slabRate * 100}%)</span>
@@ -257,8 +281,11 @@ export default function Cart() {
             <p className="mb-1 text-xs text-muted-foreground">
               Delivery in T+1 (next day); T+2 possible for some areas/orders.
             </p>
+            {totalSavingsRupees > 0 && (
+              <p className="mb-1 text-xs text-muted-foreground">Buy more to save even more!</p>
+            )}
             <p className="mb-2 text-xs text-muted-foreground flex items-center gap-1">
-              <HelpCircle size={12} className="shrink-0" title="Flat ₹30 covers delivery, loading/unloading (hamali), and handling. ₹5 platform fee supports Haathpe." />
+              <HelpCircle size={12} className="shrink-0" title="Flat ₹30 covers delivery, loading/unloading (hamali), and handling. ₹5 platform fee supports Haathpe. Savings vs. average local market rates." />
               Flat ₹30 covers delivery, hamali & handling. ₹5 supports Haathpe.
             </p>
             <div className="mb-4 flex justify-between border-t border-border pt-2 text-base">

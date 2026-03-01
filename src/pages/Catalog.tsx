@@ -160,6 +160,7 @@ export default function Catalog() {
 
   const handleAddCatalog = (p: CatalogProduct, qty: number, variant?: ProductVariant | null) => {
     const product = catalogProductToProduct(p, variant ?? undefined);
+    const referencePricePaise = p.reference_price ?? p.mrp ?? undefined;
     if (variant) {
       addItem(product, qty, {
         variantId: variant.id,
@@ -167,6 +168,7 @@ export default function Catalog() {
         pricePaise: variant.variant_price,
         gstRate: p.gst_rate,
         mrpPaise: p.mrp,
+        referencePricePaise,
       });
     } else {
       addItem(product, qty, {
@@ -175,6 +177,7 @@ export default function Catalog() {
         pricePaise: p.selling_price,
         gstRate: p.gst_rate,
         mrpPaise: p.mrp,
+        referencePricePaise,
       });
     }
     toast.success(`${product.name} ${t("addedToCart")}`);

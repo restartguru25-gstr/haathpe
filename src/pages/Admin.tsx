@@ -332,6 +332,7 @@ export default function Admin() {
     description_te: "",
     mrp: "",
     selling_price: "",
+    reference_price: "",
     discount_percent: 0,
     gst_rate: 5,
     image_url: "",
@@ -933,6 +934,7 @@ export default function Admin() {
       description_te: product?.description_te ?? "",
       mrp: product != null ? String(product.mrp / 100) : "",
       selling_price: product != null ? String(product.selling_price / 100) : "",
+      reference_price: product?.reference_price != null ? String(product.reference_price / 100) : "",
       discount_percent: product?.discount_percent ?? 0,
       gst_rate: product?.gst_rate ?? 5,
       image_url: product?.image_url ?? "",
@@ -949,6 +951,7 @@ export default function Admin() {
     }
     const mrpPaise = Math.round(parseFloat(productForm.mrp || "0") * 100);
     const sellingPaise = Math.round(parseFloat(productForm.selling_price || "0") * 100);
+    const referencePaise = productForm.reference_price ? Math.round(parseFloat(productForm.reference_price) * 100) : null;
     const result = await upsertCatalogProduct({
       id: editingProduct?.id,
       name: productForm.name.trim(),
@@ -960,6 +963,7 @@ export default function Admin() {
       description_te: productForm.description_te.trim() || null,
       mrp: mrpPaise,
       selling_price: sellingPaise,
+      reference_price: referencePaise,
       discount_percent: productForm.discount_percent,
       gst_rate: productForm.gst_rate,
       image_url: productForm.image_url.trim() || null,
@@ -3520,6 +3524,10 @@ export default function Admin() {
             <div>
               <Label>Selling price (₹)</Label>
               <Input type="number" min={0} step={0.01} value={productForm.selling_price} onChange={(e) => setProductForm((f) => ({ ...f, selling_price: e.target.value }))} placeholder="e.g. 55" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Reference price (₹) — for savings display</Label>
+              <Input type="number" min={0} step={0.01} value={productForm.reference_price} onChange={(e) => setProductForm((f) => ({ ...f, reference_price: e.target.value }))} placeholder="Market/MRP for comparison" className="mt-1.5" />
             </div>
             <div>
               <Label>Discount %</Label>

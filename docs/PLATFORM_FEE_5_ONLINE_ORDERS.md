@@ -1,5 +1,14 @@
 # ₹5 Platform Fee — Online Orders Flow
 
+## B2B Catalog — Potential Savings (Economies of Scale)
+
+- **Reference price:** `catalog_products.reference_price` (paise) — market/MRP for comparison. Admin-editable in Catalog Products form.
+- **Per product:** savings = reference_price − selling_price (× qty). **Total savings ₹** = sum over items. **Savings %** = (total savings / sum(reference × qty)) × 100.
+- **Cart/checkout:** Shows "You Save ₹XXX (YY%)" in a green badge, strikethrough reference price on item rows, optional "Net savings after fees: ₹(savings − 35)" when savings > ₹35. Tooltip: "Savings vs. average local market rates. Haathpe helps you buy smarter with economies of scale!"
+- **Only for B2B/catalog orders.** Encouragement note: "Buy more to save even more!"
+
+---
+
 ## B2B Catalog Orders (Vendor Buying Supplies)
 
 - **Buyer pays:** subtotal + **₹30** (Delivery + Hamali + Other) + **₹5** (Platform Fee).

@@ -30,6 +30,8 @@ export interface CartItem {
   pricePaise?: number;
   gstRate?: number;
   mrpPaise?: number;
+  /** Reference/market price (paise) for B2B savings display */
+  referencePricePaise?: number;
 }
 
 export const products: Product[] = [

@@ -33,6 +33,8 @@ export interface CatalogProduct {
   description_te: string | null;
   mrp: number;
   selling_price: number;
+  /** Market/reference price (paise) for savings display. Null = no comparison. */
+  reference_price?: number | null;
   discount_percent: number;
   gst_rate: number;
   image_url: string | null;
@@ -68,7 +70,7 @@ export async function getCatalogProducts(opts?: {
   let q = supabase
     .from("catalog_products")
     .select(
-      "id, name, name_hi, name_te, category_id, description, description_hi, description_te, mrp, selling_price, discount_percent, gst_rate, image_url, stock_quantity, is_eco, categories(id, name, sector_id, gst_rate), product_variants(id, product_id, variant_label, variant_price, variant_stock, weight_unit)"
+      "id, name, name_hi, name_te, category_id, description, description_hi, description_te, mrp, selling_price, reference_price, discount_percent, gst_rate, image_url, stock_quantity, is_eco, categories(id, name, sector_id, gst_rate), product_variants(id, product_id, variant_label, variant_price, variant_stock, weight_unit)"
     )
     .order("name");
   if (opts?.categoryId) q = q.eq("category_id", opts.categoryId);
@@ -89,7 +91,7 @@ export async function getCatalogProductById(id: string): Promise<CatalogProduct 
   const { data, error } = await supabase
     .from("catalog_products")
     .select(
-      "id, name, name_hi, name_te, category_id, description, description_hi, description_te, mrp, selling_price, discount_percent, gst_rate, image_url, stock_quantity, is_eco, categories(id, name, sector_id, gst_rate), product_variants(id, product_id, variant_label, variant_price, variant_stock, weight_unit)"
+      "id, name, name_hi, name_te, category_id, description, description_hi, description_te, mrp, selling_price, reference_price, discount_percent, gst_rate, image_url, stock_quantity, is_eco, categories(id, name, sector_id, gst_rate), product_variants(id, product_id, variant_label, variant_price, variant_stock, weight_unit)"
     )
     .eq("id", id)
     .maybeSingle();

@@ -161,6 +161,7 @@ export interface CatalogProductAdmin {
   description_te: string | null;
   mrp: number;
   selling_price: number;
+  reference_price: number | null;
   discount_percent: number;
   gst_rate: number;
   image_url: string | null;
@@ -171,7 +172,7 @@ export interface CatalogProductAdmin {
 export async function getCatalogProductsAdmin(categoryId?: string): Promise<CatalogProductAdmin[]> {
   let q = supabase
     .from("catalog_products")
-    .select("id, name, name_hi, name_te, category_id, description, description_hi, description_te, mrp, selling_price, discount_percent, gst_rate, image_url, stock_quantity, is_eco")
+    .select("id, name, name_hi, name_te, category_id, description, description_hi, description_te, mrp, selling_price, reference_price, discount_percent, gst_rate, image_url, stock_quantity, is_eco")
     .order("name");
   if (categoryId) q = q.eq("category_id", categoryId);
   const { data, error } = await q;
@@ -190,6 +191,7 @@ export async function upsertCatalogProduct(payload: {
   description_te?: string | null;
   mrp: number;
   selling_price: number;
+  reference_price?: number | null;
   discount_percent?: number;
   gst_rate?: number;
   image_url?: string | null;
@@ -207,6 +209,7 @@ export async function upsertCatalogProduct(payload: {
       description_te: payload.description_te ?? null,
       mrp: payload.mrp,
       selling_price: payload.selling_price,
+      reference_price: payload.reference_price ?? null,
       discount_percent: payload.discount_percent ?? 0,
       gst_rate: payload.gst_rate ?? 5,
       image_url: payload.image_url ?? null,
