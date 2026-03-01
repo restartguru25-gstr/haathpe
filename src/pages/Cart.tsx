@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const INDIAN_DATE = () => new Date().toISOString().slice(0, 10);
+const PLATFORM_FEE_ONLINE = 5; // Flat ₹5 for online orders → Haathpe revenue
 
 function getProductName(p: Product, lang: "en" | "hi" | "te"): string {
   if (lang === "hi") return p.nameHi;
@@ -49,6 +50,8 @@ export default function Cart() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const finalTotal = pricing.finalTotal;
+  const platformFee = isCcavenueConfigured() ? PLATFORM_FEE_ONLINE : 0;
+  const amountToCharge = finalTotal + platformFee;
   const hasGst = pricing.gstTotal > 0;
   const hasEco = cart.some((item) => item.product.eco);
 
@@ -82,11 +85,12 @@ export default function Cart() {
       const db = supabase;
       const orderPayload = {
         user_id: userId,
-        total: Math.round(finalTotal),
+        total: Math.round(amountToCharge),
         status: "pending",
         gst_total: hasGst ? Math.round(pricing.gstTotal) : null,
         subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
         eco_flag: hasEco,
+        platform_fee_amount: platformFee,
       };
       const orderRes = await db.from("orders").insert(orderPayload).select("id").single();
       const order = orderRes.data as { id: string } | null;
@@ -117,10 +121,10 @@ export default function Cart() {
 
       const ccaRes = await createCcaOrder({
         order_id: order.id,
-        order_amount: Math.round(finalTotal),
+        order_amount: Math.round(amountToCharge),
         customer_id: userId,
         return_to: `${window.location.origin}/payment/return`,
-        order_note: `Cart order ${order.id} – ₹${finalTotal.toFixed(0)}`,
+        order_note: `Cart order ${order.id} – ₹${amountToCharge.toFixed(0)}`,
       });
 
       if (!ccaRes.ok) {
@@ -233,9 +237,15 @@ export default function Cart() {
                 <span className="font-semibold">₹{pricing.gstTotal.toFixed(2)}</span>
               </div>
             )}
+            {platformFee > 0 && (
+              <div className="mb-2 flex justify-between text-sm text-muted-foreground">
+                <span>Platform Fee</span>
+                <span>₹{platformFee.toFixed(0)}</span>
+              </div>
+            )}
             <div className="mb-4 flex justify-between border-t border-border pt-2 text-base">
               <span className="font-bold">{t("total")}</span>
-              <span className="font-extrabold text-primary">₹{finalTotal.toFixed(2)}</span>
+              <span className="font-extrabold text-primary">₹{amountToCharge.toFixed(2)}</span>
             </div>
 
             {pricing.subtotalInclusive >= 1000 && (
@@ -267,7 +277,7 @@ export default function Cart() {
                 ? "Redirecting to payment…"
                 : placing
                   ? "Placing…"
-                  : `${t("placeOrder")} · ₹${finalTotal}`}
+                  : `${t("placeOrder")} · ₹${amountToCharge.toFixed(0)}`}
             </Button>
 
             <AlertDialog open={redirectingToPayment}>

@@ -93,6 +93,7 @@ import {
 } from "@/lib/incentives";
 import { getAdminAds, getAdminAdPlacements, updateAdPlacement, upsertAd, deleteAd, uploadAdImage, type Ad } from "@/lib/ads";
 import { getOndcOrdersForAdmin, type OndcOrder } from "@/lib/ondcOrders";
+import { getPlatformRevenueSummary } from "@/lib/platformFees";
 import {
   getAdminRentalPayouts,
   markRentalPayoutPaid,
@@ -167,6 +168,7 @@ interface AdminOrder {
   total: number;
   status: string;
   created_at: string;
+  platform_fee_amount?: number;
   order_items?: { product_name: string; qty: number; unit_price: number }[];
 }
 
@@ -375,11 +377,13 @@ export default function Admin() {
     setLoadingVendors(false);
   };
 
+  const [platformRevenue, setPlatformRevenue] = useState<{ total: number; count: number }>({ total: 0, count: 0 });
+
   const loadOrders = async () => {
     setLoadingOrders(true);
     const { data, error } = await supabase
       .from("orders")
-      .select("id, user_id, total, status, created_at, order_items(product_name, qty, unit_price)")
+      .select("id, user_id, total, status, created_at, platform_fee_amount, order_items(product_name, qty, unit_price)")
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) {
@@ -389,6 +393,11 @@ export default function Admin() {
       setOrders((data ?? []) as AdminOrder[]);
     }
     setLoadingOrders(false);
+  };
+
+  const loadPlatformRevenue = async () => {
+    const summary = await getPlatformRevenueSummary();
+    setPlatformRevenue(summary);
   };
 
   const loadAllSwaps = async () => {
@@ -683,6 +692,7 @@ export default function Admin() {
     if (isAdmin) {
       loadVendors();
       loadOrders();
+      loadPlatformRevenue();
       loadAllSwaps();
       loadRedemptions();
       loadSvanidhiRequests();
@@ -1550,6 +1560,7 @@ export default function Admin() {
                       <th className="text-left p-3 font-semibold">Order</th>
                       <th className="text-left p-3 font-semibold">Date</th>
                       <th className="text-right p-3 font-semibold">Total</th>
+                      <th className="text-right p-3 font-semibold">Platform Fee</th>
                       <th className="text-left p-3 font-semibold">Status</th>
                       <th className="w-40 p-3 text-right">Actions</th>
                     </tr>
@@ -1573,6 +1584,9 @@ export default function Admin() {
                           })}
                         </td>
                         <td className="p-3 text-right font-semibold">₹{o.total}</td>
+                        <td className="p-3 text-right text-muted-foreground">
+                          {(o.platform_fee_amount ?? 0) > 0 ? `₹${o.platform_fee_amount}` : "—"}
+                        </td>
                         <td className="p-3">
                           <Select
                             value={o.status}

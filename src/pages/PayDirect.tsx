@@ -66,6 +66,9 @@ export default function PayDirect() {
     setAmount(String(val));
   };
 
+  const platformFee = 5; // Flat ₹5 for online orders → Haathpe revenue
+  const totalWithPlatformFee = amountNum + platformFee;
+
   const handlePay = async () => {
     if (!vendorId || !canPay) return;
     setPaying(true);
@@ -74,6 +77,7 @@ export default function PayDirect() {
         customerPhone: customer?.phone ?? null,
         customerId: customer?.id ?? null,
         note: note.trim() || undefined,
+        isOnlinePayment: isCcavenueConfigured(),
       });
       if (result.ok && result.id) {
         const vendorName = vendor?.name ?? "Dukaanwaala";
@@ -81,11 +85,11 @@ export default function PayDirect() {
         if (isCcavenueConfigured()) {
           const ccaRes = await createCcaOrder({
             order_id: result.id,
-            order_amount: amountNum,
+            order_amount: totalWithPlatformFee,
             customer_phone: customer?.phone ?? undefined,
             customer_id: customer?.id ?? undefined,
             return_to: `${window.location.origin}/payment/return`,
-            order_note: `Direct payment ₹${amountNum} – ${vendorName}`,
+            order_note: `Direct payment ₹${amountNum} + Platform fee ₹${platformFee} – ${vendorName}`,
           });
           if (ccaRes.ok) {
             setPaying(false);
@@ -107,7 +111,7 @@ export default function PayDirect() {
             order_id: result.id,
             vendor_id: vendorId,
             vendor_name: vendor?.name ?? undefined,
-            total: amountNum,
+            total: totalWithPlatformFee,
             items: [{ item_name: "Direct payment", qty: 1, price: amountNum }],
             created_at: new Date().toISOString(),
           });
@@ -271,6 +275,24 @@ export default function PayDirect() {
           />
         </div>
 
+        {/* Order summary when paying online: Amount + Platform Fee ₹5 */}
+        {canPay && isCcavenueConfigured() && (
+          <div className="mb-4 p-3 rounded-xl border border-border bg-muted/30 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Amount</span>
+              <span>₹{amountNum.toLocaleString("en-IN")}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Platform Fee</span>
+              <span>₹{platformFee}</span>
+            </div>
+            <div className="flex justify-between font-semibold pt-1 border-t border-border">
+              <span>Total</span>
+              <span>₹{totalWithPlatformFee.toLocaleString("en-IN")}</span>
+            </div>
+          </div>
+        )}
+
         {/* Pay button */}
         <div className="mt-auto pt-4">
           <motion.div
@@ -283,7 +305,7 @@ export default function PayDirect() {
               onClick={handlePay}
             >
               <Wallet size={22} />
-              {paying ? "Processing…" : `Pay ₹${amountNum > 0 ? amountNum.toLocaleString("en-IN") : "0"}`}
+              {paying ? "Processing…" : `Pay ₹${amountNum > 0 ? (isCcavenueConfigured() ? totalWithPlatformFee : amountNum).toLocaleString("en-IN") : "0"}`}
             </Button>
           </motion.div>
           <p className="mt-3 text-center text-xs text-muted-foreground">

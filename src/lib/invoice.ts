@@ -21,6 +21,9 @@ export interface CustomerReceiptData {
   status: string;
   vendor_name: string | null;
   items: { item_name: string; qty: number; price?: number }[];
+  subtotal?: number;
+  delivery_fee_amount?: number;
+  platform_fee_amount?: number;
   total: number;
 }
 
@@ -56,7 +59,13 @@ export function buildCustomerReceiptLines(receipt: CustomerReceiptData): string[
   if (receipt.items.length === 0) {
     lines.push("Order total");
   }
-  lines.push("------", `Total: ₹${receipt.total}`, "", "Thank you for your order.");
+  lines.push("------");
+  if (receipt.subtotal != null || (receipt.delivery_fee_amount ?? 0) > 0 || (receipt.platform_fee_amount ?? 0) > 0) {
+    if (receipt.subtotal != null) lines.push(`Products: ₹${receipt.subtotal}`);
+    if ((receipt.delivery_fee_amount ?? 0) > 0) lines.push(`Delivery: ₹${receipt.delivery_fee_amount}`);
+    if ((receipt.platform_fee_amount ?? 0) > 0) lines.push(`Platform Fee: ₹${receipt.platform_fee_amount}`);
+  }
+  lines.push(`Total: ₹${receipt.total}`, "", "Thank you for your order.");
   return appendMarketingToLines(lines);
 }
 
@@ -114,6 +123,21 @@ export function downloadCustomerReceiptPdf(receipt: CustomerReceiptData): void {
     y += 4;
   }
 
+  if (receipt.subtotal != null || (receipt.delivery_fee_amount ?? 0) > 0 || (receipt.platform_fee_amount ?? 0) > 0) {
+    doc.setFont("helvetica", "normal");
+    if (receipt.subtotal != null) {
+      doc.text(`Products: ₹${receipt.subtotal}`, 14, y);
+      y += 6;
+    }
+    if ((receipt.delivery_fee_amount ?? 0) > 0) {
+      doc.text(`Delivery: ₹${receipt.delivery_fee_amount}`, 14, y);
+      y += 6;
+    }
+    if ((receipt.platform_fee_amount ?? 0) > 0) {
+      doc.text(`Platform Fee: ₹${receipt.platform_fee_amount}`, 14, y);
+      y += 6;
+    }
+  }
   doc.setFont("helvetica", "bold");
   doc.text(`Total: ₹${receipt.total}`, 14, y);
   y += 8;

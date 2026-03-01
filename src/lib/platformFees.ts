@@ -230,3 +230,18 @@ export async function getPlatformFeeSummaryThisMonth(): Promise<FeeSummary> {
     order_count: Number(row.order_count ?? 0),
   };
 }
+
+/** Platform revenue from flat ₹5 per online order (customer_orders + catalog orders). */
+export interface PlatformRevenueSummary {
+  total: number;
+  count: number;
+}
+
+/** Get total platform revenue (₹5/order) — for admin dashboard. */
+export async function getPlatformRevenueSummary(): Promise<PlatformRevenueSummary> {
+  const { data, error } = await supabase.from("platform_revenue").select("amount");
+  if (error) return { total: 0, count: 0 };
+  const rows = (data ?? []) as { amount: number }[];
+  const total = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+  return { total, count: rows.length };
+}

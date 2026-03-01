@@ -127,6 +127,8 @@ serve(async (req) => {
             .eq("id", orderId);
           await supabase.rpc("award_coins_for_paid_order", { p_order_id: orderId });
           await supabase.rpc("credit_vendor_receipt_from_order", { p_order_id: orderId });
+          // ₹5 platform fee collected from customer → Haathpe revenue (online orders only)
+          await supabase.rpc("record_platform_revenue_from_order", { p_order_id: orderId });
         }
 
         const location = buildRedirectUrl(returnTo, {
@@ -148,6 +150,7 @@ serve(async (req) => {
         if (isSuccess) {
           await supabase.from("orders").update({ status: "paid" }).eq("id", orderId);
           await supabase.rpc("award_coins_for_paid_order", { p_order_id: orderId });
+          await supabase.rpc("record_platform_revenue_from_catalog_order", { p_order_id: orderId });
         }
         const location = buildRedirectUrl(returnTo, {
           order_id: orderId,

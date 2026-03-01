@@ -236,8 +236,16 @@ export async function addCustomVendorMenuItem(
 export async function createDirectPaymentOrder(
   vendorId: string,
   amount: number,
-  opts?: { customerPhone?: string | null; customerId?: string | null; note?: string | null }
+  opts?: {
+    customerPhone?: string | null;
+    customerId?: string | null;
+    note?: string | null;
+    /** If true, add flat ₹5 platform fee (customer total = amount + 5); online payment. */
+    isOnlinePayment?: boolean;
+  }
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const platformFee = opts?.isOnlinePayment ? 5 : 0;
+  const total = amount + platformFee;
   const items: CustomerOrderItem[] = [
     { item_name: opts?.note?.trim() ? `Direct payment – ${opts.note.trim().slice(0, 80)}` : "Direct payment", qty: 1, price: amount, gst_rate: 0, gst: 0 },
   ];
@@ -247,10 +255,13 @@ export async function createDirectPaymentOrder(
     items,
     subtotal: amount,
     gst_amount: 0,
-    total: amount,
-    payment_method: "upi",
+    total,
+    payment_method: opts?.isOnlinePayment ? "online" : "upi",
     status: "pending",
     delivery_option: "pickup",
+    delivery_fee_amount: 0,
+    platform_fee_amount: platformFee,
+    is_online: !!opts?.isOnlinePayment,
   });
 }
 
@@ -272,9 +283,27 @@ export async function createCustomerOrder(
     wallet_used?: number;
     coins_awarded?: number;
     rider_id?: string | null;
+    /** Flat ₹5 platform fee for online orders; 0 for POS/pay-at-dukaan */
+    delivery_fee_amount?: number;
+    platform_fee_amount?: number;
+    is_online?: boolean;
   }
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const { platform_fee, vendor_amount } = await calculatePlatformFee(vendorId, payload.total);
+  const deliveryFee = payload.delivery_fee_amount ?? 0;
+  const platformFeeAmount = payload.platform_fee_amount ?? 0;
+  const isOnline = payload.is_online ?? false;
+
+  let platform_fee: number;
+  let vendor_amount: number;
+  if (isOnline && platformFeeAmount >= 0) {
+    // Online: flat platform fee from customer; vendor gets subtotal - 1.2% (computed in credit_vendor_receipt_from_order)
+    platform_fee = platformFeeAmount;
+    vendor_amount = Math.round((payload.subtotal * (1 - 0.012)) * 100) / 100;
+  } else {
+    const calc = await calculatePlatformFee(vendorId, payload.total);
+    platform_fee = calc.platform_fee;
+    vendor_amount = calc.vendor_amount;
+  }
 
   const { data, error } = await supabase
     .from("customer_orders")
@@ -294,6 +323,9 @@ export async function createCustomerOrder(
       delivery_address: payload.delivery_address ?? null,
       platform_fee,
       vendor_amount,
+      delivery_fee_amount: deliveryFee,
+      platform_fee_amount: platformFeeAmount,
+      is_online: isOnline,
       wallet_used: payload.wallet_used ?? 0,
       coins_awarded: payload.coins_awarded ?? 0,
       rider_id: payload.rider_id ?? null,
@@ -338,6 +370,9 @@ export interface CustomerOrderReceipt {
   status: string;
   vendor_name: string | null;
   items: { item_name: string; qty: number; price?: number }[];
+  subtotal: number;
+  delivery_fee_amount: number;
+  platform_fee_amount: number;
   total: number;
 }
 
@@ -353,6 +388,9 @@ export async function getCustomerOrderReceipt(orderId: string): Promise<Customer
     status: string;
     vendor_name: string | null;
     items: { item_name: string; qty: number; price?: number }[] | null;
+    subtotal?: number;
+    delivery_fee_amount?: number;
+    platform_fee_amount?: number;
     total: number;
   };
   return {
@@ -361,6 +399,9 @@ export async function getCustomerOrderReceipt(orderId: string): Promise<Customer
     status: row.status,
     vendor_name: row.vendor_name ?? null,
     items: Array.isArray(row.items) ? row.items : [],
+    subtotal: Number(row.subtotal ?? 0),
+    delivery_fee_amount: Number(row.delivery_fee_amount ?? 0),
+    platform_fee_amount: Number(row.platform_fee_amount ?? 0),
     total: Number(row.total ?? 0),
   };
 }

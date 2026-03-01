@@ -34,6 +34,8 @@ function cartToOrderItems(lines: CartLine[]): CustomerOrderItem[] {
   });
 }
 
+const PLATFORM_FEE_ONLINE = 5; // Flat ₹5 platform fee for online orders → Haathpe revenue
+
 function cartTotals(lines: CartLine[]) {
   let subtotal = 0;
   let gstAmount = 0;
@@ -42,7 +44,7 @@ function cartTotals(lines: CartLine[]) {
     subtotal += lineTotal;
     gstAmount += (lineTotal * item.gst_rate) / 100;
   }
-  return { subtotal, gstAmount, total: subtotal + gstAmount };
+  return { subtotal, gstAmount };
 }
 
 export default function PublicMenu() {
@@ -174,7 +176,10 @@ export default function PublicMenu() {
     });
   };
 
-  const { total } = cartTotals(cart);
+  const { subtotal: productsSubtotal, gstAmount } = cartTotals(cart);
+  const deliveryFee = deliveryOption === "self_delivery" ? 0 : 0; // Placeholder: actual rider charges when integrated
+  const platformFee = paymentMethod === "online" ? PLATFORM_FEE_ONLINE : 0;
+  const total = productsSubtotal + gstAmount + deliveryFee + platformFee;
   const bonusValid = isCustomer && bonusRemaining > 0 && !!bonusExpiresAt && new Date(bonusExpiresAt) > new Date();
   const bonusEligible = bonusValid && total >= 55 && walletBalance >= 5;
   const bonusToUse = isCustomer && useSignupBonus && bonusEligible ? 5 : 0;
@@ -203,13 +208,12 @@ export default function PublicMenu() {
     setPlacing(true);
     try {
       const items = cartToOrderItems(cart);
-      const { subtotal, gstAmount } = cartTotals(cart);
       const coinsToAward = customer ? await getCoinsPerPayment() : 0;
       const payAtCounter = paymentMethod === "at_dukaan" || (payAtDukaan > 0 && !isCcavenueConfigured());
       const riderId = riderParam ? await getRiderIdByQrCode(riderParam) : null;
       const result = await createCustomerOrder(vendorId, {
         items,
-        subtotal,
+        subtotal: productsSubtotal,
         gst_amount: gstAmount,
         total,
         payment_method: payAtCounter ? "cash" : "online",
@@ -222,6 +226,9 @@ export default function PublicMenu() {
         wallet_used: walletToUse + bonusToUse,
         coins_awarded: 0,
         rider_id: riderId,
+        delivery_fee_amount: deliveryFee,
+        platform_fee_amount: platformFee,
+        is_online: paymentMethod === "online",
       });
       if (!result.ok || !result.id) {
         toast.error(result.error ?? "Failed");
@@ -654,9 +661,27 @@ export default function PublicMenu() {
                 <div className="lg:sticky lg:top-24 space-y-4 rounded-xl border border-border bg-card p-5">
                   <h3 className="font-semibold text-lg">Your order</h3>
                   <p className="text-xs text-muted-foreground">{t("gstNote")}</p>
-                  <div className="flex justify-between text-sm">
-                    <span>Total</span>
-                    <span>₹{total.toFixed(0)}</span>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Products</span>
+                      <span>₹{(productsSubtotal + gstAmount).toFixed(0)}</span>
+                    </div>
+                    {deliveryFee > 0 && (
+                      <div className="flex justify-between">
+                        <span>Delivery</span>
+                        <span>₹{deliveryFee.toFixed(0)}</span>
+                      </div>
+                    )}
+                    {platformFee > 0 && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Platform Fee</span>
+                        <span>₹{platformFee.toFixed(0)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium pt-1">
+                      <span>Total</span>
+                      <span>₹{total.toFixed(0)}</span>
+                    </div>
                   </div>
                   {bonusToUse > 0 && (
                     <div className="flex justify-between text-sm text-[#B8860B]">
