@@ -1,5 +1,16 @@
 # ₹5 Platform Fee — Online Orders Flow
 
+## B2B Catalog Orders (Vendor Buying Supplies)
+
+- **Buyer pays:** subtotal + **₹30** (Delivery + Hamali + Other) + **₹5** (Platform Fee).
+- **Delivery:** T+1 (next business day); T+2 in some cases (note in UI).
+- **₹30** covers delivery, loading/unloading (hamali), handling; platform pays logistics (tracked in `orders.delivery_hamali_fee_amount`).
+- **₹5** → Haathpe revenue (`platform_revenue`, source `catalog_order`).
+- **Seller** (catalog): receives subtotal − 1.2% if applied to B2B; no deduction for ₹30/₹5 from seller.
+- **Refunds:** When implemented, reverse ₹5 and ₹30 if order cancelled.
+
+---
+
 ## Self Delivery (Launch Phase)
 
 - **Delivery options:** Pickup | **Self Delivery** (vendor delivers, ₹0) | **Platform Delivery (Coming Soon)**.

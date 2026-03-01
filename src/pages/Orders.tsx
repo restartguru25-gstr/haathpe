@@ -24,6 +24,9 @@ interface DisplayOrder {
   status: "pending" | "delivered" | "in-transit";
   gst_total?: number | null;
   subtotal_before_tax?: number | null;
+  platform_fee_amount?: number;
+  delivery_hamali_fee_amount?: number;
+  expected_delivery_type?: string | null;
   items?: { product: Product; qty: number; variant_id?: string | null; variant_label?: string | null; gst_rate?: number | null; unit_price?: number }[];
 }
 
@@ -61,7 +64,7 @@ export default function Orders() {
       try {
         const { data } = await supabase
           .from("orders")
-          .select("id, total, status, created_at, gst_total, subtotal_before_tax, order_items(product_id, product_name, qty, unit_price, variant_label, gst_rate)")
+          .select("id, total, status, created_at, gst_total, subtotal_before_tax, platform_fee_amount, delivery_hamali_fee_amount, expected_delivery_type, order_items(product_id, product_name, qty, unit_price, variant_label, gst_rate)")
           .order("created_at", { ascending: false });
         if (data && data.length > 0) {
           const orderItems = data as Array<{
@@ -71,6 +74,9 @@ export default function Orders() {
             created_at: string;
             gst_total?: number | null;
             subtotal_before_tax?: number | null;
+            platform_fee_amount?: number;
+            delivery_hamali_fee_amount?: number;
+            expected_delivery_type?: string | null;
             order_items?: Array<{ product_id: string; product_name: string; qty: number; unit_price: number; variant_id?: string | null; variant_label?: string | null; gst_rate?: number | null }>;
           }>;
           setOrders(
@@ -109,6 +115,9 @@ export default function Orders() {
                 status: o.status as "pending" | "delivered" | "in-transit",
                 gst_total: o.gst_total,
                 subtotal_before_tax: o.subtotal_before_tax,
+                platform_fee_amount: o.platform_fee_amount,
+                delivery_hamali_fee_amount: o.delivery_hamali_fee_amount,
+                expected_delivery_type: o.expected_delivery_type,
                 items,
               };
             })
@@ -218,6 +227,15 @@ export default function Orders() {
     if (invoiceOrder.subtotal_before_tax != null && invoiceOrder.gst_total != null) {
       lines.push(`Subtotal: ₹${invoiceOrder.subtotal_before_tax}`, `GST: ₹${invoiceOrder.gst_total}`);
     }
+    if ((invoiceOrder.delivery_hamali_fee_amount ?? 0) > 0) {
+      lines.push(`Delivery + Hamali + Other Charges: ₹${invoiceOrder.delivery_hamali_fee_amount}`);
+    }
+    if ((invoiceOrder.platform_fee_amount ?? 0) > 0) {
+      lines.push(`Platform Fee: ₹${invoiceOrder.platform_fee_amount}`);
+    }
+    if (invoiceOrder.expected_delivery_type) {
+      lines.push(`Expected delivery: ${invoiceOrder.expected_delivery_type}`);
+    }
     lines.push(`Total: ₹${invoiceOrder.total}`, "", "Thank you for your order.");
     const text = appendMarketingToLines(lines).join("\n");
     const w = window.open("", "_blank");
@@ -254,6 +272,15 @@ export default function Orders() {
     lines.push("------");
     if (invoiceOrder.subtotal_before_tax != null && invoiceOrder.gst_total != null) {
       lines.push(`Subtotal: ₹${invoiceOrder.subtotal_before_tax}`, `GST: ₹${invoiceOrder.gst_total}`);
+    }
+    if ((invoiceOrder.delivery_hamali_fee_amount ?? 0) > 0) {
+      lines.push(`Delivery + Hamali + Other Charges: ₹${invoiceOrder.delivery_hamali_fee_amount}`);
+    }
+    if ((invoiceOrder.platform_fee_amount ?? 0) > 0) {
+      lines.push(`Platform Fee: ₹${invoiceOrder.platform_fee_amount}`);
+    }
+    if (invoiceOrder.expected_delivery_type) {
+      lines.push(`Expected delivery: ${invoiceOrder.expected_delivery_type}`);
     }
     lines.push(`Total: ₹${invoiceOrder.total}`, "", "Thank you for your order.");
     const blob = new Blob([appendMarketingToLines(lines).join("\n")], { type: "text/plain" });
@@ -328,6 +355,21 @@ export default function Orders() {
       doc.text(`Subtotal (before tax): ₹${invoiceOrder.subtotal_before_tax}`, 14, y);
       y += 6;
       doc.text(`GST: ₹${invoiceOrder.gst_total}`, 14, y);
+      y += 6;
+    }
+    if ((invoiceOrder.delivery_hamali_fee_amount ?? 0) > 0) {
+      doc.setFont("helvetica", "normal");
+      doc.text(`Delivery + Hamali + Other Charges: ₹${invoiceOrder.delivery_hamali_fee_amount}`, 14, y);
+      y += 6;
+    }
+    if ((invoiceOrder.platform_fee_amount ?? 0) > 0) {
+      doc.setFont("helvetica", "normal");
+      doc.text(`Platform Fee: ₹${invoiceOrder.platform_fee_amount}`, 14, y);
+      y += 6;
+    }
+    if (invoiceOrder.expected_delivery_type) {
+      doc.setFont("helvetica", "normal");
+      doc.text(`Expected delivery: ${invoiceOrder.expected_delivery_type}`, 14, y);
       y += 6;
     }
     doc.setFont("helvetica", "bold");
@@ -584,6 +626,21 @@ export default function Orders() {
                     <span>₹{invoiceOrder.gst_total}</span>
                   </div>
                 </>
+              )}
+              {(invoiceOrder.delivery_hamali_fee_amount ?? 0) > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Delivery + Hamali + Other</span>
+                  <span>₹{invoiceOrder.delivery_hamali_fee_amount}</span>
+                </div>
+              )}
+              {(invoiceOrder.platform_fee_amount ?? 0) > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Platform Fee</span>
+                  <span>₹{invoiceOrder.platform_fee_amount}</span>
+                </div>
+              )}
+              {invoiceOrder.expected_delivery_type && (
+                <p className="text-xs text-muted-foreground">Expected delivery: {invoiceOrder.expected_delivery_type}</p>
               )}
               <div className="flex justify-between border-t border-border pt-3 text-lg font-bold">
                 <span>{t("total")}</span>

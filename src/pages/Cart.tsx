@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Minus, Plus, Trash2, ArrowLeft, PartyPopper } from "lucide-react";
+import { Minus, Plus, Trash2, ArrowLeft, PartyPopper, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/contexts/AppContext";
 import { useCartStore, selectTotal } from "@/store/cartStore";
@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const INDIAN_DATE = () => new Date().toISOString().slice(0, 10);
-const PLATFORM_FEE_ONLINE = 5; // Flat ₹5 for online orders → Haathpe revenue
+const PLATFORM_FEE_ONLINE = 5; // Flat ₹5 for B2B catalog → Haathpe revenue
+const DELIVERY_HAMALI_FEE = 30; // B2B: delivery + loading/unloading (hamali) + handling. T+1/T+2.
 
 function getProductName(p: Product, lang: "en" | "hi" | "te"): string {
   if (lang === "hi") return p.nameHi;
@@ -51,7 +52,8 @@ export default function Cart() {
 
   const finalTotal = pricing.finalTotal;
   const platformFee = isCcavenueConfigured() ? PLATFORM_FEE_ONLINE : 0;
-  const amountToCharge = finalTotal + platformFee;
+  const deliveryHamaliFee = isCcavenueConfigured() ? DELIVERY_HAMALI_FEE : 0;
+  const amountToCharge = finalTotal + deliveryHamaliFee + platformFee;
   const hasGst = pricing.gstTotal > 0;
   const hasEco = cart.some((item) => item.product.eco);
 
@@ -91,6 +93,9 @@ export default function Cart() {
         subtotal_before_tax: hasGst ? Math.round(pricing.subtotalTaxable) : null,
         eco_flag: hasEco,
         platform_fee_amount: platformFee,
+        delivery_hamali_fee_amount: deliveryHamaliFee,
+        expected_delivery_type: "T+1",
+        is_b2b: true,
       };
       const orderRes = await db.from("orders").insert(orderPayload).select("id").single();
       const order = orderRes.data as { id: string } | null;
@@ -237,12 +242,25 @@ export default function Cart() {
                 <span className="font-semibold">₹{pricing.gstTotal.toFixed(2)}</span>
               </div>
             )}
+            {deliveryHamaliFee > 0 && (
+              <div className="mb-2 flex justify-between text-sm text-muted-foreground">
+                <span>Delivery + Hamali + Other Charges</span>
+                <span>₹{deliveryHamaliFee.toFixed(0)}</span>
+              </div>
+            )}
             {platformFee > 0 && (
               <div className="mb-2 flex justify-between text-sm text-muted-foreground">
                 <span>Platform Fee</span>
                 <span>₹{platformFee.toFixed(0)}</span>
               </div>
             )}
+            <p className="mb-1 text-xs text-muted-foreground">
+              Delivery in T+1 (next day); T+2 possible for some areas/orders.
+            </p>
+            <p className="mb-2 text-xs text-muted-foreground flex items-center gap-1">
+              <HelpCircle size={12} className="shrink-0" title="Flat ₹30 covers delivery, loading/unloading (hamali), and handling. ₹5 platform fee supports Haathpe." />
+              Flat ₹30 covers delivery, hamali & handling. ₹5 supports Haathpe.
+            </p>
             <div className="mb-4 flex justify-between border-t border-border pt-2 text-base">
               <span className="font-bold">{t("total")}</span>
               <span className="font-extrabold text-primary">₹{amountToCharge.toFixed(2)}</span>

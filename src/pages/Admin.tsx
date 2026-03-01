@@ -169,6 +169,8 @@ interface AdminOrder {
   status: string;
   created_at: string;
   platform_fee_amount?: number;
+  delivery_hamali_fee_amount?: number;
+  expected_delivery_type?: string | null;
   order_items?: { product_name: string; qty: number; unit_price: number }[];
 }
 
@@ -383,7 +385,7 @@ export default function Admin() {
     setLoadingOrders(true);
     const { data, error } = await supabase
       .from("orders")
-      .select("id, user_id, total, status, created_at, platform_fee_amount, order_items(product_name, qty, unit_price)")
+      .select("id, user_id, total, status, created_at, platform_fee_amount, delivery_hamali_fee_amount, expected_delivery_type, order_items(product_name, qty, unit_price)")
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) {
@@ -1561,6 +1563,7 @@ export default function Admin() {
                       <th className="text-left p-3 font-semibold">Date</th>
                       <th className="text-right p-3 font-semibold">Total</th>
                       <th className="text-right p-3 font-semibold">Platform Fee</th>
+                      <th className="text-right p-3 font-semibold">Delivery/Hamali</th>
                       <th className="text-left p-3 font-semibold">Status</th>
                       <th className="w-40 p-3 text-right">Actions</th>
                     </tr>
@@ -1586,6 +1589,9 @@ export default function Admin() {
                         <td className="p-3 text-right font-semibold">₹{o.total}</td>
                         <td className="p-3 text-right text-muted-foreground">
                           {(o.platform_fee_amount ?? 0) > 0 ? `₹${o.platform_fee_amount}` : "—"}
+                        </td>
+                        <td className="p-3 text-right text-muted-foreground">
+                          {(o.delivery_hamali_fee_amount ?? 0) > 0 ? `₹${o.delivery_hamali_fee_amount}` : "—"}
                         </td>
                         <td className="p-3">
                           <Select
