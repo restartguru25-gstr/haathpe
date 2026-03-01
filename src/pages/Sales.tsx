@@ -569,6 +569,9 @@ export default function Sales() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">₹{Number(o.total).toFixed(0)} · {(o.items as { item_name: string; qty: number }[]).slice(0, 2).map((i) => `${i.item_name}×${i.qty}`).join(", ")}</p>
                     <p className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString()}</p>
+                    {o.delivery_option === "self_delivery" && o.delivery_address && (
+                      <p className="text-xs text-muted-foreground mt-0.5" title="Self Delivery address">📍 {o.delivery_address}</p>
+                    )}
                   </div>
                   <select
                     value={o.status}

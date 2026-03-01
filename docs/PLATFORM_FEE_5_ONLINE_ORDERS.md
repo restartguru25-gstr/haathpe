@@ -1,5 +1,16 @@
 # ₹5 Platform Fee — Online Orders Flow
 
+## Self Delivery (Launch Phase)
+
+- **Delivery options:** Pickup | **Self Delivery** (vendor delivers, ₹0) | **Platform Delivery (Coming Soon)**.
+- Customer enters delivery address when Self Delivery is selected.
+- **Delivery fee:** ₹0 placeholder for Self Delivery (vendor can add small fee later if needed).
+- **Customer total** = subtotal + delivery_fee (₹0) + platform_fee ₹5.
+- **Vendor** receives subtotal − 1.2%; **Haathpe** keeps ₹5. No rider payout yet.
+- **Future:** Platform Delivery will use Rapido/partner; real fee (e.g. ₹25–50) added to customer total and passed to rider.
+
+---
+
 **Updated ₹5 Platform Fee Flow: Collected from Customer → Haathpe; Vendor gets subtotal -1.2%; Delivery to Riders**
 
 ## Summary

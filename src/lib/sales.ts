@@ -51,6 +51,8 @@ export interface CustomerOrder {
   status: "pending" | "prepared" | "ready" | "delivered" | "paid";
   payment_id: string | null;
   created_at: string;
+  delivery_option?: "pickup" | "self_delivery" | "platform";
+  delivery_address?: string | null;
 }
 
 const STALL_TO_SECTOR: Record<string, string> = {
@@ -373,6 +375,8 @@ export interface CustomerOrderReceipt {
   subtotal: number;
   delivery_fee_amount: number;
   platform_fee_amount: number;
+  /** pickup | self_delivery | platform — for invoice line "Delivery: ₹0 (Self)" */
+  delivery_option?: string;
   total: number;
 }
 
@@ -391,6 +395,7 @@ export async function getCustomerOrderReceipt(orderId: string): Promise<Customer
     subtotal?: number;
     delivery_fee_amount?: number;
     platform_fee_amount?: number;
+    delivery_option?: string;
     total: number;
   };
   return {
@@ -402,6 +407,7 @@ export async function getCustomerOrderReceipt(orderId: string): Promise<Customer
     subtotal: Number(row.subtotal ?? 0),
     delivery_fee_amount: Number(row.delivery_fee_amount ?? 0),
     platform_fee_amount: Number(row.platform_fee_amount ?? 0),
+    delivery_option: row.delivery_option ?? "pickup",
     total: Number(row.total ?? 0),
   };
 }

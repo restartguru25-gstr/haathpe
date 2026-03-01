@@ -24,6 +24,8 @@ export interface CustomerReceiptData {
   subtotal?: number;
   delivery_fee_amount?: number;
   platform_fee_amount?: number;
+  /** pickup | self_delivery | platform — for "Delivery: ₹0 (Self)" */
+  delivery_option?: string;
   total: number;
 }
 
@@ -60,9 +62,11 @@ export function buildCustomerReceiptLines(receipt: CustomerReceiptData): string[
     lines.push("Order total");
   }
   lines.push("------");
-  if (receipt.subtotal != null || (receipt.delivery_fee_amount ?? 0) > 0 || (receipt.platform_fee_amount ?? 0) > 0) {
+  if (receipt.subtotal != null || (receipt.delivery_fee_amount ?? 0) > 0 || (receipt.platform_fee_amount ?? 0) > 0 || receipt.delivery_option === "self_delivery") {
     if (receipt.subtotal != null) lines.push(`Products: ₹${receipt.subtotal}`);
-    if ((receipt.delivery_fee_amount ?? 0) > 0) lines.push(`Delivery: ₹${receipt.delivery_fee_amount}`);
+    const isSelfDelivery = receipt.delivery_option === "self_delivery";
+    const deliveryAmt = receipt.delivery_fee_amount ?? 0;
+    if (deliveryAmt > 0 || isSelfDelivery) lines.push(`Delivery: ₹${deliveryAmt}${isSelfDelivery ? " (Self)" : ""}`);
     if ((receipt.platform_fee_amount ?? 0) > 0) lines.push(`Platform Fee: ₹${receipt.platform_fee_amount}`);
   }
   lines.push(`Total: ₹${receipt.total}`, "", "Thank you for your order.");
@@ -123,14 +127,16 @@ export function downloadCustomerReceiptPdf(receipt: CustomerReceiptData): void {
     y += 4;
   }
 
-  if (receipt.subtotal != null || (receipt.delivery_fee_amount ?? 0) > 0 || (receipt.platform_fee_amount ?? 0) > 0) {
+  const isSelfDelivery = receipt.delivery_option === "self_delivery";
+  const deliveryAmt = receipt.delivery_fee_amount ?? 0;
+  if (receipt.subtotal != null || deliveryAmt > 0 || (receipt.platform_fee_amount ?? 0) > 0 || isSelfDelivery) {
     doc.setFont("helvetica", "normal");
     if (receipt.subtotal != null) {
       doc.text(`Products: ₹${receipt.subtotal}`, 14, y);
       y += 6;
     }
-    if ((receipt.delivery_fee_amount ?? 0) > 0) {
-      doc.text(`Delivery: ₹${receipt.delivery_fee_amount}`, 14, y);
+    if (deliveryAmt > 0 || isSelfDelivery) {
+      doc.text(`Delivery: ₹${deliveryAmt}${isSelfDelivery ? " (Self)" : ""}`, 14, y);
       y += 6;
     }
     if ((receipt.platform_fee_amount ?? 0) > 0) {

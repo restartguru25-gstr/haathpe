@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy, ArrowLeft } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Check, Heart, X, Copy, ArrowLeft, HelpCircle } from "lucide-react";
 import { AdBanner } from "@/components/AdBanner";
 import { Skeleton } from "@/components/ui/skeleton";
 import MakeInIndiaFooter from "@/components/MakeInIndiaFooter";
@@ -666,10 +666,10 @@ export default function PublicMenu() {
                       <span>Products</span>
                       <span>₹{(productsSubtotal + gstAmount).toFixed(0)}</span>
                     </div>
-                    {deliveryFee > 0 && (
-                      <div className="flex justify-between">
+                    {(deliveryFee > 0 || deliveryOption === "self_delivery") && (
+                      <div className="flex justify-between text-muted-foreground">
                         <span>Delivery</span>
-                        <span>₹{deliveryFee.toFixed(0)}</span>
+                        <span>₹{deliveryFee.toFixed(0)} {deliveryOption === "self_delivery" && "(Vendor Self Delivery)"}</span>
                       </div>
                     )}
                     {platformFee > 0 && (
